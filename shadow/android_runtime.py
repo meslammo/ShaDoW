@@ -1,8 +1,6 @@
 """Android entry point for the embedded SHADOW Python runtime.
 
-MOD-20.5: make the repository's shadow/ directory importable as the
-``shadow`` package inside Chaquopy, while keeping its source root limited
-to shadow/ so the Android build does not recurse into app/build.
+MOD-22.3: seed non-sensitive owner/project context once, then run the unified runtime.
 """
 from __future__ import annotations
 import os
@@ -23,6 +21,23 @@ def _install_shadow_package_alias() -> None:
     sys.modules["shadow"] = package
 
 
+def _seed_owner_memory(runtime) -> None:
+    """Give SHADOW useful non-sensitive background without importing private history."""
+    if any("shadow-owner-profile-v1" in m.tags for m in runtime.memory.all()):
+        return
+    facts = [
+        "Owner name: محمد.",
+        "Owner prefers Egyptian colloquial Arabic, concise direct practical replies, and masculine addressing.",
+        "Assistant identity: SHADOW, with a JARVIS-inspired personal-assistant experience.",
+        "Primary project context: SHADOW Android assistant with native Android UI and embedded Python runtime.",
+        "Related project context: NEXO is an important software/game project for the owner.",
+        "Development workflow: owner often works from an Android phone and browser-based development tools.",
+        "Product preference: simple uncluttered interfaces with clear visible controls and useful automation.",
+    ]
+    for idx, text in enumerate(facts, 1):
+        runtime.memory.put(text, kind="profile", tags=("shadow-owner-profile-v1", f"profile-{idx}"), source="seed")
+
+
 def _get_runtime(home: Optional[str] = None):
     global _runtime
     if home:
@@ -31,6 +46,7 @@ def _get_runtime(home: Optional[str] = None):
     if _runtime is None:
         from runtime import ShadowRuntime
         _runtime = ShadowRuntime()
+        _seed_owner_memory(_runtime)
     return _runtime
 
 
