@@ -1,8 +1,12 @@
-"""Provider-neutral AI orchestration with real OpenAI tool execution."""
+"""Provider-neutral AI orchestration with real OpenAI tool execution.
+
+MOD-24.4: online when configured, deterministic offline failover when the network/provider is unavailable.
+"""
 from __future__ import annotations
 from dataclasses import dataclass
 import json, os
 from typing import Any, Callable, Dict, List, Optional
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 @dataclass(frozen=True)
@@ -23,23 +27,35 @@ class AIOrchestrator:
             confirmed_actions: Optional[List[str]] = None) -> Dict[str, Any]:
         profile = self.profiles.get(task, self.profiles["default"])
         provider = preferred_provider or os.getenv("SHADOW_MODEL_PROVIDER", profile.provider)
+        model = os.getenv("SHADOW_MODEL", profile.model).strip() or profile.model
         if provider == "openai":
             key = os.getenv("OPENAI_API_KEY", "").strip()
             if key:
-                return self._openai(request, key, profile, context or {}, tools or [], tool_executor, confirmed_actions or [])
+                try:
+                    return self._openai(request, key, profile, model, context or {}, tools or [], tool_executor, confirmed_actions or [])
+                except Exception as exc:
+                    return {"answer": self._offline(request, f"Online AI unavailable ({type(exc).__name__}); switched to local-safe mode."),
+                            "provider": "offline-failover", "model": "local-safe", "verified": True,
+                            "actions": [], "online_error": type(exc).__name__}
         return {"answer": self._offline(request), "provider": "offline", "model": "local-safe", "verified": True, "actions": []}
 
-    def _openai(self, request: str, key: str, profile: TaskProfile, context: Dict[str, Any],
+    def _openai(self, request: str, key: str, profile: TaskProfile, model: str, context: Dict[str, Any],
                 tools: List[Dict[str, Any]], tool_executor: Optional[Callable[[str, Dict[str, Any]], Any]],
                 confirmed_actions: List[str]) -> Dict[str, Any]:
         inputs: List[Dict[str, Any]] = [{"role":"user", "content":request}]
         if context:
-            inputs.insert(0, {"role":"system", "content":"SHADOW context: " + json.dumps(context, ensure_ascii=False)})
+            context_copy = dict(context)
+            memory = context_copy.get("memory")
+            if isinstance(memory, list) and len(memory) > 12:
+                context_copy["memory"] = memory[-12:]
+            inputs.insert(0, {"role":"system", "content":"SHADOW context. Be concise, practical, and truthful. Never claim an action happened unless a tool result verifies it. Context: " + json.dumps(context_copy, ensure_ascii=False)})
         actions: List[Dict[str, Any]] = []
         last_data: Dict[str, Any] = {}
         for _round in range(self.max_tool_rounds):
-            payload: Dict[str, Any] = {"model":profile.model, "input":inputs,
-                "max_output_tokens":profile.max_tokens, "temperature":profile.temperature}
+            payload: Dict[str, Any] = {"model":model, "input":inputs, "max_output_tokens":profile.max_tokens}
+            # GPT-5.6 and other reasoning models should use their native reasoning defaults.
+            if not model.startswith("gpt-5.6") and not model.startswith("gpt-5"):
+                payload["temperature"] = profile.temperature
             if tools:
                 payload["tools"] = tools
             data = self._post(payload, key)
@@ -47,7 +63,7 @@ class AIOrchestrator:
             calls = [x for x in data.get("output", []) if x.get("type") == "function_call"]
             if not calls or tool_executor is None:
                 return {"answer":self._extract_text(data) or "الموديل رجّع رد فاضي.",
-                        "provider":"openai", "model":profile.model, "raw":data, "actions":actions}
+                        "provider":"openai", "model":model, "raw":data, "actions":actions}
             inputs.extend(data.get("output", []))
             for call in calls:
                 name = str(call.get("name", ""))
@@ -57,18 +73,18 @@ class AIOrchestrator:
                         raise ValueError("tool arguments must be an object")
                     result = tool_executor(name, {**arguments, "confirmed": name in confirmed_actions})
                     output = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
-                    actions.append({"tool":name, "arguments":arguments, "result":output})
+                    actions.append({"tool":name,"arguments":arguments,"result":output})
                 except Exception as exc:
                     output = json.dumps({"success":False,"error":str(exc)}, ensure_ascii=False)
                     actions.append({"tool":name,"arguments":call.get("arguments"),"result":output})
                 inputs.append({"type":"function_call_output", "call_id":call.get("call_id"), "output":output})
         return {"answer":self._extract_text(last_data) or "وقفت تنفيذ الأدوات عند حد الأمان.",
-                "provider":"openai", "model":profile.model, "raw":last_data, "actions":actions,
+                "provider":"openai", "model":model, "raw":last_data, "actions":actions,
                 "tool_round_limit":self.max_tool_rounds}
 
     @staticmethod
     def _post(payload: Dict[str, Any], key: str) -> Dict[str, Any]:
-        req = Request("https://api.openai.com/v1/responses", data=json.dumps(payload).encode(),
+        req = Request("https://api.openai.com/v1/responses", data=json.dumps(payload).encode("utf-8"),
                       headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"}, method="POST")
         with urlopen(req, timeout=45) as response:
             return json.loads(response.read().decode("utf-8"))
@@ -85,14 +101,15 @@ class AIOrchestrator:
         return ""
 
     @staticmethod
-    def _offline(request: str) -> str:
+    def _offline(request: str, reason: str = "") -> str:
         r=request.strip(); low=r.lower()
         if low in {"hi","hello","hey","سلام","اهلا","أهلا","مرحبا"}:
             return "أهلاً محمد 👋 أنا SHADOW. أنا شغال محلياً دلوقتي، وتقدر تكلمني كتابة أو بالصوت."
         if "status" in low or "حالة" in low:
-            return "أنا شغال. الواجهة والصوت والذاكرة المحلية متاحين، ومحرك الذكاء السحابي غير موصل حالياً."
+            return "أنا شغال. الواجهة والصوت والذاكرة المحلية متاحين. " + (reason or "محرك الذكاء السحابي غير متاح حالياً.")
         if "مين انت" in low or "ما انت" in low or "who are you" in low:
             return "أنا SHADOW، مساعد Android بواجهة محادثة، صوت، ذاكرة محلية، وأدوات للهاتف، ومعايا Python runtime مدمج."
         if "شكرا" in low or "thanks" in low:
             return "العفو يا محمد."
-        return f"فهمت رسالتك: {r}\nأنا حالياً في الوضع المحلي الآمن. أقدر أنفذ الوظائف المحلية المتاحة، وللإجابات الذكية الكاملة يحتاج مزود AI متصل."
+        suffix = ("\n\n" + reason) if reason else ""
+        return f"فهمت رسالتك: {r}\nأنا حالياً في الوضع المحلي الآمن. أقدر أنفذ الوظائف المحلية المتاحة، وللإجابات الذكية الكاملة لازم مزود AI يكون متصل.{suffix}"
