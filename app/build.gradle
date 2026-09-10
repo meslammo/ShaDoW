@@ -10,14 +10,13 @@ android {
         applicationId 'com.shadow.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 54
-        versionName '1.2.0'
+        versionCode 55
+        versionName '1.3.0'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
     buildTypes {
         release { minifyEnabled false; shrinkResources false; signingConfig signingConfigs.debug }
     }
-    // MOD-19.16: Keep Chaquopy's source root limited to the Python tree.
     afterEvaluate {
         tasks.matching { it.name == 'mergeDebugPythonSources' || it.name == 'mergeReleasePythonSources' }.configureEach {
             dependsOn tasks.matching { it.name == 'javaPreCompileDebug' || it.name == 'javaPreCompileRelease' }
