@@ -10,10 +10,27 @@ android {
         applicationId 'com.shadow.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 50
-        versionName '0.50.0'
+        versionCode 51
+        versionName '1.0.0'
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    // Chaquopy 17 + Gradle 8.10 task validation: make the Python merge phase
+    // explicitly wait for the native metadata and Python requirements outputs.
+    afterEvaluate {
+        tasks.matching { it.name == 'mergeDebugPythonSources' || it.name == 'mergeReleasePythonSources' }.configureEach {
+            dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeReleaseMetadata' }
+            dependsOn tasks.matching { it.name == 'installDebugPythonRequirements' || it.name == 'installReleasePythonRequirements' }
         }
     }
 }
