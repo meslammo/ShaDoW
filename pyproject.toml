@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shadow-ai"
+version = "0.39.36"
+description = "SHADOW AI runtime"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["shadow*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
