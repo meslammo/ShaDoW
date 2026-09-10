@@ -46,7 +46,7 @@ class AIOrchestrator:
             last_data = data
             calls = [x for x in data.get("output", []) if x.get("type") == "function_call"]
             if not calls or tool_executor is None:
-                return {"answer":self._extract_text(data) or "The model returned no text.",
+                return {"answer":self._extract_text(data) or "الموديل رجّع رد فاضي.",
                         "provider":"openai", "model":profile.model, "raw":data, "actions":actions}
             inputs.extend(data.get("output", []))
             for call in calls:
@@ -62,7 +62,7 @@ class AIOrchestrator:
                     output = json.dumps({"success":False,"error":str(exc)}, ensure_ascii=False)
                     actions.append({"tool":name,"arguments":call.get("arguments"),"result":output})
                 inputs.append({"type":"function_call_output", "call_id":call.get("call_id"), "output":output})
-        return {"answer":self._extract_text(last_data) or "Tool execution stopped after the safety limit.",
+        return {"answer":self._extract_text(last_data) or "وقفت تنفيذ الأدوات عند حد الأمان.",
                 "provider":"openai", "model":profile.model, "raw":last_data, "actions":actions,
                 "tool_round_limit":self.max_tool_rounds}
 
@@ -87,8 +87,12 @@ class AIOrchestrator:
     @staticmethod
     def _offline(request: str) -> str:
         r=request.strip(); low=r.lower()
-        if low in {"hi","hello","hey","سلام","اهلا","أهلا"}:
-            return "SHADOW is online. Offline brain is ready; connect a provider for full model reasoning."
+        if low in {"hi","hello","hey","سلام","اهلا","أهلا","مرحبا"}:
+            return "أهلاً محمد 👋 أنا SHADOW. أنا شغال محلياً دلوقتي، وتقدر تكلمني كتابة أو بالصوت."
         if "status" in low or "حالة" in low:
-            return "SHADOW runtime is online. Provider mode is offline-safe because no provider key is configured."
-        return f"I received: {r}\nOffline-safe mode is active. A configured AI provider is required for full model reasoning."
+            return "أنا شغال. الواجهة والصوت والذاكرة المحلية متاحين، ومحرك الذكاء السحابي غير موصل حالياً."
+        if "مين انت" in low or "ما انت" in low or "who are you" in low:
+            return "أنا SHADOW، مساعد Android بواجهة محادثة، صوت، ذاكرة محلية، وأدوات للهاتف، ومعايا Python runtime مدمج."
+        if "شكرا" in low or "thanks" in low:
+            return "العفو يا محمد."
+        return f"فهمت رسالتك: {r}\nأنا حالياً في الوضع المحلي الآمن. أقدر أنفذ الوظائف المحلية المتاحة، وللإجابات الذكية الكاملة يحتاج مزود AI متصل."
