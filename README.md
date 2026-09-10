@@ -1,20 +1,22 @@
-# SHADOW v0.43.0
+# SHADOW v0.50.0 — Embedded Runtime Release
 
-## Release status
-This branch contains the native Android release core. The Android APK no longer depends on a separate Python process for its local assistant path.
+## What is actually inside the APK
+- Native Android action layer for safe phone/device actions.
+- The repository's Python SHADOW runtime is packaged into the APK with Chaquopy and runs in-process; no localhost server, separate Python process, or LAN address is required.
+- Runtime pipeline: observe → understand → plan → permission check → execute → verify → learn.
+- Python memory, goals/tasks, decision/verification, audit, device registry, Home/Car domains, tool registry, autonomy and self-development layers are packaged with the app.
+- Arabic/English Android speech recognition and TTS.
+- Persistent local memory for Android commands and the Python runtime's memory store.
+- Home and Car are first-class domains in the product and runtime. They report READY / NOT CONNECTED until a real endpoint is configured; the APK does not fake a live device connection.
+- Cloud model providers remain optional. Provider secrets are not embedded in the APK.
 
-## Included in the APK
-- Native SHADOW runtime core embedded in Android.
-- Local command understanding/routing and execution pipeline.
-- Safe Android action adapter: settings, Wi-Fi, Bluetooth, camera, files, contacts, calendar, maps, browser, music and installed apps, plus dialer/SMS/share composers without automatic sending.
-- Arabic/English text commands, Android speech recognition and TTS.
-- Persistent local memory for commands/history.
-- Safe calculator, time/date and device-status tools.
-- First-class HOME and CAR domains in the product/UI. They intentionally report NOT CONNECTED until a real Smart Home gateway or Car/Vespa API/tracker is configured; no fake live connection is claimed.
-- Existing Python runtime, gateway, model orchestration, memory, device registry, autonomy, security and self-development layers remain in the repository for server/cloud operation and future endpoint integration.
+## Runtime boundary
+The Android app is now a unified runtime host: native Android capabilities execute locally, while the actual Python SHADOW brain/runtime executes inside the same application process. The previous client-only boundary is removed.
 
-## Release boundary
-The APK is a real runnable local assistant, not a UI-only gateway client. Cloud reasoning is optional; it can be connected through the existing authenticated gateway when available. Physical Home/Car control requires the real endpoint/device and remains fail-closed until then.
+## Build
+Android API 35, Java 17, Gradle 8.10.2, Android Gradle Plugin 8.6.1, Chaquopy 17.0.0, Python 3.11.
 
-## Build verification
-Android API 35, Java 17 and Gradle 8.10.2. CI builds, verifies with apksigner and publishes the debug APK artifact.
+CI also compiles the Python tree, builds the APK from clean state, verifies the APK signature, calculates SHA-256, and checks that the embedded Python/Chaquopy payload is present before publishing the artifact.
+
+## Security
+Dangerous runtime tools remain fail-closed and confirmation-gated. No API/provider secret is committed into the Android source.
