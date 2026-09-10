@@ -2,34 +2,43 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#080A10" android:fillViewport="true">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
-            <ImageView android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/shadow_logo" android:contentDescription="SHADOW"/>
+            <ImageView android:layout_width="50dp" android:layout_height="50dp" android:src="@drawable/shadow_logo" android:contentDescription="SHADOW"/>
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:paddingStart="14dp">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SHADOW" android:textColor="#F4F7FF" android:textSize="24sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SHADOW" android:textColor="#F4F7FF" android:textSize="25sp" android:textStyle="bold"/>
                 <TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="● SHADOW READY" android:textColor="#66E8FF" android:textSize="12sp"/>
             </LinearLayout>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0.40" android:textColor="#727C91" android:textSize="12sp"/>
         </LinearLayout>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:text="COMMAND CORE" android:textColor="#727C91" android:textSize="11sp" android:textStyle="bold"/>
+        <TextView android:id="@+id/device_info" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:textColor="#596277" android:textSize="10sp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="COMMAND CORE" android:textColor="#727C91" android:textSize="11sp" android:textStyle="bold"/>
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="قول لـ SHADOW اللي محتاجه." android:textColor="#F4F7FF" android:textSize="20sp" android:textStyle="bold"/>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="@drawable/shadow_panel" android:orientation="vertical">
-            <EditText android:id="@+id/goal" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@android:color/transparent" android:hint="اكتب الأمر هنا..." android:textColor="#F4F7FF" android:textColorHint="#596277" android:textSize="17sp" android:minHeight="90dp" android:gravity="top|start" android:inputType="textMultiLine"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="@drawable/shadow_panel" android:orientation="vertical" android:padding="4dp">
+            <EditText android:id="@+id/goal" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@android:color/transparent" android:hint="اكتب الأمر هنا..." android:textColor="#F4F7FF" android:textColorHint="#596277" android:textSize="17sp" android:minHeight="90dp" android:gravity="top|start" android:inputType="textMultiLine" android:padding="12dp"/>
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                 <Button android:id="@+id/mic" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:background="@drawable/shadow_button" android:text="🎙  VOICE" android:textColor="#66E8FF" android:textStyle="bold"/>
                 <Space android:layout_width="10dp" android:layout_height="1dp"/>
                 <Button android:id="@+id/send" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:background="@drawable/shadow_button" android:text="RUN  ▶" android:textColor="#A86BFF" android:textStyle="bold"/>
             </LinearLayout>
         </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:background="@drawable/shadow_panel" android:orientation="vertical">
+        <TextView android:id="@+id/history_info" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="LOCAL MEMORY" android:textColor="#596277" android:textSize="10sp"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:orientation="horizontal">
+            <Button android:id="@+id/copy" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1" android:background="@drawable/shadow_button" android:text="COPY" android:textColor="#E8ECF5"/>
+            <Space android:layout_width="8dp" android:layout_height="1dp"/>
+            <Button android:id="@+id/share" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1" android:background="@drawable/shadow_button" android:text="SHARE" android:textColor="#E8ECF5"/>
+            <Space android:layout_width="8dp" android:layout_height="1dp"/>
+            <Button android:id="@+id/clear_history" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1" android:background="@drawable/shadow_button" android:text="CLEAR" android:textColor="#FF8E9E"/>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:background="@drawable/shadow_panel" android:orientation="vertical" android:padding="14dp">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SHADOW RESPONSE" android:textColor="#727C91" android:textSize="11sp" android:textStyle="bold"/>
             <TextView android:id="@+id/output" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:textColor="#E8ECF5" android:textSize="15sp" android:lineSpacingExtra="4dp" android:textIsSelectable="true"/>
             <Button android:id="@+id/speak" android:layout_width="wrap_content" android:layout_height="44dp" android:layout_marginTop="10dp" android:background="@drawable/shadow_button" android:text="🔊 SPEAK" android:textColor="#E8ECF5"/>
         </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:background="@drawable/shadow_panel" android:orientation="vertical">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:background="@drawable/shadow_panel" android:orientation="vertical" android:padding="14dp">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="OPTIONAL SECURE GATEWAY" android:textColor="#727C91" android:textSize="11sp" android:textStyle="bold"/>
             <EditText android:id="@+id/url" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:hint="https://your-shadow-gateway" android:textColorHint="#596277" android:textColor="#F4F7FF" android:inputType="textUri"/>
             <EditText android:id="@+id/token" android:layout_width="match_parent" android:layout_height="48dp" android:hint="Bearer token (optional)" android:textColorHint="#596277" android:textColor="#F4F7FF" android:inputType="textPassword"/>
             <Button android:id="@+id/check" android:layout_width="wrap_content" android:layout_height="44dp" android:background="@drawable/shadow_button" android:text="CHECK CONNECTION" android:textColor="#66E8FF"/>
         </LinearLayout>
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:gravity="center" android:text="LOCAL-FIRST  •  FAIL-CLOSED  •  VOICE READY" android:textColor="#454D60" android:textSize="10sp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:gravity="center" android:text="LOCAL-FIRST  •  FAIL-CLOSED  •  VOICE  •  MEMORY  •  GATEWAY" android:textColor="#454D60" android:textSize="10sp"/>
     </LinearLayout>
 </ScrollView>
