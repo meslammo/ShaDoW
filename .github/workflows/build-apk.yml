@@ -8,6 +8,13 @@ on:
       - 'settings.gradle'
       - 'gradle.properties'
       - '.github/workflows/build-apk.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - '.github/workflows/build-apk.yml'
 permissions:
   contents: read
 jobs:
@@ -29,6 +36,6 @@ jobs:
       - run: test -s app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-v0.39.15-debug-apk
+          name: SHADOW-v0.39.36-mod07-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
