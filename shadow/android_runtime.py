@@ -1,6 +1,6 @@
 """Android entry point for the embedded SHADOW Python runtime.
 
-MOD-22.3: seed non-sensitive owner/project context once, then run the unified runtime.
+MOD-24.3: configure online AI in-process while retaining a complete offline fallback.
 """
 from __future__ import annotations
 import os
@@ -48,6 +48,22 @@ def _get_runtime(home: Optional[str] = None):
         _runtime = ShadowRuntime()
         _seed_owner_memory(_runtime)
     return _runtime
+
+
+def configure_online(api_key: str, model: str = "gpt-5.6", home: Optional[str] = None) -> Dict[str, Any]:
+    """Configure the cloud provider only in the live app process; Android stores the key encrypted."""
+    _get_runtime(home)
+    key = str(api_key or "").strip()
+    selected_model = str(model or "gpt-5.6").strip() or "gpt-5.6"
+    if key:
+        os.environ["OPENAI_API_KEY"] = key
+        os.environ["SHADOW_MODEL_PROVIDER"] = "openai"
+        os.environ["SHADOW_MODEL"] = selected_model
+        return {"status": "ready", "provider": "openai", "model": selected_model}
+    os.environ.pop("OPENAI_API_KEY", None)
+    os.environ["SHADOW_MODEL_PROVIDER"] = "offline"
+    os.environ.pop("SHADOW_MODEL", None)
+    return {"status": "offline", "provider": "offline", "model": "local-safe"}
 
 
 def handle(request: str, home: Optional[str] = None) -> Dict[str, Any]:
