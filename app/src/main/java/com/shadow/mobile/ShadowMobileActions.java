@@ -2,10 +2,12 @@ package com.shadow.mobile;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.provider.Settings;
 
-/** MOD-15.2: Local Android action adapter. Destructive/communication actions stay user-confirmed. */
+/** MOD-15.3: Local Android action adapter. Destructive/communication actions stay user-confirmed. */
 public final class ShadowMobileActions {
     private ShadowMobileActions() {}
 
@@ -18,13 +20,11 @@ public final class ShadowMobileActions {
                 return "تم فتح إعدادات الجهاز.";
             }
             if (contains(original, x, "افتح الواي فاي", "افتح wifi", "wifi", "wi-fi")) {
-                Intent i = new Intent(Settings.ACTION_WIFI_SETTINGS);
-                activity.startActivity(i);
+                activity.startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
                 return "تم فتح إعدادات Wi-Fi.";
             }
             if (contains(original, x, "افتح البلوتوث", "بلوتوث", "bluetooth")) {
-                Intent i = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
-                activity.startActivity(i);
+                activity.startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS));
                 return "تم فتح إعدادات Bluetooth.";
             }
             if (contains(original, x, "إعدادات التطبيقات", "اعدادات التطبيقات", "app settings")) {
@@ -62,8 +62,9 @@ public final class ShadowMobileActions {
                 return "تم فتح جهات الاتصال.";
             }
             if (contains(original, x, "افتح الساعة", "الساعة", "clock")) {
-                activity.startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                        .setPackage("com.android.deskclock"));
+                Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        .setPackage("com.android.deskclock");
+                activity.startActivity(i);
                 return "تم فتح الساعة.";
             }
             if (contains(original, x, "افتح الخرائط", "افتح الخريطة", "خرائط", "maps", "open maps")) {
@@ -72,14 +73,45 @@ public final class ShadowMobileActions {
                 activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(uri)));
                 return query.isEmpty() ? "تم فتح الخرائط." : "تم فتح الخرائط على: " + query;
             }
+            if (contains(original, x, "ابحث عن", "ابحث في جوجل عن", "search for", "google search")) {
+                String q = extractSearch(original);
+                if (q.isEmpty()) return "قولّي إيه اللي أبحث عنه.";
+                activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(q))));
+                return "تم فتح نتائج البحث عن: " + q;
+            }
             if (contains(original, x, "افتح المتصفح", "المتصفح", "browser", "open browser")) {
                 activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")));
                 return "تم فتح المتصفح.";
             }
             if (contains(original, x, "افتح الموسيقى", "الموسيقى", "music", "player")) {
-                Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC);
-                activity.startActivity(i);
+                activity.startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC));
                 return "تم فتح مشغل الموسيقى.";
+            }
+            if (contains(original, x, "افتح واتساب", "واتساب", "whatsapp")) {
+                if (launchPackage(activity, "com.whatsapp")) return "تم فتح WhatsApp.";
+                return "WhatsApp غير مثبت على الجهاز.";
+            }
+            if (contains(original, x, "افتح تيليجرام", "تيليجرام", "telegram")) {
+                if (launchPackage(activity, "org.telegram.messenger")) return "تم فتح Telegram.";
+                return "Telegram غير مثبت على الجهاز.";
+            }
+            if (contains(original, x, "افتح فيسبوك", "فيسبوك", "facebook")) {
+                if (launchPackage(activity, "com.facebook.katana")) return "تم فتح Facebook.";
+                return "Facebook غير مثبت على الجهاز.";
+            }
+            if (contains(original, x, "افتح إنستجرام", "افتح انستجرام", "انستجرام", "instagram")) {
+                if (launchPackage(activity, "com.instagram.android")) return "تم فتح Instagram.";
+                return "Instagram غير مثبت على الجهاز.";
+            }
+            if (contains(original, x, "افتح يوتيوب", "youtube")) {
+                if (launchPackage(activity, "com.google.android.youtube")) return "تم فتح YouTube.";
+                activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")));
+                return "تم فتح YouTube في المتصفح.";
+            }
+            if (contains(original, x, "افتح جوجل", "google")) {
+                if (launchPackage(activity, "com.google.android.googlequicksearchbox")) return "تم فتح Google.";
+                activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")));
+                return "تم فتح Google في المتصفح.";
             }
             if (contains(original, x, "اتصل", "اتصال", "call")) {
                 String digits = original.replaceAll("[^0-9+]", "");
@@ -109,14 +141,30 @@ public final class ShadowMobileActions {
         return null;
     }
 
+    private static boolean launchPackage(Activity activity, String packageName) {
+        PackageManager pm = activity.getPackageManager();
+        Intent i = pm.getLaunchIntentForPackage(packageName);
+        if (i == null) return false;
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        activity.startActivity(i);
+        return true;
+    }
+
+    private static String extractSearch(String original) {
+        String lower = original.toLowerCase(java.util.Locale.ROOT);
+        String[] keys = {"ابحث في جوجل عن", "ابحث عن", "search for", "google search"};
+        for (String key : keys) {
+            int p = lower.indexOf(key.toLowerCase(java.util.Locale.ROOT));
+            if (p >= 0) return original.substring(p + key.length()).replaceFirst("^[ :،-]+", "").trim();
+        }
+        return "";
+    }
+
     private static String extractAfter(String original, String... keys) {
         String lower = original.toLowerCase(java.util.Locale.ROOT);
         for (String key : keys) {
             int p = lower.indexOf(key.toLowerCase(java.util.Locale.ROOT));
-            if (p >= 0) {
-                String tail = original.substring(p + key.length()).trim();
-                if (tail.startsWith(" ") || !tail.isEmpty()) return tail.replaceFirst("^[ :،-]+", "").trim();
-            }
+            if (p >= 0) return original.substring(p + key.length()).replaceFirst("^[ :،-]+", "").trim();
         }
         return "";
     }
