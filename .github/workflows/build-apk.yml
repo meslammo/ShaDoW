@@ -34,8 +34,9 @@ jobs:
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - run: gradle --no-daemon assembleDebug
       - run: test -s app/build/outputs/apk/debug/app-debug.apk
+      - run: unzip -p app/build/outputs/apk/debug/app-debug.apk META-INF/MANIFEST.MF >/dev/null
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-v0.39.36-mod07-debug-apk
+          name: SHADOW-v0.40.0-voice-runtime-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
