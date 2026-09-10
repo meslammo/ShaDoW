@@ -1,7 +1,7 @@
 """Android entry point for the embedded SHADOW Python runtime.
 
-MOD-19.3: the same Python runtime used by the repository is executed inside
-Android through Chaquopy; no localhost process is required.
+MOD-19.17: the Chaquopy source root is the repository's shadow/ directory,
+so runtime packages are imported as top-level modules in the embedded VM.
 """
 from __future__ import annotations
 import os
@@ -15,7 +15,7 @@ def _get_runtime(home: Optional[str] = None):
     if home:
         os.chdir(home)
     if _runtime is None:
-        from shadow.runtime import ShadowRuntime
+        from runtime import ShadowRuntime
         _runtime = ShadowRuntime()
     return _runtime
 
@@ -36,5 +36,5 @@ def handle(request: str, home: Optional[str] = None) -> Dict[str, Any]:
 
 def health(home: Optional[str] = None) -> Dict[str, Any]:
     _get_runtime(home)
-    from shadow.runtime.health import health_report
+    from runtime.health import health_report
     return health_report()
