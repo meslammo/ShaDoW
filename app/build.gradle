@@ -25,10 +25,11 @@ android {
         }
     }
 
-    // Chaquopy 17 + Gradle 8.10 task validation: make the Python merge phase
-    // explicitly wait for the native metadata and Python requirements outputs.
+    // MOD-19.15: Fix Gradle 8.10 validation by ordering Chaquopy's Python merge
+    // after the Java annotation-processor metadata it consumes.
     afterEvaluate {
         tasks.matching { it.name == 'mergeDebugPythonSources' || it.name == 'mergeReleasePythonSources' }.configureEach {
+            dependsOn tasks.matching { it.name == 'javaPreCompileDebug' || it.name == 'javaPreCompileRelease' }
             dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeReleaseMetadata' }
             dependsOn tasks.matching { it.name == 'installDebugPythonRequirements' || it.name == 'installReleasePythonRequirements' }
         }
