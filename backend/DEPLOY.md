@@ -16,3 +16,5 @@ If Render assigns a different hostname, change `SHADOW_BACKEND_URL` in `app/buil
 ## Security
 
 The mobile APK contains no OpenAI secret. The server reads `OPENAI_API_KEY` from its environment only. Never paste the key into GitHub, the APK, or the Android settings screen.
+
+<!-- MOD-26.4: CI trigger after cloud wiring -->
