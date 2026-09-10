@@ -5,7 +5,7 @@ import com.chaquo.python.Python;
 
 import java.util.Map;
 
-/** MOD-19.18: Calls the repository Python runtime in-process on Android. */
+/** MOD-24.2: Calls the repository Python runtime in-process on Android. */
 public final class ShadowPythonRuntime {
     private final String home;
 
@@ -25,6 +25,28 @@ public final class ShadowPythonRuntime {
             return String.valueOf(answer);
         } catch (Throwable ignored) {
             return null;
+        }
+    }
+
+    public boolean configureOnline(String apiKey, String model) {
+        try {
+            Python py = Python.getInstance();
+            PyObject module = py.getModule("android_runtime");
+            PyObject value = module.callAttr("configure_online", apiKey == null ? "" : apiKey, model == null ? "gpt-5.6" : model, home);
+            return "ready".equals(String.valueOf(value.toJava(Map.class).get("status")));
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    public boolean clearOnline() {
+        try {
+            Python py = Python.getInstance();
+            PyObject module = py.getModule("android_runtime");
+            PyObject value = module.callAttr("configure_online", "", "gpt-5.6", home);
+            return "offline".equals(String.valueOf(value.toJava(Map.class).get("status")));
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
