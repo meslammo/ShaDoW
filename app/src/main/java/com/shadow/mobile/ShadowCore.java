@@ -6,9 +6,9 @@ import android.os.BatteryManager;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-/** MOD-19.7: Native safety/action layer retained under the embedded unified runtime. */
+/** MOD-23.1: Native conversational fallback so SHADOW remains usable when external AI is offline. */
 public final class ShadowCore {
-    public static final String VERSION = "0.50.0";
+    public static final String VERSION = "0.51.0";
     private final Activity activity;
     private final SharedPreferences prefs;
 
@@ -32,14 +32,44 @@ public final class ShadowCore {
         if (isAny(x, "memory", "ذاكرة", "الذاكرة", "history", "سجل")) return memory();
         if (isAny(x, "time", "الوقت", "الساعة")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
         if (isAny(x, "date", "التاريخ", "النهارده", "اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nCore: ONLINE\nExecution: LOCAL\nMemory: ACTIVE\nVoice: AVAILABLE\nHome: READY\nCar: READY\nSafety: FAIL-CLOSED";
+        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم.\nCore: ONLINE\nExecution: LOCAL\nMemory: ACTIVE\nVoice: AVAILABLE";
         if (starts(x, "احسب ") || starts(x, "calculate ") || looksLikeMath(request)) {
             String expression = request.replaceFirst("(?i)^احسب\\s*", "").replaceFirst("(?i)^calculate\\s*", "").trim();
             try { return "CALCULATOR\n\n" + format(eval(expression)); }
             catch (Exception e) { return "CALCULATOR\n\nالتعبير غير صالح أو غير آمن."; }
         }
-        if (x.contains("ما انت") || x.contains("مين انت") || x.contains("who are you")) return "SHADOW\n\nأنا SHADOW: مساعد Android موحّد؛ نواة أصلية + Python runtime مدمج، ذاكرة، صوت، وأدوات الهاتف.\nالذكاء السحابي اختياري ولا يحتاج localhost.";
-        return "SHADOW LOCAL CORE\n\nاستلمت الأمر:\n" + request + "\n\nPLAN\n1. Understand\n2. Check permission\n3. Execute safe action\n4. Verify\n5. Save to memory";
+        if (x.contains("ما انت") || x.contains("مين انت") || x.contains("who are you")) return "SHADOW\n\nأنا SHADOW: مساعد Android موحّد؛ نواة أصلية + Python runtime مدمج، ذاكرة، صوت، وأدوات الهاتف.\nالذكاء السحابي اختياري، لكن الكلام الأساسي والصوت يفضلوا شغالين محلياً.";
+        return null;
+    }
+
+    /** Offline dialogue used only when the Python/external AI path cannot answer. */
+    public String offlineChat(String raw) {
+        String request = raw == null ? "" : raw.trim();
+        String x = request.toLowerCase(Locale.ROOT);
+        if (x.isEmpty()) return "SHADOW LOCAL CHAT\n\nأنا معاك. قول اللي عايز تقوله.";
+        if (isAny(x, "عامل ايه", "أخبارك", "اخبارك", "كويس", "تمام", "how are you", "how's it going"))
+            return "SHADOW LOCAL CHAT\n\nتمام يا محمد، أنا شغال معاك. قولّي عايز نعمل إيه دلوقتي.";
+        if (isAny(x, "بتعمل ايه", "بتعمل إيه", "موجود", "سامعني", "بتسمعني", "are you there", "can you hear me"))
+            return "SHADOW LOCAL CHAT\n\nأيوه، سامعك وجاهز. اكتب أو اضغط MIC واتكلم، وأنا هرد عليك بصوت.";
+        if (isAny(x, "شكرا", "شكرًا", "thanks", "thank you"))
+            return "SHADOW LOCAL CHAT\n\nالعفو يا محمد. نكمل.";
+        if (isAny(x, "صباح الخير", "مساء الخير", "good morning", "good evening"))
+            return "SHADOW LOCAL CHAT\n\nصباح/مساء النور يا محمد. أنا موجود معاك.";
+        if (isAny(x, "بحبك", "love you"))
+            return "SHADOW LOCAL CHAT\n\nوأنا مقدّر كلامك يا محمد. يلا نكمل شغلنا.";
+        if (isAny(x, "اتكلم", "كلمني", "نتكلم", "عايز اتكلم", "talk to me", "let's talk"))
+            return "SHADOW LOCAL CHAT\n\nأنا معاك. اتكلم براحتك، ولو عايز صوت اضغط MIC.";
+        if (x.contains("مضايق") || x.contains("زهقان") || x.contains("خنقت") || x.contains("تعبان"))
+            return "SHADOW LOCAL CHAT\n\nفاهم إنك مضغوط. أنا موجود معاك. قولّي إيه اللي مضايقك ونمشي فيه خطوة خطوة.";
+        if (x.contains("مبسوط") || x.contains("فرحان"))
+            return "SHADOW LOCAL CHAT\n\nجميل. خلينا نستغل المزاج ده وننجز حاجة مفيدة.";
+        if (x.contains("اسمك"))
+            return "SHADOW LOCAL CHAT\n\nأنا SHADOW. وإنت محمد.";
+        if (x.contains("الساعة") || x.contains("الوقت"))
+            return "SHADOW LOCAL CHAT\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
+        if (x.contains("النهارده") || x.contains("التاريخ") || x.contains("اليوم"))
+            return "SHADOW LOCAL CHAT\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        return "SHADOW LOCAL CHAT\n\nأنا شغال محلياً دلوقتي والمحرك الخارجي مش متصل، فمش هألف لك إجابة من عندي. لكن الكلام والصوت والأوامر المحلية شغالين. قولّي أمر أو سؤال أقدر أتعامل معاه محلياً.";
     }
 
     private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE\nExecution   NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     OPTIONAL\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
