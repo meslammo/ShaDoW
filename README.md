@@ -1,24 +1,20 @@
-# SHADOW v0.42.0
+# SHADOW v0.43.0
 
-Integrated Android release surface for the SHADOW runtime.
+## Release status
+This branch contains the native Android release core. The Android APK no longer depends on a separate Python process for its local assistant path.
 
-## What is in this release
-- Local-first Android assistant with Arabic/English text input, STT and TTS.
-- Real local phone action adapter plus safe calculator, time, memory and device tools.
-- Gateway client for `/health` and `/v1/request` with bearer authentication.
-- Runtime tool-calling loop with permission-gated execution and audit events.
-- Persistent memory, device registry, autonomy/scheduler and controlled self-development layers.
-- Dedicated **ASSISTANT**, **DEVICES**, **HOME**, **CAR** and **SETTINGS** tabs.
-- Home and Car are modeled as first-class runtime domains now. Their real endpoints are deliberately not fabricated: until a real Smart Home gateway or vehicle API is supplied, the adapters report `READY / NOT CONNECTED / NOT CONFIGURED` and control remains fail-closed.
+## Included in the APK
+- Native SHADOW runtime core embedded in Android.
+- Local command understanding/routing and execution pipeline.
+- Safe Android action adapter: settings, Wi-Fi, Bluetooth, camera, files, contacts, calendar, maps, browser, music and installed apps, plus dialer/SMS/share composers without automatic sending.
+- Arabic/English text commands, Android speech recognition and TTS.
+- Persistent local memory for commands/history.
+- Safe calculator, time/date and device-status tools.
+- First-class HOME and CAR domains in the product/UI. They intentionally report NOT CONNECTED until a real Smart Home gateway or Car/Vespa API/tracker is configured; no fake live connection is claimed.
+- Existing Python runtime, gateway, model orchestration, memory, device registry, autonomy, security and self-development layers remain in the repository for server/cloud operation and future endpoint integration.
 
-## Build
+## Release boundary
+The APK is a real runnable local assistant, not a UI-only gateway client. Cloud reasoning is optional; it can be connected through the existing authenticated gateway when available. Physical Home/Car control requires the real endpoint/device and remains fail-closed until then.
 
-Android SDK API 35 + Java 17 + Gradle 8.10.2. The canonical Android project is `app/` and CI produces `SHADOW-v0.42.0-FINAL-debug-apk`.
-
-## Security boundary
-
-No model provider secret is embedded in the Android source. Unknown capabilities are denied by default. Sensitive actions require confirmation or an explicit automation grant. Adapter error payloads cannot be reported as successful actions.
-
-## Release truth
-
-This release is the complete SHADOW software boundary that can run without inventing credentials or pretending unavailable physical integrations exist. Home/Car become live by supplying their real adapter endpoint/device later; no brain or UI redesign is required.
+## Build verification
+Android API 35, Java 17 and Gradle 8.10.2. CI builds, verifies with apksigner and publishes the debug APK artifact.
