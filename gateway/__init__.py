@@ -1,0 +1,1 @@
+"""SHADOW authenticated transport gateway."""
