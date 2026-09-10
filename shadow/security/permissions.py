@@ -1,4 +1,7 @@
-"""Fail-closed capability permission policy."""
+"""Fail-closed capability permission policy.
+
+MOD-16.13: align concrete built-in capabilities with the permission matrix.
+"""
 from __future__ import annotations
 from dataclasses import dataclass
 
@@ -9,8 +12,16 @@ class PermissionDecision:
     reason: str
 
 class PermissionManager:
-    SAFE_READ={"memory.read","memory_search","device.read","device_status","location.read","screen.read","web.search","calculator","time_now"}
-    CONFIRM={"app.launch","file.write","message.send","calendar.write","device.control","home.control","car.control","memory.write"}
+    SAFE_READ={
+        "memory.read","memory_search","memory.search",
+        "device.read","device_status","device.status",
+        "location.read","screen.read","web.search",
+        "calculator","calculator.read","time_now","time.now",
+    }
+    CONFIRM={
+        "app.launch","file.write","message.send","calendar.write",
+        "device.control","home.control","car.control","memory.write",
+    }
 
     def decide(self, capability:str, *, confirmed:bool=False, automation_granted:bool=False)->PermissionDecision:
         if capability in self.SAFE_READ:
