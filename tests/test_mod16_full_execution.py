@@ -3,7 +3,7 @@ import json
 from shadow.ai.orchestrator.orchestrator import AIOrchestrator
 from shadow.runtime.runtime import ShadowRuntime
 from shadow.security.permissions import PermissionManager
-from shadow.tools.builtins import build_builtin_registry, calculate
+from shadow.tools.builtins import calculate
 
 
 def test_calculator_is_safe_and_permission_aligned():
@@ -41,6 +41,7 @@ def test_openai_tool_round_trip_executes_function(monkeypatch):
         return responses.pop(0)
 
     monkeypatch.setattr(AIOrchestrator, "_post", staticmethod(fake_post))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     orch = AIOrchestrator()
     executed = []
 
