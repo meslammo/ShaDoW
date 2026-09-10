@@ -95,6 +95,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private String localBrain(String g) {
         String x=g.toLowerCase(Locale.ROOT);
         saveMemory(g);
+        String mobileAction = ShadowMobileActions.execute(this, g);
+        if (mobileAction != null) return mobileAction;
         if(x.contains("hello")||x.contains("hi")||g.contains("سلام")||g.contains("اهلا")||g.contains("أهلا")) return "أهلاً. أنا SHADOW.\nCore: ONLINE\nVoice: READY\nMemory: LOCAL\nSafety: FAIL-CLOSED";
         if(x.contains("status")||g.contains("حالة")||g.contains("وضع")) return "SHADOW SYSTEM STATUS\n\nCore        ONLINE\nVoice       READY\nMemory      LOCAL\nGateway     "+(url.getText().toString().trim().isEmpty()?"OPTIONAL":"CONFIGURED")+"\nSecurity    FAIL-CLOSED";
         if(g.contains("الوقت")||x.contains("time")) return "الوقت الآن: " + clock.format(new Date());
