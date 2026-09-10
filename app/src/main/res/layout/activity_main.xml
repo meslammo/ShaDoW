@@ -2,17 +2,20 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:fillViewport="true" android:background="#101014" android:layout_width="match_parent" android:layout_height="match_parent">
 <LinearLayout android:padding="24dp" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
 <TextView android:text="SHADOW" android:textSize="32sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_width="wrap_content" android:layout_height="wrap_content" />
-<TextView android:text="v0.39.15 • AI Runtime" android:textColor="#A9A9B3" android:layout_marginBottom="8dp" android:layout_width="wrap_content" android:layout_height="wrap_content" />
-<TextView android:id="@+id/status" android:text="● SHADOW ONLINE · LOCAL BRAIN" android:textColor="#FFFFFF" android:layout_marginBottom="18dp" android:layout_width="match_parent" android:layout_height="wrap_content" />
-<EditText android:id="@+id/goal" android:hint="اكتب أمرك لـ SHADOW" android:gravity="top" android:minLines="4" android:textColor="#FFFFFF" android:textColorHint="#777780" android:backgroundTint="#777780" android:layout_width="match_parent" android:layout_height="wrap_content" />
+<TextView android:text="v0.40 · Voice Runtime" android:textColor="#A9A9B3" android:layout_marginBottom="8dp" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+<TextView android:id="@+id/status" android:text="● SHADOW READY · VOICE + RUNTIME" android:textColor="#FFFFFF" android:layout_marginBottom="18dp" android:layout_width="match_parent" android:layout_height="wrap_content" />
+<EditText android:id="@+id/goal" android:hint="اكتب أمرك أو استخدم الميكروفون" android:gravity="top" android:minLines="4" android:textColor="#FFFFFF" android:textColorHint="#777780" android:backgroundTint="#777780" android:layout_width="match_parent" android:layout_height="wrap_content" />
 <LinearLayout android:orientation="horizontal" android:layout_marginTop="14dp" android:layout_width="match_parent" android:layout_height="wrap_content">
-<Button android:id="@+id/send" android:text="SEND TO SHADOW" android:layout_weight="1" android:layout_width="0dp" android:layout_height="wrap_content" />
-<Button android:id="@+id/check" android:text="GATEWAY" android:layout_weight="1" android:layout_marginStart="10dp" android:layout_width="0dp" android:layout_height="wrap_content" />
+<Button android:id="@+id/mic" android:text="🎙 MIC" android:layout_weight="1" android:layout_width="0dp" android:layout_height="wrap_content" />
+<Button android:id="@+id/send" android:text="SEND" android:layout_weight="1" android:layout_marginStart="8dp" android:layout_width="0dp" android:layout_height="wrap_content" />
+<Button android:id="@+id/speak" android:text="🔊 SPEAK" android:layout_weight="1" android:layout_marginStart="8dp" android:layout_width="0dp" android:layout_height="wrap_content" />
 </LinearLayout>
 <TextView android:text="Response" android:textColor="#A9A9B3" android:layout_marginTop="22dp" android:layout_width="wrap_content" android:layout_height="wrap_content" />
 <TextView android:id="@+id/output" android:text="SHADOW جاهز." android:textSize="16sp" android:textColor="#FFFFFF" android:paddingTop="8dp" android:layout_width="match_parent" android:layout_height="wrap_content" />
 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="24dp" android:background="#33333A" />
-<TextView android:text="Optional Gateway" android:textColor="#A9A9B3" android:layout_marginTop="16dp" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+<TextView android:text="Real Gateway (optional, HTTPS)" android:textColor="#A9A9B3" android:layout_marginTop="16dp" android:layout_width="wrap_content" android:layout_height="wrap_content" />
 <EditText android:id="@+id/url" android:hint="https://your-shadow-gateway" android:inputType="textUri" android:textColor="#FFFFFF" android:textColorHint="#777780" android:backgroundTint="#777780" android:layout_width="match_parent" android:layout_height="wrap_content" />
-<TextView android:text="لا تحتاج Gateway لتجربة SHADOW. الاتصال الخارجي اختياري فقط عند توفر سيرفر حقيقي." android:textColor="#777780" android:textSize="12sp" android:layout_marginTop="6dp" android:layout_width="match_parent" android:layout_height="wrap_content" />
+<EditText android:id="@+id/token" android:hint="Gateway token (optional)" android:inputType="textPassword" android:textColor="#FFFFFF" android:textColorHint="#777780" android:backgroundTint="#777780" android:layout_width="match_parent" android:layout_height="wrap_content" />
+<Button android:id="@+id/check" android:text="CHECK GATEWAY" android:layout_marginTop="8dp" android:layout_width="match_parent" android:layout_height="wrap_content" />
+<TextView android:text="بدون Gateway: يعمل الـRuntime المحلي. مع Gateway HTTPS: الطلب يذهب للـSHADOW Brain الحقيقي بدون وضع مفاتيح مزود الذكاء داخل التطبيق." android:textColor="#777780" android:textSize="12sp" android:layout_marginTop="6dp" android:layout_width="match_parent" android:layout_height="wrap_content" />
 </LinearLayout></ScrollView>
