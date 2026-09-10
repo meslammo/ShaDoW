@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#080A10" android:pathData="M0,0h108v108h-108z"/>
-    <path android:fillColor="#66E8FF" android:pathData="M54,14A40,40 0,1 0,54 94A40,40 0,1 0,54 14"/>
-    <path android:fillColor="#080A10" android:pathData="M54,23A31,31 0,1 0,54 85A31,31 0,1 0,54 23"/>
-    <path android:fillColor="#A86BFF" android:pathData="M32,38L70,38L76,48L70,58L43,58L38,65L72,65L65,76L32,76L26,66L32,56L59,56L64,49L32,49z"/>
-    <path android:fillColor="#080A10" android:pathData="M36,42L64,42L69,48L64,52L36,52z"/>
+    <!-- MOD-22.2: SHADOW/JARVIS identity icon — hooded male silhouette with luminous eyes. -->
+    <path android:fillColor="#070A12" android:pathData="M0,0h108v108h-108z"/>
+    <path android:fillColor="#1B1730" android:pathData="M54,7A47,47 0,1 0,54 101A47,47 0,1 0,54 7"/>
+    <path android:fillColor="#66E8FF" android:pathData="M54,10A44,44 0,1 0,54 98A44,44 0,1 0,54 10"/>
+    <path android:fillColor="#080A10" android:pathData="M54,16A38,38 0,1 0,54 92A38,38 0,1 0,54 16"/>
+    <path android:fillColor="#171A24" android:pathData="M22,91L29,52L38,32L54,21L70,32L79,52L86,91L72,82L64,88L54,92L44,88L36,82z"/>
+    <path android:fillColor="#0A0C13" android:pathData="M31,57L36,40L54,27L72,40L77,57L70,48L54,43L38,48z"/>
+    <path android:fillColor="#66E8FF" android:pathData="M38,57L49,53L54,56L49,61L39,61z"/>
+    <path android:fillColor="#66E8FF" android:pathData="M59,56L64,53L70,57L69,61L59,61L54,58z"/>
+    <path android:fillColor="#A86BFF" android:pathData="M47,70L54,64L61,70L58,78L50,78z"/>
+    <path android:fillColor="#66E8FF" android:pathData="M42,82L54,76L66,82L61,88L54,91L47,88z"/>
 </vector>
