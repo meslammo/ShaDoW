@@ -12,6 +12,7 @@ from shadow.memory.persistent import PersistentMemory
 from shadow.security.permissions import PermissionManager
 from shadow.observability.audit import AuditLog
 from shadow.devices.registry import DeviceRegistry
+from shadow.devices.domains import DomainRegistry
 from shadow.runtime.action_executor import ActionExecutor, ActionResult
 from shadow.tools.builtins import build_builtin_registry
 
@@ -23,12 +24,13 @@ class RuntimeResult:
 
 class ShadowRuntime:
     def __init__(self, orchestrator:Optional[AIOrchestrator]=None, *, memory=None, permissions=None,
-                 audit=None, devices=None, action_executor=None):
+                 audit=None, devices=None, action_executor=None, domains=None):
         self.orchestrator=orchestrator or AIOrchestrator()
         self.goals=GoalManager(); self.tasks=TaskManager(); self.decision=DecisionEngine(); self.verifier=Verifier()
         self.memory=memory or PersistentMemory(); self.permissions=permissions or PermissionManager(); self.audit=audit or AuditLog()
-        self.devices=devices or DeviceRegistry(); self.executor=action_executor or ActionExecutor(self.permissions)
-        self.tools=build_builtin_registry(memory=self.memory, devices=self.devices)
+        self.devices=devices or DeviceRegistry(); self.domains=domains or DomainRegistry()
+        self.executor=action_executor or ActionExecutor(self.permissions)
+        self.tools=build_builtin_registry(memory=self.memory, devices=self.devices, domains=self.domains)
         for spec in self.tools._tools.values(): self.executor.register(spec.name, spec.handler)
 
     def register_action(self, capability:str, handler:Any) -> None:
@@ -60,9 +62,7 @@ class ShadowRuntime:
             return RuntimeResult(request,f'SHADOW could not complete this request safely: {exc}',0.0,False,self._plan(request),[],confirmation)
 
     def _run_orchestrator(self, request, context, schemas, confirmed_actions):
-        run=self.orchestrator.run
-        params=inspect.signature(run).parameters
-        kwargs={'context':context}
+        run=self.orchestrator.run; params=inspect.signature(run).parameters; kwargs={'context':context}
         if 'tools' in params: kwargs['tools']=schemas
         if 'tool_executor' in params: kwargs['tool_executor']=self._execute_tool
         if 'confirmed_actions' in params: kwargs['confirmed_actions']=[str(x) for x in confirmed_actions]

@@ -1,6 +1,7 @@
 """Safe built-in tools for the SHADOW runtime.
 
-MOD-16.3: concrete local capabilities used by the runtime/tool-calling loop.
+MOD-17.2: expose Home/Car as real runtime tool boundaries while keeping
+control fail-closed until an authorized external adapter is connected.
 """
 from __future__ import annotations
 import ast
@@ -29,7 +30,7 @@ def calculate(expression:str)->str:
 def current_time()->str:
     return _dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
-def build_builtin_registry(*,memory:Any=None,devices:Any=None)->ToolRegistry:
+def build_builtin_registry(*,memory:Any=None,devices:Any=None,domains:Any=None)->ToolRegistry:
     registry=ToolRegistry()
     registry.register(ToolSpec("calculator","Evaluate safe numeric arithmetic.",calculate,False,"utility",
         {"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"],"additionalProperties":False}))
@@ -42,4 +43,15 @@ def build_builtin_registry(*,memory:Any=None,devices:Any=None)->ToolRegistry:
     if devices is not None:
         registry.register(ToolSpec("device_status","Return registered device status.",lambda:devices.snapshot(),False,"device",
             {"type":"object","properties":{},"required":[],"additionalProperties":False}))
+    if domains is not None:
+        registry.register(ToolSpec("home_status","Return Smart Home adapter status.",lambda:domains.status("home"),False,"home",
+            {"type":"object","properties":{},"required":[],"additionalProperties":False}))
+        registry.register(ToolSpec("car_status","Return vehicle adapter status.",lambda:domains.status("car"),False,"car",
+            {"type":"object","properties":{},"required":[],"additionalProperties":False}))
+        registry.register(ToolSpec("home_control","Request an authorized Smart Home action.",
+            lambda capability,payload:domains.execute("home",capability,payload,authorized=True),True,"home",
+            {"type":"object","properties":{"capability":{"type":"string"},"payload":{"type":"object"}},"required":["capability","payload"],"additionalProperties":False}))
+        registry.register(ToolSpec("car_control","Request an authorized vehicle action.",
+            lambda capability,payload:domains.execute("car",capability,payload,authorized=True),True,"car",
+            {"type":"object","properties":{"capability":{"type":"string"},"payload":{"type":"object"}},"required":["capability","payload"],"additionalProperties":False}))
     return registry

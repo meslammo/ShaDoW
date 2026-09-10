@@ -1,6 +1,6 @@
 """Fail-closed capability permission policy.
 
-MOD-16.13: align concrete built-in capabilities with the permission matrix.
+MOD-17.3: align runtime domain tools with the existing permission matrix.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -17,10 +17,12 @@ class PermissionManager:
         "device.read","device_status","device.status",
         "location.read","screen.read","web.search",
         "calculator","calculator.read","time_now","time.now",
+        "home_status","car_status",
     }
     CONFIRM={
         "app.launch","file.write","message.send","calendar.write",
-        "device.control","home.control","car.control","memory.write",
+        "device.control","home.control","home_control",
+        "car.control","car_control","memory.write",
     }
 
     def decide(self, capability:str, *, confirmed:bool=False, automation_granted:bool=False)->PermissionDecision:

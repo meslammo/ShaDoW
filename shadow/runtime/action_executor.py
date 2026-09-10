@@ -1,11 +1,11 @@
 """Concrete, permission-gated action execution for SHADOW runtime.
 
-MOD-16.1: turns planned capabilities into executable adapters without bypassing policy.
+MOD-17.4: normalize adapter error payloads so failed external actions never
+look successful to the brain or UI.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional
-
 from shadow.security.permissions import PermissionManager
 
 @dataclass
@@ -38,6 +38,9 @@ class ActionExecutor:
                                 False, {"permission": "allowed", "adapter": "missing"})
         try:
             value = handler(**kwargs)
+            if isinstance(value, dict) and value.get("ok") is False:
+                return ActionResult(action, False, str(value.get("error", "adapter rejected action")), False,
+                                    {"permission": "allowed", "adapter": "registered", "adapter_ok": False})
             return ActionResult(action, True, str(value) if value is not None else "ok", False,
                                 {"permission": "allowed", "adapter": "registered"})
         except Exception as exc:
