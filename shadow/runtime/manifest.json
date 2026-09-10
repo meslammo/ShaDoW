@@ -1,0 +1,7 @@
+{
+  "runtime": "shadow",
+  "version": "0.39",
+  "pipeline": ["observe", "understand", "plan", "permission_check", "execute", "verify", "learn"],
+  "capabilities": ["chat", "web_search", "files", "voice", "vision", "screen", "phone", "notifications", "location", "devices", "home", "car", "automation", "memory", "self_development"],
+  "security": {"provider_secrets_in_client": false, "dangerous_actions_require_confirmation": true, "unknown_tools_fail_closed": true}
+}
