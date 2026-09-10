@@ -8,7 +8,6 @@ import android.net.*;
 import android.os.*;
 import android.speech.*;
 import android.speech.tts.TextToSpeech;
-import android.text.InputType;
 import android.view.View;
 import android.widget.*;
 import java.io.*;
@@ -22,7 +21,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final int AUDIO_PERMISSION=701;
     private EditText input,url,token;
     private TextView status,output,historyInfo,deviceInfo;
-    private Button send,check,mic,speak,copy,share,clearHistory;
+    private Button send,check,mic,speak,copy,share,clearHistory,quickStatus,quickApps,quickCamera,quickMemory;
     private ExecutorService executor=Executors.newSingleThreadExecutor();
     private SpeechRecognizer recognizer;
     private TextToSpeech tts;
@@ -35,6 +34,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         status=findViewById(R.id.status); output=findViewById(R.id.output);
         send=findViewById(R.id.send); check=findViewById(R.id.check); mic=findViewById(R.id.mic); speak=findViewById(R.id.speak);
         copy=findViewById(R.id.copy); share=findViewById(R.id.share); clearHistory=findViewById(R.id.clear_history);
+        quickStatus=findViewById(R.id.quick_status); quickApps=findViewById(R.id.quick_apps); quickCamera=findViewById(R.id.quick_camera); quickMemory=findViewById(R.id.quick_memory);
         historyInfo=findViewById(R.id.history_info); deviceInfo=findViewById(R.id.device_info);
         tts=new TextToSpeech(this,this); setupVoice(); loadSettings(); updateDeviceInfo(); updateHistoryInfo();
         status.setText("● SHADOW ONLINE · LOCAL CORE");
@@ -44,6 +44,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         copy.setOnClickListener(v->copyAnswer()); share.setOnClickListener(v->shareAnswer());
         clearHistory.setOnClickListener(v->{getPreferences(MODE_PRIVATE).edit().remove("history").remove("last_command").apply();updateHistoryInfo();output.setText("تم مسح الذاكرة المحلية.");});
         check.setOnClickListener(v->checkGateway());
+        quickStatus.setOnClickListener(v->{input.setText("status");runGoal();});
+        quickApps.setOnClickListener(v->{input.setText("open apps");runGoal();});
+        quickCamera.setOnClickListener(v->{input.setText("open camera");runGoal();});
+        quickMemory.setOnClickListener(v->{input.setText("memory");runGoal();});
     }
 
     private void setupVoice(){
@@ -105,7 +109,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void skip(String s,int[] p){while(p[0]<s.length()&&Character.isWhitespace(s.charAt(p[0])))p[0]++;}
     private String formatNumber(double n){if(n==Math.rint(n))return String.valueOf((long)n);return String.format(Locale.US,"%.8f",n).replaceAll("0+$","").replaceAll("\\.$","");}
 
-    private String gatewayRequest(String base,String goal,String auth)throws Exception{if(!base.startsWith("http://")&&!base.startsWith("https://"))base="https://"+base;String body="{\"action\":\"run_goal\",\"payload\":{\"goal\":\""+jsonEscape(goal)+"\"},\"context\":{\"platform\":\"android\",\"runtime\":\"shadow-0.40\"}}";HttpURLConnection c=(HttpURLConnection)new URL(base.replaceAll("/$","")+"/v1/request").openConnection();c.setConnectTimeout(8000);c.setReadTimeout(30000);c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");c.setRequestProperty("Accept","application/json");if(!auth.isEmpty())c.setRequestProperty("Authorization","Bearer "+auth);try(OutputStream o=c.getOutputStream()){o.write(body.getBytes(StandardCharsets.UTF_8));}int code=c.getResponseCode();InputStream in=code<400?c.getInputStream():c.getErrorStream();String response=read(in);c.disconnect();if(code>=400)throw new IOException("HTTP "+code+": "+response);return "SHADOW GATEWAY\n\n"+response;}
+    private String gatewayRequest(String base,String goal,String auth)throws Exception{if(!base.startsWith("http://")&&!base.startsWith("https://"))base="https://"+base;String body="{\"action\":\"run_goal\",\"payload\":{\"goal\":\""+jsonEscape(goal)+"\"},\"context\":{\"platform\":\"android\",\"runtime\":\"shadow-0.40\",\"device\":\""+jsonEscape(Build.MANUFACTURER+" "+Build.MODEL)+"\"}}";HttpURLConnection c=(HttpURLConnection)new URL(base.replaceAll("/$","")+"/v1/request").openConnection();c.setConnectTimeout(8000);c.setReadTimeout(30000);c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");c.setRequestProperty("Accept","application/json");if(!auth.isEmpty())c.setRequestProperty("Authorization","Bearer "+auth);try(OutputStream o=c.getOutputStream()){o.write(body.getBytes(StandardCharsets.UTF_8));}int code=c.getResponseCode();InputStream in=code<400?c.getInputStream():c.getErrorStream();String response=read(in);c.disconnect();if(code>=400)throw new IOException("HTTP "+code+": "+response);return "SHADOW GATEWAY\n\n"+response;}
     private void checkGateway(){String base=url.getText().toString().trim();if(base.isEmpty()){status.setText("● LOCAL CORE · NO GATEWAY");return;}if(!base.startsWith("http://")&&!base.startsWith("https://"))base="https://"+base;final String target=base;check.setEnabled(false);status.setText("● CHECKING GATEWAY...");executor.execute(()->{String r;try{r=httpGet(target+"/health",token.getText().toString().trim());}catch(Exception e){r="Gateway unavailable: "+safeMessage(e);}final String rr=r;runOnUiThread(()->{output.setText(rr);status.setText(rr.startsWith("HTTP 200")?"● GATEWAY CONNECTED":"● GATEWAY CHECK FAILED");check.setEnabled(true);});});}
     private String httpGet(String u,String auth)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(u).openConnection();c.setConnectTimeout(5000);c.setReadTimeout(8000);c.setRequestMethod("GET");if(!auth.isEmpty())c.setRequestProperty("Authorization","Bearer "+auth);int code=c.getResponseCode();InputStream in=code<400?c.getInputStream():c.getErrorStream();String s=read(in);c.disconnect();return "HTTP "+code+"\n"+s;}
     private static String read(InputStream in)throws IOException{if(in==null)return "";StringBuilder s=new StringBuilder();try(BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8))){String line;while((line=br.readLine())!=null)s.append(line).append('\n');}return s.toString().trim();}
