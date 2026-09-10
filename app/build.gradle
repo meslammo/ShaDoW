@@ -24,7 +24,8 @@ chaquopy {
     }
     sourceSets {
         main {
-            srcDirs = ['../shadow']
+            // Repo root is the Python source root so the namespace package `shadow` resolves correctly.
+            srcDirs = ['..']
         }
     }
 }
