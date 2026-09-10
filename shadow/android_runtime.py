@@ -1,19 +1,33 @@
 """Android entry point for the embedded SHADOW Python runtime.
 
-MOD-19.17: the Chaquopy source root is the repository's shadow/ directory,
-so runtime packages are imported as top-level modules in the embedded VM.
+MOD-20.5: make the repository's shadow/ directory importable as the
+``shadow`` package inside Chaquopy, while keeping its source root limited
+to shadow/ so the Android build does not recurse into app/build.
 """
 from __future__ import annotations
 import os
+import sys
+import types
 from typing import Any, Dict, Optional
 
 _runtime = None
+
+
+def _install_shadow_package_alias() -> None:
+    """Expose shadow/ as package ``shadow`` inside the Chaquopy VM."""
+    if "shadow" in sys.modules:
+        return
+    package = types.ModuleType("shadow")
+    package.__path__ = [os.path.dirname(os.path.abspath(__file__))]
+    package.__package__ = "shadow"
+    sys.modules["shadow"] = package
 
 
 def _get_runtime(home: Optional[str] = None):
     global _runtime
     if home:
         os.chdir(home)
+    _install_shadow_package_alias()
     if _runtime is None:
         from runtime import ShadowRuntime
         _runtime = ShadowRuntime()
