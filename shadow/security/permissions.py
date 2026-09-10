@@ -9,10 +9,10 @@ class PermissionDecision:
     reason: str
 
 class PermissionManager:
-    SAFE_READ={"memory.read","memory.search","device.read","device.status","location.read","screen.read","web.search","calculator","time.now"}
+    SAFE_READ={"memory.read","memory_search","device.read","device_status","location.read","screen.read","web.search","calculator","time_now"}
     CONFIRM={"app.launch","file.write","message.send","calendar.write","device.control","home.control","car.control","memory.write"}
 
-    def decide(self, capability: str, *, confirmed: bool=False, automation_granted: bool=False) -> PermissionDecision:
+    def decide(self, capability:str, *, confirmed:bool=False, automation_granted:bool=False)->PermissionDecision:
         if capability in self.SAFE_READ:
             return PermissionDecision(True,False,"safe read capability")
         if capability in self.CONFIRM:
