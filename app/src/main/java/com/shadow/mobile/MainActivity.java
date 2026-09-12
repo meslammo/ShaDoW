@@ -17,13 +17,13 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.*;
 import java.util.*;
 
-/** MOD-26.2: Cloud-first ChatGPT-style shell with local failover. Provider secrets stay on the backend. */
+/** MOD-28.3: Cloud-first ChatGPT-style shell with local failover and hands-free voice turns. */
 public final class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int REQ_MIC=801, REQ_FILE=802, REQ_CAMERA=803, REQ_SPEECH=804;
     private final int BG=Color.rgb(13,14,17), SURFACE=Color.rgb(29,31,36), SURFACE2=Color.rgb(42,44,51), TEXT=Color.rgb(241,243,246), MUTED=Color.rgb(155,160,170);
     private ShadowCore core; private ShadowCloudClient cloud;
     private LinearLayout messages; private EditText input; private TextView status;
-    private TextToSpeech tts; private boolean englishVoice; private boolean cloudOnline;
+    private TextToSpeech tts; private boolean englishVoice; private boolean cloudOnline; private boolean conversationMode=true;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state); getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(BG);
@@ -46,7 +46,7 @@ public final class MainActivity extends Activity implements TextToSpeech.OnInitL
         TextView more=iconButton("⋮","More"); header.addView(more,new LinearLayout.LayoutParams(dp(48),dp(52))); root.addView(header);
 
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); messages.setPadding(dp(12),dp(10),dp(12),dp(18)); scroll.addView(messages); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        addAssistant("أهلاً محمد 👋\nأنا SHADOW.\nأنا متوصل بالسحابة أولاً، وهرد عليك كتابة وصوت.\nلو السحابة وقعت، عندي Local failover من غير ما المحادثة تقف.");
+        addAssistant("أهلاً محمد 👋\nأنا SHADOW.\nأنا متوصل بالسحابة أولاً، وهرد عليك كتابة وصوت.\nVoice Conversation: ON\nلو السحابة وقعت، عندي Local failover من غير ما المحادثة تقف.");
 
         LinearLayout composerWrap=new LinearLayout(this); composerWrap.setOrientation(LinearLayout.VERTICAL); composerWrap.setPadding(dp(4),dp(4),dp(4),dp(2));
         LinearLayout composer=new LinearLayout(this); composer.setGravity(Gravity.CENTER_VERTICAL); composer.setPadding(dp(5),dp(3),dp(5),dp(3)); composer.setBackground(bg(SURFACE,24));
@@ -55,7 +55,7 @@ public final class MainActivity extends Activity implements TextToSpeech.OnInitL
         TextView mic=iconButton("🎙","Voice input"); composer.addView(mic,new LinearLayout.LayoutParams(dp(52),dp(52)));
         TextView send=iconButton("➤","Send message"); send.setTextSize(23); composer.addView(send,new LinearLayout.LayoutParams(dp(52),dp(52)));
         composerWrap.addView(composer,new LinearLayout.LayoutParams(-1,dp(60)));
-        TextView hint=tv("＋  Files/Photos   •   🎙 Voice   •   Enter Send",10); hint.setTextColor(MUTED); hint.setGravity(Gravity.CENTER); composerWrap.addView(hint,new LinearLayout.LayoutParams(-1,dp(24))); root.addView(composerWrap);
+        TextView hint=tv("＋ Files/Photos  •  🎙 Voice  •  Hands-free ON  •  Enter Send",10); hint.setTextColor(MUTED); hint.setGravity(Gravity.CENTER); composerWrap.addView(hint,new LinearLayout.LayoutParams(-1,dp(24))); root.addView(composerWrap);
         setContentView(root);
 
         menu.setOnClickListener(v->showMenu()); more.setOnClickListener(v->showMenu()); plus.setOnClickListener(v->showAttach()); mic.setOnClickListener(v->listen()); send.setOnClickListener(v->send());
@@ -74,25 +74,31 @@ public final class MainActivity extends Activity implements TextToSpeech.OnInitL
             try {
                 ShadowCloudClient.CloudReply reply=cloud.chat(s);
                 cloudOnline=true;
-                runOnUiThread(()->{addAssistant(reply.answer);speak(reply.answer);status.setText("ONLINE • AI CONNECTED");status.setTextColor(Color.rgb(112,210,160));});
+                runOnUiThread(()->{addAssistant(reply.answer);speak(reply.answer);status.setText("ONLINE • AI CONNECTED");status.setTextColor(Color.rgb(112,210,160));queueNextVoiceTurn();});
             } catch(Throwable cloudError) {
                 cloudOnline=false;
                 String local;
                 try{local=core.handle(s);}catch(Throwable e){local=null;}
                 if(local==null||local.trim().isEmpty())local=core.offlineChat(s);
                 final String answer=local;
-                runOnUiThread(()->{addAssistant(answer);speak(answer);addSystem("Cloud unavailable — local response used.");status.setText("ONLINE • LOCAL FAILOVER");status.setTextColor(Color.rgb(240,170,100));});
+                runOnUiThread(()->{addAssistant(answer);speak(answer);addSystem("Cloud unavailable — local response used.");status.setText("ONLINE • LOCAL FAILOVER");status.setTextColor(Color.rgb(240,170,100));queueNextVoiceTurn();});
             }
         }).start();
     }
 
-    private void showMenu(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("New chat");p.getMenu().add("Cloud status");p.getMenu().add("Voice language: "+(englishVoice?"English":"Arabic"));p.getMenu().add("Read last answer aloud");p.getMenu().add("Profile / Memory");p.getMenu().add("Files / Photos");p.getMenu().add("Camera");p.getMenu().add("Home");p.getMenu().add("Car");p.getMenu().add("System status");p.getMenu().add("Settings");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("New chat")){cloud.resetConversation();messages.removeAllViews();addAssistant("محادثة جديدة. أنا SHADOW، جاهز أونلاين.");}else if(n.equals("Cloud status")){checkCloud();addSystem("Backend: "+cloud.getBaseUrl());}else if(n.startsWith("Voice language")){englishVoice=!englishVoice;addSystem("Voice: "+(englishVoice?"English":"Arabic"));}else if(n.startsWith("Read last"))speak(lastAssistant());else if(n.equals("Profile / Memory"))showProfile();else if(n.equals("Files / Photos"))showAttach();else if(n.equals("Camera"))openCamera();else if(n.equals("System status"))addAssistant(core.handle("status"));else if(n.equals("Settings"))startActivity(new Intent(Settings.ACTION_SETTINGS));else addSystem(n+" ready.");return true;});p.show();}
+    private void queueNextVoiceTurn(){
+        if(!conversationMode)return;
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->{if(conversationMode)listen();},2200);
+    }
+
+    private void showMenu(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("New chat");p.getMenu().add("Cloud status");p.getMenu().add("Voice language: "+(englishVoice?"English":"Arabic"));p.getMenu().add("Voice Conversation: "+(conversationMode?"ON":"OFF"));p.getMenu().add("Read last answer aloud");p.getMenu().add("Profile / Memory");p.getMenu().add("Files / Photos");p.getMenu().add("Camera");p.getMenu().add("Home");p.getMenu().add("Car");p.getMenu().add("System status");p.getMenu().add("Settings");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("New chat")){cloud.resetConversation();messages.removeAllViews();addAssistant("محادثة جديدة. أنا SHADOW، جاهز أونلاين.");}else if(n.equals("Cloud status")){checkCloud();addSystem("Backend: "+cloud.getBaseUrl());}else if(n.startsWith("Voice language")){englishVoice=!englishVoice;addSystem("Voice: "+(englishVoice?"English":"Arabic"));}else if(n.startsWith("Voice Conversation")){conversationMode=!conversationMode;addSystem("Hands-free voice conversation: "+(conversationMode?"ON":"OFF"));if(conversationMode)listen();}else if(n.startsWith("Read last"))speak(lastAssistant());else if(n.equals("Profile / Memory"))showProfile();else if(n.equals("Files / Photos"))showAttach();else if(n.equals("Camera"))openCamera();else if(n.equals("System status"))addAssistant(core.handle("status"));else if(n.equals("Settings"))startActivity(new Intent(Settings.ACTION_SETTINGS));else addSystem(n+" ready.");return true;});p.show();}
 
     private void showAttach(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("Files");p.getMenu().add("Photos");p.getMenu().add("Camera");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("Files"))openFiles();else if(n.equals("Camera"))openCamera();else{Intent x=new Intent(Intent.ACTION_PICK);x.setType("image/*");startActivityForResult(x,REQ_FILE);}return true;});p.show();}
     private void openFiles(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");startActivityForResult(i,REQ_FILE);}
     private void openCamera(){try{startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),REQ_CAMERA);}catch(Exception e){addSystem("No camera application is available.");}}
     @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(req==REQ_SPEECH&&result==RESULT_OK&&data!=null){ArrayList<String>a=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(a!=null&&!a.isEmpty()){input.setText(a.get(0));send();}return;}if(result!=RESULT_OK||data==null)return;Uri u=data.getData();if(u!=null){addSystem("Attached: "+u.getLastPathSegment());try{getContentResolver().takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}}else if(req==REQ_CAMERA)addSystem("Camera capture received.");}
-    private void listen(){if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_MIC);return;}Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,englishVoice?"en-US":"ar-EG");i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,1);try{startActivityForResult(i,REQ_SPEECH);}catch(Exception e){addSystem("Voice recognition is unavailable on this device.");}}
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==REQ_MIC&&grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED){listen();}else if(requestCode==REQ_MIC){conversationMode=false;addSystem("Microphone permission denied — voice conversation turned OFF.");}}
+    private void listen(){if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_MIC);return;}Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,englishVoice?"en-US":"ar-EG");i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,1);try{status.setText("LISTENING • VOICE");startActivityForResult(i,REQ_SPEECH);}catch(Exception e){conversationMode=false;addSystem("Voice recognition is unavailable on this device.");}}
     private String lastAssistant(){for(int i=messages.getChildCount()-1;i>=0;i--){View v=messages.getChildAt(i);if(v instanceof LinearLayout){LinearLayout l=(LinearLayout)v;if(l.getChildCount()>0&&l.getChildAt(0) instanceof TextView)return ((TextView)l.getChildAt(0)).getText().toString();}}return "أنا SHADOW.";}
     private void showProfile(){new AlertDialog.Builder(this).setTitle("SHADOW • Profile & Memory").setMessage("محمد\nEgyptian Arabic • direct practical replies\n\nNEXO + SHADOW project context\n\nNative Android + embedded Python\n\nArabic male voice + English cinematic preset\n\nCloud-first AI + local failover\n\nHome / Car domains are fail-closed until a real endpoint is configured").setPositiveButton("Close",null).show();}
     private boolean arabic(String s){for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c>=0x0600&&c<=0x06FF)return true;}return false;}
