@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.*;
@@ -18,7 +19,7 @@ import android.speech.tts.TextToSpeech;
 import java.io.ByteArrayInputStream;
 import java.util.*;
 
-/** MOD-29.6: ChatGPT-style SHADOW shell with in-app voice, device controls, remotes and image generation. */
+/** MOD-29.8: ChatGPT-style SHADOW shell with in-app voice, phone controls, remotes, web and images. */
 public final class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int REQ_MIC=801, REQ_FILE=802, REQ_CAMERA=803, REQ_CONTACTS=805, REQ_CALL=806;
     private final int BG=Color.rgb(13,14,17), SURFACE=Color.rgb(29,31,36), SURFACE2=Color.rgb(42,44,51), TEXT=Color.rgb(241,243,246), MUTED=Color.rgb(155,160,170);
@@ -44,7 +45,7 @@ public final class MainActivity extends Activity implements TextToSpeech.OnInitL
     private void buildUi(){
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(BG); root.setPadding(dp(8),dp(4),dp(8),dp(5));
         LinearLayout header=new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(4),dp(4),dp(4),dp(4));
-        TextView menu=iconButton("☰","Menu and files"); header.addView(menu,new LinearLayout.LayoutParams(dp(48),dp(52)));
+        TextView menu=iconButton("☰","Files"); header.addView(menu,new LinearLayout.LayoutParams(dp(48),dp(52)));
         ImageView logo=new ImageView(this); logo.setImageResource(R.drawable.shadow_logo); logo.setPadding(dp(8),dp(8),dp(8),dp(8)); header.addView(logo,new LinearLayout.LayoutParams(dp(50),dp(52)));
         LinearLayout titleBox=new LinearLayout(this); titleBox.setOrientation(LinearLayout.VERTICAL); titleBox.setGravity(Gravity.CENTER);
         TextView title=tv("SHADOW",18); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); titleBox.addView(title);
@@ -83,50 +84,33 @@ public final class MainActivity extends Activity implements TextToSpeech.OnInitL
             if(localCall.startsWith("PERMISSION_")){pendingCallCommand=s;if(localCall.contains("READ_CONTACTS"))requestPermissions(new String[]{Manifest.permission.READ_CONTACTS},REQ_CONTACTS);else requestPermissions(new String[]{Manifest.permission.CALL_PHONE},REQ_CALL);return;}
             addAssistant(localCall); speak(localCall); status.setText("PHONE • DONE"); queueNextVoiceTurn(); return;
         }
-        String imagePrompt=imagePrompt(s);
-        if(imagePrompt!=null){generateImage(imagePrompt);return;}
+        String imagePrompt=imagePrompt(s); if(imagePrompt!=null){generateImage(imagePrompt);return;}
         new Thread(()->{
-            try {
-                ShadowCloudClient.CloudReply reply=cloud.chat(s); cloudOnline=true;
-                runOnUiThread(()->{addAssistant(reply.answer);speak(reply.answer);status.setText("ONLINE • AI + WEB");status.setTextColor(Color.rgb(112,210,160));queueNextVoiceTurn();});
-            } catch(Throwable cloudError) {
-                cloudOnline=false; String local;
-                try{local=core.handle(s);}catch(Throwable e){local=null;}
-                if(local==null||local.trim().isEmpty())local=core.offlineChat(s);
-                final String answer=local;
-                runOnUiThread(()->{addAssistant(answer);speak(answer);addSystem("Cloud unavailable — local response used.");status.setText("OFFLINE • LOCAL FAILOVER");status.setTextColor(Color.rgb(240,170,100));queueNextVoiceTurn();});
-            }
+            try {ShadowCloudClient.CloudReply reply=cloud.chat(s);cloudOnline=true;runOnUiThread(()->{addAssistant(reply.answer);speak(reply.answer);status.setText("ONLINE • AI + WEB");status.setTextColor(Color.rgb(112,210,160));queueNextVoiceTurn();});}
+            catch(Throwable cloudError){cloudOnline=false;String local;try{local=core.handle(s);}catch(Throwable e){local=null;}if(local==null||local.trim().isEmpty())local=core.offlineChat(s);final String answer=local;runOnUiThread(()->{addAssistant(answer);speak(answer);addSystem("Cloud unavailable — local response used.");status.setText("OFFLINE • LOCAL FAILOVER");status.setTextColor(Color.rgb(240,170,100));queueNextVoiceTurn();});}
         }).start();
     }
 
     private String imagePrompt(String s){String x=s.toLowerCase(Locale.ROOT);if(x.contains("صمم صورة")||x.contains("اعمل صورة")||x.contains("اعمللى صورة")||x.contains("صورة لـ")||x.contains("generate image")||x.contains("create an image")||x.contains("design an image"))return s;return null;}
-    private void generateImage(final String prompt){
-        addSystem("SHADOW • بيصمم الصورة أونلاين…"); status.setText("GENERATING • IMAGE");
-        new Thread(()->{try{String b64=cloud.generateImage(prompt);byte[] data=android.util.Base64.decode(b64,android.util.Base64.DEFAULT);runOnUiThread(()->{addAssistant("اتفضل — دي الصورة اللي طلبتها.");addImage(data);status.setText("ONLINE • IMAGE READY");queueNextVoiceTurn();});}catch(Throwable e){runOnUiThread(()->{addAssistant("مش قادر أولّد الصورة دلوقتي: "+e.getMessage());status.setText("ONLINE • IMAGE ERROR");queueNextVoiceTurn();});}}).start();
-    }
-
+    private void generateImage(final String prompt){addSystem("SHADOW • بيصمم الصورة أونلاين…");status.setText("GENERATING • IMAGE");new Thread(()->{try{String b64=cloud.generateImage(prompt);byte[] data=android.util.Base64.decode(b64,android.util.Base64.DEFAULT);runOnUiThread(()->{addAssistant("اتفضل — دي الصورة اللي طلبتها.");addImage(data);status.setText("ONLINE • IMAGE READY");queueNextVoiceTurn();});}catch(Throwable e){runOnUiThread(()->{addAssistant("مش قادر أولّد الصورة دلوقتي: "+e.getMessage());status.setText("ONLINE • IMAGE ERROR");queueNextVoiceTurn();});}}).start();}
     private void queueNextVoiceTurn(){if(!conversationMode)return;new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->{if(conversationMode)listen();},2500);}
 
-    private void showFeatures(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));
-        p.getMenu().add("📺 TV Remote");p.getMenu().add("❄️ AC Remote");p.getMenu().add("🔎 Remote capabilities");p.getMenu().add("🌐 Web search");p.getMenu().add("🎨 Image design");p.getMenu().add("Voice language: "+(englishVoice?"English":"Arabic"));p.getMenu().add("Voice Conversation: "+(conversationMode?"ON":"OFF"));p.getMenu().add("Read last answer aloud");p.getMenu().add("Profile / Memory");p.getMenu().add("Home");p.getMenu().add("Car");p.getMenu().add("System status");p.getMenu().add("Settings");
-        p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("📺 TV Remote")||n.equals("❄️ AC Remote")||n.equals("🔎 Remote capabilities")){remotes.showCenter();}else if(n.equals("🌐 Web search")){input.setText("ابحث أونلاين عن ");input.requestFocus();}else if(n.equals("🎨 Image design")){input.setText("صمم صورة: ");input.requestFocus();}else if(n.equals("Voice language: "+(englishVoice?"English":"Arabic"))){englishVoice=!englishVoice;addSystem("Voice: "+(englishVoice?"English":"Arabic"));}else if(n.startsWith("Voice Conversation")){conversationMode=!conversationMode;addSystem("Hands-free voice conversation: "+(conversationMode?"ON":"OFF"));if(conversationMode)listen();else voice.stop();}else if(n.startsWith("Read last"))speak(lastAssistant());else if(n.equals("Profile / Memory"))showProfile();else if(n.equals("System status"))addAssistant(core.handle("status"));else if(n.equals("Settings"))startActivity(new Intent(Settings.ACTION_SETTINGS));else addSystem(n+" ready.");return true;});p.show();}
-
+    private void showFeatures(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("📺 TV Remote");p.getMenu().add("❄️ AC Remote");p.getMenu().add("🔎 Remote capabilities");p.getMenu().add("🌐 Web search");p.getMenu().add("🎨 Image design");p.getMenu().add("Voice language: "+(englishVoice?"English":"Arabic"));p.getMenu().add("Voice Conversation: "+(conversationMode?"ON":"OFF"));p.getMenu().add("Read last answer aloud");p.getMenu().add("Profile / Memory");p.getMenu().add("Home");p.getMenu().add("Car");p.getMenu().add("System status");p.getMenu().add("Settings");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("📺 TV Remote")||n.equals("❄️ AC Remote")||n.equals("🔎 Remote capabilities"))remotes.showCenter();else if(n.equals("🌐 Web search")){input.setText("ابحث أونلاين عن ");input.requestFocus();}else if(n.equals("🎨 Image design")){input.setText("صمم صورة: ");input.requestFocus();}else if(n.equals("Voice language: "+(englishVoice?"English":"Arabic"))){englishVoice=!englishVoice;addSystem("Voice: "+(englishVoice?"English":"Arabic"));}else if(n.startsWith("Voice Conversation")){conversationMode=!conversationMode;addSystem("Hands-free voice conversation: "+(conversationMode?"ON":"OFF"));if(conversationMode)listen();else voice.stop();}else if(n.startsWith("Read last"))speak(lastAssistant());else if(n.equals("Profile / Memory"))showProfile();else if(n.equals("System status"))addAssistant(core.handle("status"));else if(n.equals("Settings"))startActivity(new Intent(Settings.ACTION_SETTINGS));else addSystem(n+" ready.");return true;});p.show();}
     private void showAttach(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("Files");p.getMenu().add("Photos");p.getMenu().add("Camera");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("Files"))openFiles();else if(n.equals("Camera"))openCamera();else{Intent x=new Intent(Intent.ACTION_PICK);x.setType("image/*");startActivityForResult(x,REQ_FILE);}return true;});p.show();}
     private void openFiles(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");startActivityForResult(i,REQ_FILE);}
     private void openCamera(){try{startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),REQ_CAMERA);}catch(Exception e){addSystem("No camera application is available.");}}
     private void listen(){if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_MIC);return;}if(!voice.isAvailable()){addSystem("خدمة الصوت مش متاحة على الجهاز.");return;}voice.start(englishVoice?"en-US":"ar-EG");}
 
     @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(result!=RESULT_OK||data==null)return;Uri u=data.getData();if(u!=null){addSystem("Attached: "+u.getLastPathSegment());try{getContentResolver().takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}}else if(req==REQ_CAMERA)addSystem("Camera capture received.");}
-    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){super.onRequestPermissionsResult(requestCode,permissions,grantResults);
-        if(grantResults.length==0)return;
-        if(requestCode==REQ_MIC&&grantResults[0]==PackageManager.PERMISSION_GRANTED){listen();}
-        else if(requestCode==REQ_MIC){conversationMode=false;addSystem("Microphone permission denied — voice conversation turned OFF.");}
-        else if((requestCode==REQ_CONTACTS||requestCode==REQ_CALL)&&grantResults[0]==PackageManager.PERMISSION_GRANTED&&pendingCallCommand!=null){String cmd=pendingCallCommand;pendingCallCommand=null;String r=ShadowPhoneController.execute(this,cmd);if(r!=null&&r.startsWith("PERMISSION_")){addSystem("لسه ناقصة صلاحية الاتصال.");}else{addAssistant(r==null?"تعذر تنفيذ الاتصال.":r);speak(r);queueNextVoiceTurn();}}
-        else if(requestCode==REQ_CONTACTS||requestCode==REQ_CALL){pendingCallCommand=null;addSystem("الصلاحية مرفوضة — مش هقدر أنفذ المكالمة بدونها.");}
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(grantResults.length==0)return;
+        if(requestCode==REQ_MIC&&grantResults[0]==PackageManager.PERMISSION_GRANTED){listen();return;}
+        if(requestCode==REQ_MIC){conversationMode=false;addSystem("Microphone permission denied — voice conversation turned OFF.");return;}
+        if((requestCode==REQ_CONTACTS||requestCode==REQ_CALL)&&grantResults[0]==PackageManager.PERMISSION_GRANTED&&pendingCallCommand!=null){String cmd=pendingCallCommand;String r=ShadowPhoneController.execute(this,cmd);if("PERMISSION_CALL_PHONE".equals(r)){requestPermissions(new String[]{Manifest.permission.CALL_PHONE},REQ_CALL);return;}if("PERMISSION_READ_CONTACTS".equals(r)){requestPermissions(new String[]{Manifest.permission.READ_CONTACTS},REQ_CONTACTS);return;}pendingCallCommand=null;addAssistant(r==null?"تعذر تنفيذ الاتصال.":r);speak(r);queueNextVoiceTurn();return;}
+        if(requestCode==REQ_CONTACTS||requestCode==REQ_CALL){pendingCallCommand=null;addSystem("الصلاحية مرفوضة — مش هقدر أنفذ المكالمة بدونها.");}
     }
 
     private String lastAssistant(){for(int i=messages.getChildCount()-1;i>=0;i--){View v=messages.getChildAt(i);if(v instanceof LinearLayout){LinearLayout l=(LinearLayout)v;if(l.getChildCount()>0&&l.getChildAt(0) instanceof TextView)return ((TextView)l.getChildAt(0)).getText().toString();}}return "أنا SHADOW — Z.";}
-    private void showProfile(){new AlertDialog.Builder(this).setTitle("SHADOW • Z • Profile & Memory").setMessage("محمد\nEgyptian Arabic • direct practical replies\n\nSHADOW/Z knows this device profile for compatibility.\n\nCloud-first AI + local failover\n\nWeb Search + Image Design online\n\nTV / AC Remote Center\n\nPhone controls stay subject to Android permissions and the actual hardware installed.").setPositiveButton("Close",null).show();}
+    private void showProfile(){new AlertDialog.Builder(this).setTitle("SHADOW • Z • Profile & Memory").setMessage("محمد\nEgyptian Arabic • direct practical replies\n\nSHADOW/Z يعرف مواصفات الجهاز للتوافق مع الأوامر.\n\nCloud-first AI + local failover\n\nWeb Search + Image Design online\n\nTV / AC Remote Center\n\nPhone controls حسب صلاحيات Android والهاردوير الموجود فعلياً.").setPositiveButton("Close",null).show();}
     private boolean arabic(String s){for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c>=0x0600&&c<=0x06FF)return true;}return false;}
     private void speak(String s){if(tts==null||s==null||s.trim().isEmpty())return;try{boolean ar=arabic(s);tts.setLanguage(ar?new Locale("ar","EG"):Locale.US);tts.setPitch(0.72f);tts.setSpeechRate(ar?0.96f:0.86f);tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"shadow");}catch(Exception ignored){}}
     @Override public void onInit(int code){if(tts!=null){tts.setLanguage(new Locale("ar","EG"));tts.setPitch(0.72f);tts.setSpeechRate(0.96f);}}
