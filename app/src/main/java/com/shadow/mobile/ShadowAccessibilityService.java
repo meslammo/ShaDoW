@@ -2,8 +2,8 @@ package com.shadow.mobile;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.graphics.Rect;
 
 /** MOD-29.9: Optional user-enabled accessibility bridge for deeper cross-app control. */
 public final class ShadowAccessibilityService extends AccessibilityService {
@@ -12,14 +12,14 @@ public final class ShadowAccessibilityService extends AccessibilityService {
     @Override public void onServiceConnected() {
         instance = this;
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes = AccessibilityServiceInfo.eventTypes;
+        info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
         info.notificationTimeout = 80;
         info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
         setServiceInfo(info);
     }
 
-    @Override public void onAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) { }
+    @Override public void onAccessibilityEvent(AccessibilityEvent event) { }
     @Override public void onInterrupt() { }
     @Override public void onDestroy() { if (instance == this) instance = null; super.onDestroy(); }
 
@@ -34,19 +34,6 @@ public final class ShadowAccessibilityService extends AccessibilityService {
         for (AccessibilityNodeInfo n : nodes) {
             if (n != null && n.isClickable()) return n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             if (n != null && n.getParent() != null && n.getParent().isClickable()) return n.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
-        }
-        return false;
-    }
-
-    public static boolean setText(String text) {
-        if (instance == null || text == null) return false;
-        AccessibilityNodeInfo root = instance.getRootInActiveWindow();
-        if (root == null) return false;
-        java.util.List<AccessibilityNodeInfo> inputs = root.findAccessibilityNodeInfosByViewId(instance.getPackageName() + ":id/" + "input");
-        for (AccessibilityNodeInfo n : inputs) {
-            android.os.Bundle args = new android.os.Bundle();
-            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
-            if (n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return true;
         }
         return false;
     }
