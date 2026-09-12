@@ -1,13 +1,17 @@
 package com.shadow.mobile;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.provider.Settings;
 
-/** MOD-15.4: Local Android action adapter with safe explicit intents and installed-app discovery. */
+/** MOD-28.1: Local Android action adapter with safe explicit intents and device controls. */
 public final class ShadowMobileActions {
     private ShadowMobileActions() {}
 
@@ -15,6 +19,23 @@ public final class ShadowMobileActions {
         String original = command == null ? "" : command.trim();
         String x = original.toLowerCase(java.util.Locale.ROOT);
         try {
+            if (contains(original, x, "شغل الفلاش", "شغل الكشاف", "افتح الفلاش", "flashlight", "torch")) return setTorch(activity, true);
+            if (contains(original, x, "اقفل الفلاش", "اقفل الكشاف", "اطفي الفلاش", "turn off flashlight", "torch off")) return setTorch(activity, false);
+            if (contains(original, x, "علي الصوت", "على الصوت", "ارفع الصوت", "زود الصوت", "volume up", "louder")) return adjustVolume(activity, AudioManager.ADJUST_RAISE);
+            if (contains(original, x, "وطي الصوت", "خفض الصوت", "قلل الصوت", "volume down", "quieter")) return adjustVolume(activity, AudioManager.ADJUST_LOWER);
+            if (contains(original, x, "اكتم الصوت", "كتم الصوت", "mute", "silent")) return adjustVolume(activity, AudioManager.ADJUST_MUTE);
+            if (contains(original, x, "وضع الوصول", "امكانية الوصول", "إمكانية الوصول", "accessibility")) {
+                activity.startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); return "تم فتح إعدادات إمكانية الوصول. فعّل SHADOW لو عايز تحكم أعمق في الشاشة.";
+            }
+            if (contains(original, x, "اعدادات البطارية", "إعدادات البطارية", "battery settings", "battery")) {
+                activity.startActivity(new Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)); return "تم فتح إعدادات البطارية.";
+            }
+            if (contains(original, x, "سطوع الشاشة", "السطوع", "brightness", "display settings")) {
+                activity.startActivity(new Intent(Settings.ACTION_DISPLAY_SETTINGS)); return "تم فتح إعدادات الشاشة والسطوع.";
+            }
+            if (contains(original, x, "وقت الشاشة", "مهلة الشاشة", "screen timeout")) {
+                activity.startActivity(new Intent(Settings.ACTION_DISPLAY_SETTINGS)); return "تم فتح إعدادات الشاشة لتغيير مهلة الإيقاف.";
+            }
             if (contains(original, x, "افتح الإعدادات", "افتح الاعدادات", "open settings", "settings")) {
                 activity.startActivity(new Intent(Settings.ACTION_SETTINGS)); return "تم فتح إعدادات الجهاز.";
             }
@@ -96,6 +117,31 @@ public final class ShadowMobileActions {
             String msg = e.getMessage(); return "تعذر تنفيذ الأمر بأمان: " + (msg == null ? e.getClass().getSimpleName() : msg);
         }
         return null;
+    }
+
+    private static String adjustVolume(Activity activity, int direction) {
+        AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
+        if (audio == null) return "الصوت غير متاح حالياً.";
+        audio.adjustSuggestedStreamVolume(direction, AudioManager.USE_DEFAULT_STREAM_TYPE, 0);
+        return direction == AudioManager.ADJUST_RAISE ? "عليت الصوت." : direction == AudioManager.ADJUST_LOWER ? "وطيت الصوت." : "كتمت الصوت.";
+    }
+
+    private static String setTorch(Activity activity, boolean enabled) {
+        if (android.os.Build.VERSION.SDK_INT < 23) return "التحكم في الفلاش غير مدعوم على إصدار Android ده.";
+        CameraManager cm = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
+        if (cm == null) return "الكاميرا غير متاحة.";
+        try {
+            String selected = null;
+            for (String id : cm.getCameraIdList()) {
+                CameraCharacteristics c = cm.getCameraCharacteristics(id);
+                Boolean flash = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                Integer facing = c.get(CameraCharacteristics.LENS_FACING);
+                if (Boolean.TRUE.equals(flash) && (selected == null || Integer.valueOf(CameraCharacteristics.LENS_FACING_BACK).equals(facing))) selected = id;
+            }
+            if (selected == null) return "مفيش فلاش متاح على الجهاز.";
+            cm.setTorchMode(selected, enabled);
+            return enabled ? "شغلت الفلاش." : "قفلت الفلاش.";
+        } catch (Exception e) { return "مش قادر أتحكم في الفلاش بأمان دلوقتي."; }
     }
 
     private static String launchNamed(Activity activity, String packageName, String label) {
