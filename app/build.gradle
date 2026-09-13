@@ -19,7 +19,7 @@ android {
     afterEvaluate {
         tasks.matching { it.name == 'mergeDebugPythonSources' || it.name == 'mergeReleasePythonSources' }.configureEach {
             dependsOn tasks.matching { it.name == 'javaPreCompileDebug' || it.name == 'javaPreCompileRelease' }
-            dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeRelease' }
+            dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeReleaseMetadata' }
             dependsOn tasks.matching { it.name == 'installDebugPythonRequirements' || it.name == 'installReleasePythonRequirements' }
         }
     }
