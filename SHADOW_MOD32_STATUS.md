@@ -2,4 +2,4 @@
 
 Development Agent + Project Memory stage.
 
-This marker is part of the SHADOW development-agent rollout.
+This rollout adds persistent project memory and a guarded development planning core. Execution remains approval-gated.
