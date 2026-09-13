@@ -9,7 +9,7 @@ import android.net.Uri;
 import android.provider.ContactsContract;
 import java.util.List;
 
-/** MOD-33.3: Existing phone controller + ClosePaw-inspired agent bridge + approval gate. */
+/** MOD-34.2: Existing phone controller + phone-use bridge + approval gate + network status. */
 public final class ShadowPhoneController {
     private static ShadowPhoneUseAgent agent;
     private static String pendingSensitiveCommand;
@@ -18,6 +18,7 @@ public final class ShadowPhoneController {
     public static String execute(Activity activity,String command){
         if(command==null)return null; String original=command.trim(); if(original.isEmpty())return null; String x=original.toLowerCase(java.util.Locale.ROOT);
         if(isApproval(x)&&pendingSensitiveCommand!=null){String approved=pendingSensitiveCommand;pendingSensitiveCommand=null;return executeInternal(activity,approved,true);}
+        if(isNetworkCommand(x)) return ShadowNetworkManager.describe(activity);
         if(x.startsWith("اتصل ب")||x.startsWith("اتصل بـ")||x.startsWith("كلم ")||x.startsWith("call ")){
             pendingSensitiveCommand=original;
             return "🧠 SHADOW • محتاج موافقتك قبل إجراء مكالمة\n\n👤 الشخص: "+original.replaceFirst("(?i)^(اتصل\\s*ب[ـ ]?|كلم\\s+|call\\s+)","").trim()+"\n🔐 الإجراء حساس وغير قابل للتراجع بعد البدء.\n\nاكتب «وافق» أو «نفّذ» للتنفيذ.";
@@ -46,6 +47,7 @@ public final class ShadowPhoneController {
         if(x.startsWith("افتح ")||x.startsWith("open ")){String requested=original.replaceFirst("(?i)^(افتح|open)\\s+","").trim();String result=launchByInstalledLabel(activity,requested);if(result!=null)return result;}
         return null;
     }
+    private static boolean isNetworkCommand(String x){return x.equals("النت")||x.equals("الانترنت")||x.equals("الإنترنت")||x.contains("حالة النت")||x.contains("حالة الإنترنت")||x.contains("حالة الانترنت")||x.contains("network status")||x.contains("internet status");}
     private static String renderPlan(ShadowPhoneUseAgent.Plan p){StringBuilder b=new StringBuilder(p.summary);for(ShadowPhoneUseAgent.Step s:p.steps)b.append("\n").append(s.icon).append(" ").append(s.name).append(" — ").append(s.detail);return b.toString();}
     private static boolean isApproval(String s){return s.equals("وافق")||s.equals("موافق")||s.equals("نفذ")||s.equals("نفّذ")||s.equals("approve")||s.equals("approved")||s.equals("yes")||s.equals("نعم");}
     public static String permissionMessage(String code){if("PERMISSION_READ_CONTACTS".equals(code))return "PERMISSION_REQUIRED:READ_CONTACTS";if("PERMISSION_CALL_PHONE".equals(code))return "PERMISSION_REQUIRED:CALL_PHONE";return code;}
