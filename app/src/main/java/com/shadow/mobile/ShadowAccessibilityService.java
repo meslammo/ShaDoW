@@ -2,46 +2,57 @@ package com.shadow.mobile;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.graphics.Rect;
+import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
-/** MOD-29.9: Optional user-enabled accessibility bridge for deeper cross-app control. */
+/** MOD-33.2: semantic screen perception + safe phone-use primitives, integrated into SHADOW's existing service. */
 public final class ShadowAccessibilityService extends AccessibilityService {
     private static ShadowAccessibilityService instance;
-
-    @Override public void onServiceConnected() {
-        instance = this;
-        AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
-        info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
-        info.notificationTimeout = 80;
-        info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+    @Override public void onServiceConnected(){
+        instance=this; AccessibilityServiceInfo info=new AccessibilityServiceInfo();
+        info.eventTypes=AccessibilityEvent.TYPES_ALL_MASK; info.feedbackType=AccessibilityServiceInfo.FEEDBACK_GENERIC; info.notificationTimeout=60;
+        info.flags=AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS|AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS|AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
         setServiceInfo(info);
     }
+    @Override public void onAccessibilityEvent(AccessibilityEvent event){}
+    @Override public void onInterrupt(){}
+    @Override public void onDestroy(){if(instance==this)instance=null;super.onDestroy();}
+    public static boolean enabled(){return instance!=null;}
+    public static boolean global(int action){return instance!=null&&instance.performGlobalAction(action);}
 
-    @Override public void onAccessibilityEvent(AccessibilityEvent event) { }
-    @Override public void onInterrupt() { }
-    @Override public void onDestroy() { if (instance == this) instance = null; super.onDestroy(); }
-
-    public static boolean enabled() { return instance != null; }
-    public static boolean global(int action) { return instance != null && instance.performGlobalAction(action); }
-
-    public static boolean clickText(String text) {
-        if (instance == null || text == null || text.trim().isEmpty()) return false;
-        AccessibilityNodeInfo root = instance.getRootInActiveWindow();
-        if (root == null) return false;
-        java.util.List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(text.trim());
-        for (AccessibilityNodeInfo n : nodes) {
-            if (n != null && n.isClickable()) return n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            if (n != null && n.getParent() != null && n.getParent().isClickable()) return n.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
-        }
-        return false;
+    public static boolean clickText(String text){
+        if(instance==null||text==null||text.trim().isEmpty())return false; AccessibilityNodeInfo root=instance.getRootInActiveWindow(); if(root==null)return false;
+        java.util.List<AccessibilityNodeInfo> nodes=root.findAccessibilityNodeInfosByText(text.trim());
+        for(AccessibilityNodeInfo n:nodes){if(n==null)continue;if(n.isClickable()&&n.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;AccessibilityNodeInfo p=n.getParent();if(p!=null&&p.isClickable()&&p.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;}return false;
     }
-
-    public static String screenSummary() {
-        if (instance == null) return "ACCESSIBILITY_OFF";
-        AccessibilityNodeInfo root = instance.getRootInActiveWindow();
-        if (root == null) return "ACCESSIBILITY_ON_NO_WINDOW";
-        return "ACCESSIBILITY_ON";
+    public static boolean typeText(String text){
+        if(instance==null||text==null)return false; AccessibilityNodeInfo root=instance.getRootInActiveWindow();if(root==null)return false; AccessibilityNodeInfo target=findEditable(root);
+        if(target==null)return false; Bundle b=new Bundle();b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,text);return target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b);
+    }
+    private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo n){
+        if(n==null)return null;if(n.isEditable()||"android.widget.EditText".contentEquals(n.getClassName()))return n;
+        for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo r=findEditable(n.getChild(i));if(r!=null)return r;}return null;
+    }
+    public static boolean scrollForward(){return performScroll(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);}
+    public static boolean scrollBackward(){return performScroll(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);}
+    private static boolean performScroll(int action){
+        if(instance==null)return false;AccessibilityNodeInfo root=instance.getRootInActiveWindow();if(root==null)return false;AccessibilityNodeInfo target=findScrollable(root);return target!=null&&target.performAction(action);
+    }
+    private static AccessibilityNodeInfo findScrollable(AccessibilityNodeInfo n){
+        if(n==null)return null;if(n.isScrollable())return n;for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo r=findScrollable(n.getChild(i));if(r!=null)return r;}return null;
+    }
+    public static String activePackage(){if(instance==null)return "ACCESSIBILITY_OFF";AccessibilityNodeInfo root=instance.getRootInActiveWindow();return root==null||root.getPackageName()==null?"UNKNOWN":String.valueOf(root.getPackageName());}
+    public static String screenSummary(){
+        if(instance==null)return "ACCESSIBILITY_OFF";AccessibilityNodeInfo root=instance.getRootInActiveWindow();if(root==null)return "ACCESSIBILITY_ON_NO_WINDOW";
+        StringBuilder out=new StringBuilder("ACCESSIBILITY_ON package=").append(activePackage()).append('\n');dump(root,out,0,0);return out.toString();
+    }
+    private static int dump(AccessibilityNodeInfo n,StringBuilder out,int depth,int count){
+        if(n==null||count>=120)return count;Rect r=new Rect();n.getBoundsInScreen(r);String cls=n.getClassName()==null?"":String.valueOf(n.getClassName());String text=n.getText()==null?"":String.valueOf(n.getText());String desc=n.getContentDescription()==null?"":String.valueOf(n.getContentDescription());
+        if(text.length()>120)text=text.substring(0,120);if(desc.length()>120)desc=desc.substring(0,120);if(!text.isEmpty()||!desc.isEmpty()||n.isClickable()||n.isEditable()||n.isScrollable()){
+            for(int i=0;i<depth;i++)out.append(' ');out.append(cls).append(" text=\"").append(text).append("\" desc=\"").append(desc).append("\" clickable=").append(n.isClickable()).append(" editable=").append(n.isEditable()).append(" scrollable=").append(n.isScrollable()).append(" bounds=").append(r).append('\n');count++;
+        }
+        for(int i=0;i<n.getChildCount()&&count<120;i++)count=dump(n.getChild(i),out,depth+1,count);return count;
     }
 }
