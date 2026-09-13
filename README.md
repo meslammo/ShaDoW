@@ -29,3 +29,5 @@ The agent can inspect project files, ZIPs and source, maintain project memory, p
 
 ## Build
 Android API 35, Java 17, Gradle 8.10.2, Android Gradle Plugin 8.6.1, Chaquopy 17.0.0, Python 3.11.
+
+Build validation marker: MOD-35.6
