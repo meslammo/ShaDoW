@@ -47,7 +47,7 @@ jobs:
       - run: unzip -l app/build/outputs/apk/release/app-release.apk | grep -E 'chaquopy|python|libpython|shadow_logo|ShadowCloudClient' | head -40
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-v1.4.1-CLOUD-FIRST-FINAL-apk
+          name: SHADOW-v1.4.2-RAILWAY-ONLINE-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/SHA256SUM.txt
