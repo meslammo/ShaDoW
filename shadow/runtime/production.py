@@ -1,18 +1,18 @@
 """MOD-36.1: production runtime facade.
 
-Turns the MOD-35 contracts into one executable, fail-closed Python runtime.
-The Android layer can use this facade through the embedded Python runtime.
-No credentials are stored here and no paid service is required for the core path.
+One executable, fail-closed Python runtime for the existing SHADOW foundations.
+It deliberately does not store credentials and does not claim capabilities that
+are only contracts. Android remains responsible for device-specific execution.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from ..analysis.ev_engine import EVEngine
 from ..ai.local_provider import LocalAI
-from ..development.file_understanding import inspect_path
+from ..analysis.ev_engine import analyze
+from ..development.file_understanding import summarize
 from ..development.github_authorization import GitHubAuthorization
 from ..design.site_building import Site, propose
 from ..perception.local_router import LocalPerceptionRouter
@@ -36,14 +36,13 @@ class RuntimeCapabilities:
 
 
 class ProductionRuntime:
-    """Single entry point for real local capabilities and explicit approvals."""
+    """Single local entry point for analysis, files, perception and design."""
 
     def __init__(self, workspace: str | Path | None = None) -> None:
         self.workspace = Path(workspace or ".").resolve()
         self.ai = LocalAI()
         self.voice = LocalVoice()
         self.perception = LocalPerceptionRouter()
-        self.analysis = EVEngine()
         self.skills = SkillRegistry()
         self.skills.defaults()
         self.github = GitHubAuthorization.pending()
@@ -60,40 +59,46 @@ class ProductionRuntime:
             github_authorization=self.github.authorized,
         )
 
-    def analyze(self, text: str) -> Any:
-        """Run the deterministic E.V.-style analysis engine without fabricating data."""
-        return self.analysis.analyze(text)
+    def chat_local(self, prompt: str) -> dict[str, Any]:
+        result = self.ai.run(prompt)
+        return {"text": result.text, "provider": result.provider, "model": result.model, "verified": result.verified}
+
+    def analyze_numbers(self, values: list[float]) -> dict[str, Any]:
+        result = analyze(values)
+        return {
+            "count": result.count,
+            "mean": result.mean,
+            "median": result.median,
+            "minimum": result.minimum,
+            "maximum": result.maximum,
+            "standard_deviation": result.standard_deviation,
+            "trend": result.trend,
+        }
 
     def inspect_file(self, path: str) -> dict[str, Any]:
-        """Inspect only a path inside the configured workspace."""
         target = (self.workspace / path).resolve()
         if target != self.workspace and self.workspace not in target.parents:
             raise PermissionError("path escapes SHADOW workspace")
-        return inspect_path(target)
+        return asdict(summarize(target))
 
-    def perceive_image(self, data: bytes, name: str = "image") -> dict[str, Any]:
-        return self.perception.image_receipt(data, name=name)
+    def perceive_image(self, data: bytes, name: str = "image/jpeg") -> dict[str, Any]:
+        return asdict(self.perception.inspect_image(data, mime_type=name))
 
-    def design_site(
-        self,
-        width: float,
-        depth: float,
-        rooms: list[str],
-        floors: int = 1,
-        coverage: float = 0.60,
-    ) -> dict[str, Any]:
+    def perceive_audio(self, data: bytes, sample_rate: int = 16000) -> dict[str, Any]:
+        return asdict(self.perception.inspect_audio(data, sample_rate=sample_rate))
+
+    def design_site(self, width: float, depth: float, rooms: list[str], floors: int = 1, coverage: float = 0.60) -> dict[str, Any]:
         return propose(Site(width, depth), rooms, floors, coverage).to_dict()
 
-    def authorize_github(self, account: str, permissions: list[str]) -> dict[str, Any]:
-        """Record an explicit authorization request; never accepts/stores a token."""
-        self.github = GitHubAuthorization.request(account, permissions)
-        return self.github.to_dict()
+    def authorization_request(self, account: str, permissions: list[str]) -> dict[str, Any]:
+        self.github = GitHubAuthorization(False, tuple(permissions), account)
+        return self.github.summary()
 
     def status(self) -> dict[str, Any]:
         return {
             "workspace": str(self.workspace),
             "capabilities": self.capabilities().to_dict(),
             "voice": self.voice.status(),
-            "github": self.github.to_dict(),
-            "skills": self.skills.list(),
+            "github": self.github.summary(),
+            "skills": [asdict(skill) for skill in self.skills.list()],
         }
