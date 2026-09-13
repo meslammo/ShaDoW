@@ -9,8 +9,9 @@ import android.net.Uri;
 import android.provider.ContactsContract;
 import java.util.List;
 
-/** MOD-34.2: Existing phone controller + phone-use bridge + approval gate + network status. */
+/** MOD-38.7: Existing phone controller + phone-use bridge + approval gate + network status + Radarbot launcher. */
 public final class ShadowPhoneController {
+    private static final String RADARBOT_PACKAGE = "com.vialsoft.radarbot_free";
     private static ShadowPhoneUseAgent agent;
     private static String pendingSensitiveCommand;
     private ShadowPhoneController(){}
@@ -18,6 +19,7 @@ public final class ShadowPhoneController {
     public static String execute(Activity activity,String command){
         if(command==null)return null; String original=command.trim(); if(original.isEmpty())return null; String x=original.toLowerCase(java.util.Locale.ROOT);
         if(isApproval(x)&&pendingSensitiveCommand!=null){String approved=pendingSensitiveCommand;pendingSensitiveCommand=null;return executeInternal(activity,approved,true);}
+        if(isRadarbotCommand(x)) return launchRadarbot(activity);
         if(isNetworkCommand(x)) return ShadowNetworkManager.describe(activity);
         if(x.startsWith("اتصل ب")||x.startsWith("اتصل بـ")||x.startsWith("كلم ")||x.startsWith("call ")){
             pendingSensitiveCommand=original;
@@ -44,8 +46,17 @@ public final class ShadowPhoneController {
             String number=findNumber(activity,name);if(number==null)return "ملقتش جهة اتصال باسم: "+name;
             try{activity.startActivity(new Intent(Intent.ACTION_CALL,Uri.parse("tel:"+Uri.encode(number))));return "بتصل بـ "+name+".";}catch(Exception e){return "تعذر بدء المكالمة مع "+name+".";}
         }
-        if(x.startsWith("افتح ")||x.startsWith("open ")){String requested=original.replaceFirst("(?i)^(افتح|open)\\s+","").trim();String result=launchByInstalledLabel(activity,requested);if(result!=null)return result;}
+        if(x.startsWith("افتح ")||x.startsWith("open ")){String requested=original.replaceFirst("(?i)^(افتح|open)\\s+","").trim();if(isRadarbotCommand(requested.toLowerCase(java.util.Locale.ROOT)))return launchRadarbot(activity);String result=launchByInstalledLabel(activity,requested);if(result!=null)return result;}
         return null;
+    }
+    private static boolean isRadarbotCommand(String x){return x.contains("راداربوت")||x.contains("رادار بوت")||x.contains("radarbot")||x.contains("كاميرات الطريق")||x.contains("كاميرات السرعة")||x.contains("تنبيه الكاميرات")||x.contains("شغل الرادار")||x.contains("شغل رادار الطريق");}
+    private static String launchRadarbot(Activity activity){
+        try{
+            PackageManager pm=activity.getPackageManager();
+            Intent launch=pm.getLaunchIntentForPackage(RADARBOT_PACKAGE);
+            if(launch!=null){launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);activity.startActivity(launch);return "شغلت Radarbot. سيبه شغال في الخلفية أثناء السواقة عشان يديك تنبيهات الكاميرات حسب إعداداته.";}
+        }catch(Exception ignored){}
+        return "Radarbot مش متثبت على الموبايل. نزّله من Google Play الأول، وبعدها قولّي: «شغّل راداربوت».";
     }
     private static boolean isNetworkCommand(String x){return x.equals("النت")||x.equals("الانترنت")||x.equals("الإنترنت")||x.contains("حالة النت")||x.contains("حالة الإنترنت")||x.contains("حالة الانترنت")||x.contains("network status")||x.contains("internet status");}
     private static String renderPlan(ShadowPhoneUseAgent.Plan p){StringBuilder b=new StringBuilder(p.summary);for(ShadowPhoneUseAgent.Step s:p.steps)b.append("\n").append(s.icon).append(" ").append(s.name).append(" — ").append(s.detail);return b.toString();}
