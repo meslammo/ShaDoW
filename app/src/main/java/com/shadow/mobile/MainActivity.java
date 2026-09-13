@@ -1,3 +1,3 @@
 package com.shadow.mobile;
-/** MOD-40/41: launcher bridge to unified V3 overlays. */
-public final class MainActivity extends JarvisMainActivityV3 {}
+/** MOD-44.9: launcher bridge to unified Jarvis V4 with background radar. */
+public final class MainActivity extends JarvisMainActivityV4 {}
