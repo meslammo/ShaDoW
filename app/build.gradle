@@ -2,7 +2,6 @@ plugins {
     id 'com.android.application'
     id 'com.chaquo.python'
 }
-
 android {
     namespace 'com.shadow.mobile'
     compileSdk 35
@@ -11,24 +10,18 @@ android {
         applicationId 'com.shadow.mobile'
         minSdk 26
         targetSdk 35
-        versionCode 58
-        versionName '1.4.2'
+        versionCode 59
+        versionName '1.4.3'
         buildConfigField 'String', 'SHADOW_BACKEND_URL', '"https://shadow-cloud-api-production.up.railway.app"'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
-    buildTypes {
-        release { minifyEnabled false; shrinkResources false; signingConfig signingConfigs.debug }
-    }
+    buildTypes { release { minifyEnabled false; shrinkResources false; signingConfig signingConfigs.debug } }
     afterEvaluate {
         tasks.matching { it.name == 'mergeDebugPythonSources' || it.name == 'mergeReleasePythonSources' }.configureEach {
             dependsOn tasks.matching { it.name == 'javaPreCompileDebug' || it.name == 'javaPreCompileRelease' }
-            dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeReleaseMetadata' }
+            dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeRelease' }
             dependsOn tasks.matching { it.name == 'installDebugPythonRequirements' || it.name == 'installReleasePythonRequirements' }
         }
     }
 }
-
-chaquopy {
-    defaultConfig { version = '3.11' }
-    sourceSets { main { srcDirs = ['../shadow'] } }
-}
+chaquopy { defaultConfig { version = '3.11' }; sourceSets { main { srcDirs = ['../shadow'] } } }
