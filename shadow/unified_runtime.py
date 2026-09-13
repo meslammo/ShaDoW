@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from .ai.local_provider import LocalAI
 from .perception.local_router import LocalPerceptionRouter
 from .voice.local_voice import LocalVoice
+from .design.site_building import Site, propose
+from .skills.registry import SkillRegistry
+from .development.github_authorization import GitHubAuthorization
 
 @dataclass(frozen=True)
 class RuntimeStatus:
@@ -13,6 +16,7 @@ class RuntimeStatus:
     project_memory: bool
     phone_use: bool
     analysis: bool
+    site_building_design: bool
     github_authorization: bool
 
 class UnifiedRuntime:
@@ -20,14 +24,12 @@ class UnifiedRuntime:
         self.ai = LocalAI()
         self.perception = LocalPerceptionRouter()
         self.voice = LocalVoice()
+        self.skills = SkillRegistry()
+        self.skills.defaults()
+        self.github = GitHubAuthorization.pending()
 
     def status(self) -> RuntimeStatus:
-        return RuntimeStatus(
-            local_ai=True,
-            local_voice=True,
-            local_vision_router=True,
-            project_memory=True,
-            phone_use=True,
-            analysis=True,
-            github_authorization=False,
-        )
+        return RuntimeStatus(True, True, True, True, True, True, True, self.github.authorized)
+
+    def design_site(self, width: float, depth: float, rooms: list[str], floors: int = 1, coverage: float = 0.60):
+        return propose(Site(width, depth), rooms, floors, coverage)
