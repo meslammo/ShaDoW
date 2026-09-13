@@ -1,3 +1,3 @@
 package com.shadow.mobile;
-/** MOD-44.9: launcher bridge to unified Jarvis V4 with background radar. */
+/** MOD-46.4: final launcher bridge — MainActivity boots the capability-gated Final Runtime on V4. */
 public final class MainActivity extends JarvisMainActivityV4 {}
