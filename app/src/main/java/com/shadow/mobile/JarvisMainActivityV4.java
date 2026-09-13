@@ -1,5 +1,5 @@
 package com.shadow.mobile;
-import android.Manifest;import android.content.*;import android.content.pm.PackageManager;import android.view.*;import android.widget.*;import java.util.*;
+import android.Manifest;import android.app.AlertDialog;import android.content.*;import android.content.pm.PackageManager;import android.view.*;import android.widget.*;import java.util.*;
 /** MOD-46.3: final-runtime bridge on the existing V4 launcher; capability-gated and evidence-based. */
 public class JarvisMainActivityV4 extends JarvisMainActivityV3 {
  private ShadowDevelopmentAgent development; private ShadowCloudClient cloud; private ShadowCapabilityGate gate;
