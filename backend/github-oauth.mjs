@@ -1,6 +1,6 @@
 const GITHUB_OAUTH='https://github.com/login';
 const CLIENT_ID=String(process.env.SHADOW_GITHUB_CLIENT_ID||'').trim();
-const SCOPE=String(process.env.SHADOW_GITHUB_OAUTH_SCOPE||'repo').trim();
+const SCOPE=String(process.env.SHADOW_GITHUB_OAUTH_SCOPE||'public_repo').trim();
 
 function configured(){return Boolean(CLIENT_ID);}
 async function post(path,body){
@@ -26,4 +26,4 @@ export async function pollDeviceAuthorization(deviceCode){
   if(error==='access_denied') return {status:'denied'};
   return {status:'error',error};
 }
-export function status(){return {configured,scope:SCOPE};}
+export function status(){return {configured:configured(),scope:SCOPE};}
