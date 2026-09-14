@@ -1,6 +1,6 @@
 package com.shadow.mobile;
-import android.Manifest;import android.content.*;import android.content.pm.PackageManager;import android.view.*;import android.widget.*;import java.util.*;
-/** MOD-45.4: Development Engine command bridge + background radar. */
+import android.Manifest;import android.content.*;import android.content.pm.PackageManager;import android.app.AlertDialog;import android.view.*;import android.widget.*;import java.util.*;
+/** MOD-47.7: Development Engine command bridge + background radar. */
 public class JarvisMainActivityV4 extends JarvisMainActivityV3 {
  private ShadowDevelopmentAgent development;
  @Override public void onCreate(android.os.Bundle b){super.onCreate(b);development=new ShadowDevelopmentAgent(this);ViewGroup root=findViewById(android.R.id.content);if(root==null)return;TextView send=findText(root,"➤");if(send!=null)send.setOnTouchListener((v,e)->{if(e.getAction()==MotionEvent.ACTION_UP){EditText in=findInput(root);if(in!=null){String s=in.getText().toString().trim();if(isDevelopment(s)){runDevelopment(s);return true;}if(isRadar(s)){startShadowRadar();return true;}}}return false;});}
