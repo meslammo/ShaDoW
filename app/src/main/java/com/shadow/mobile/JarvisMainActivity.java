@@ -21,7 +21,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.*;
 
-/** MOD-37.12: SHADOW unified Jarvis runtime UI. MainActivity inherits this launcher-safe shell. */
+/** MOD-48.5: unified launcher routes governed local commands before cloud chat. */
 public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int MIC=801, FILE=802, CAMERA=803;
     private final int BG=Color.rgb(13,14,17),SURFACE=Color.rgb(29,31,36),SURFACE2=Color.rgb(42,44,51),TEXT=Color.rgb(241,243,246),MUTED=Color.rgb(155,160,170);
@@ -35,7 +35,14 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         menu.setOnClickListener(v->attach());more.setOnClickListener(v->features());plus.setOnClickListener(v->attach());mic.setOnClickListener(v->listen());send.setOnClickListener(v->send());input.setOnEditorActionListener((v,a,e)->{if(a==EditorInfo.IME_ACTION_SEND){send();return true;}return false;});}
     private void user(String s){TextView v=tv(s,16);v.setPadding(dp(14),dp(9),dp(14),dp(9));v.setBackground(bg(SURFACE2,18));messages.addView(v);bottom();} private void assistant(String s){TextView v=tv(s,16);v.setPadding(0,dp(8),dp(18),dp(8));v.setAutoLinkMask(android.text.util.Linkify.WEB_URLS);messages.addView(v);bottom();} private void system(String s){TextView v=tv(s,11);v.setTextColor(MUTED);messages.addView(v);bottom();} private void bottom(){messages.post(()->{ViewParent p=messages.getParent();if(p instanceof ScrollView)((ScrollView)p).fullScroll(View.FOCUS_DOWN);});}
     private void check(){new Thread(()->{cloudOnline=cloud.health();runOnUiThread(()->{stage(cloudOnline?"done":"thinking");});}).start();}
-    private void send(){String s=input.getText().toString().trim();if(s.isEmpty())return;user(s);input.setText("");stage("thinking");String local=ShadowPhoneController.execute(this,s);if(local!=null){stage("executing");assistant(local);speak(local);stage("done");again();return;}if(isImage(s)){stage("designing");generateImage(s);return;}stage("searching");new Thread(()->{try{ShadowCloudClient.CloudReply r=cloud.chat(s);cloudOnline=true;runOnUiThread(()->{stage("analyzing");assistant(r.answer);stage("speaking");speak(r.answer);stage("done");again();});}catch(Throwable e){cloudOnline=false;String a;try{a=core.handle(s);}catch(Throwable ignored){a=null;}if(a==null||a.trim().isEmpty())a=core.offlineChat(s);String answer=a;runOnUiThread(()->{assistant(answer);stage("speaking");speak(answer);stage("done");again();});}}).start();}
+    private void send(){String s=input.getText().toString().trim();if(s.isEmpty())return;user(s);input.setText("");stage("thinking");
+        String local=ShadowPhoneController.execute(this,s);
+        if(local!=null){stage("executing");assistant(local);speak(local);stage("done");again();return;}
+        // MOD-48.5: do not send commands that the governed native core can execute to the cloud first.
+        String governedLocal=null;
+        try{governedLocal=core.handle(s);}catch(Throwable ignored){}
+        if(governedLocal!=null&&!governedLocal.trim().isEmpty()){stage("executing");assistant(governedLocal);speak(governedLocal);stage("done");again();return;}
+        if(isImage(s)){stage("designing");generateImage(s);return;}stage("searching");new Thread(()->{try{ShadowCloudClient.CloudReply r=cloud.chat(s);cloudOnline=true;runOnUiThread(()->{stage("analyzing");assistant(r.answer);stage("speaking");speak(r.answer);stage("done");again();});}catch(Throwable e){cloudOnline=false;String a;try{a=core.handle(s);}catch(Throwable ignored){a=null;}if(a==null||a.trim().isEmpty())a=core.offlineChat(s);String answer=a;runOnUiThread(()->{assistant(answer);stage("speaking");speak(answer);stage("done");again();});}}).start();}
     private boolean isImage(String s){String x=s.toLowerCase(Locale.ROOT);return x.contains("صمم صورة")||x.contains("اعمل صورة")||x.contains("صورة لـ")||x.contains("generate image")||x.contains("create an image")||x.contains("design an image");}
     private void generateImage(String prompt){system("SHADOW • بيصمم الصورة أونلاين…");new Thread(()->{try{String b64=cloud.generateImage(prompt);byte[] data=android.util.Base64.decode(b64,android.util.Base64.DEFAULT);runOnUiThread(()->{ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(BitmapFactory.decodeStream(new ByteArrayInputStream(data)));messages.addView(image,new LinearLayout.LayoutParams(-1,dp(320)));assistant("اتفضل — الصورة جاهزة.");stage("done");again();});}catch(Throwable e){runOnUiThread(()->{assistant("مش قادر أولّد الصورة دلوقتي: "+e.getMessage());stage("done");again();});}}).start();}
     private void again(){if(conversation)new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->listen(),2200);}
