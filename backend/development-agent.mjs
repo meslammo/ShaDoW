@@ -42,4 +42,4 @@ export async function applyFiles({branch='shadow-agent-work',message='MOD-50: De
   return {repo:REPO,branch,files:result};
 }
 
-export function status(){return {configured:()=>configured(),server_token_configured:configured(),repo:REPO,allowed_prefixes:ALLOWED_PREFIXES};}
+export function status(){return {configured:configured(),server_token_configured:configured(),repo:REPO,allowed_prefixes:ALLOWED_PREFIXES};}
