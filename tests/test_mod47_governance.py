@@ -1,3 +1,5 @@
+from time import time
+
 from shadow.governance import (
     Adapter, Command, Companion, ErrorKind, EvidenceKind, Governance, Identity,
     Intent, LearningItem, Source, State,
@@ -30,8 +32,9 @@ def test_intent_risk_verification_and_errors():
 
 def test_bounded_recovery_deadline_and_source_resolution():
     g = Governance(); g.recovery.max_attempts = 1
-    assert g.attempt(0, progressed=True)
-    assert not g.attempt(0, progressed=True)
+    started_at = time() - 1
+    assert g.attempt(started_at, progressed=True)
+    assert not g.attempt(started_at, progressed=True)
     d = Governance.deadline(100, 50)
     assert d["remaining"] == 50
     source = Governance.resolve_sources([Source("old", 90, 10), Source("fresh", 70, 90)])
