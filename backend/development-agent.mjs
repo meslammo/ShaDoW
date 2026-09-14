@@ -19,7 +19,17 @@ async function gh(path, options={}, token=TOKEN){
   return body;
 }
 
-export async function applyFiles({branch='shadow-agent-work',message='MOD-50: Development Agent change',files=[],token=''}){
+async function ensureBranch(branch, token){
+  const safe=String(branch||'').trim();
+  if(!/^[A-Za-z0-9._/-]{1,80}$/.test(safe)) throw new Error('invalid_branch');
+  try{await gh(`/repos/${REPO}/git/ref/heads/${encodeURIComponent(safe)}`,{},token);return {created:false,branch:safe};}
+  catch(e){if(!String(e.message).startsWith('github_404:'))throw e;}
+  const base=await gh(`/repos/${REPO}/git/ref/heads/main`,{},token);
+  const created=await gh(`/repos/${REPO}/git/refs`,{method:'POST',body:JSON.stringify({ref:`refs/heads/${safe}`,sha:base?.object?.sha})},token);
+  return {created:true,branch:safe,sha:created?.object?.sha||base?.object?.sha||null};
+}
+
+export async function applyFiles({branch='shadow-agent-work',message='MOD-51: Development Agent change',files=[],token=''}){
   const authToken=String(token||TOKEN).trim();
   if(!configured(authToken)) throw new Error('github_write_not_configured');
   if(!Array.isArray(files)||!files.length) throw new Error('files_required');
@@ -29,6 +39,7 @@ export async function applyFiles({branch='shadow-agent-work',message='MOD-50: De
     if(typeof f?.content!=='string') throw new Error(`content_required:${f?.path||''}`);
     if(f.content.length>500_000) throw new Error(`file_too_large:${f.path}`);
   }
+  const branchState=await ensureBranch(branch,authToken);
   const result=[];
   for(const f of files){
     const path=encodeURIComponent(f.path).replace(/%2F/g,'/');
@@ -39,7 +50,7 @@ export async function applyFiles({branch='shadow-agent-work',message='MOD-50: De
     const saved=await gh(`/repos/${REPO}/contents/${path}`,{method:'PUT',body:JSON.stringify(payload)},authToken);
     result.push({path:f.path,commit_sha:saved?.commit?.sha||null,created:!current?.sha});
   }
-  return {repo:REPO,branch,files:result};
+  return {repo:REPO,branch,branch_created:branchState.created,files:result};
 }
 
-export function status(){return {configured:configured(),server_token_configured:configured(),repo:REPO,allowed_prefixes:ALLOWED_PREFIXES};}
+export function status(){return {configured:configured(),server_token_configured:configured(),repo:REPO,allowed_prefixes:ALLOWED_PREFIXES,branch_creation:true};}
