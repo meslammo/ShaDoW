@@ -18,7 +18,7 @@ import android.speech.tts.TextToSpeech;
 import java.io.*;
 import java.util.*;
 
-/** MOD-48.6: Online is the primary path. Text output is default; voice output is explicitly user-controlled. */
+/** MOD-48.9: Online-first routing. Cloud AI is primary; local execution is reserved for deterministic phone actions and automatic offline fallback. */
 public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int MIC=801,FILE=802,CAMERA=803;
     private final int BG=Color.rgb(13,14,17),SURFACE=Color.rgb(29,31,36),SURFACE2=Color.rgb(42,44,51),TEXT=Color.rgb(241,243,246),MUTED=Color.rgb(155,160,170);
@@ -41,10 +41,19 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void check(){new Thread(()->{cloudOnline=cloud.health();runOnUiThread(()->stage(cloudOnline?"online":"reconnecting"));}).start();}
     private boolean handleOutputCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.equals("رد كتابة")||x.equals("رد كتابه")||x.equals("من غير صوت")||x.equals("بدون صوت")||x.equals("text only")||x.equals("text response")){voiceOutput=false;assistant("تم — هرد كتابة فقط من دلوقتي.");stage("done");return true;}if(x.equals("رد صوتي")||x.equals("شغل الصوت")||x.equals("شغّل الصوت")||x.equals("voice on")||x.equals("voice response")){voiceOutput=true;assistant("تم — الصوت اتفعّل.");speak("تم — الصوت اتفعّل.");stage("done");return true;}return false;}
     private void send(){String s=input.getText().toString().trim();if(s.isEmpty())return;user(s);input.setText("");if(handleOutputCommand(s))return;stage("thinking");
-        String local=ShadowPhoneController.execute(this,s);if(local!=null){stage("executing");assistant(local);speak(local);stage("done");return;}
-        String governedLocal=null;try{governedLocal=core.handle(s);}catch(Throwable ignored){}if(governedLocal!=null&&!governedLocal.trim().isEmpty()){stage("executing");assistant(governedLocal);speak(governedLocal);stage("done");return;}
         if(isImage(s)){stage("designing");generateImage(s);return;}
-        stage("online");new Thread(()->{try{ShadowCloudClient.CloudReply r=cloud.chat(s);cloudOnline=true;runOnUiThread(()->{stage("analyzing");assistant(r.answer);speak(r.answer);stage("online");});}catch(Throwable e){cloudOnline=false;String a;try{a=core.handle(s);}catch(Throwable ignored){a=null;}if(a==null||a.trim().isEmpty())a=core.offlineChat(s);String answer=a;runOnUiThread(()->{assistant(answer);stage("reconnecting");speak(answer);});}}).start();}
+        stage("online");new Thread(()->{try{
+            ShadowCloudClient.CloudReply r=cloud.chat(s); cloudOnline=true;
+            runOnUiThread(()->{stage("analyzing");assistant(r.answer);speak(r.answer);stage("online");});
+        }catch(Throwable cloudError){
+            cloudOnline=false;
+            String local=null;
+            try{local=ShadowPhoneController.execute(this,s);}catch(Throwable ignored){}
+            if(local==null||local.trim().isEmpty())try{local=core.handle(s);}catch(Throwable ignored){}
+            if(local==null||local.trim().isEmpty())try{local=core.offlineChat(s);}catch(Throwable ignored){}
+            final String answer=(local==null||local.trim().isEmpty())?"الأونلاين مش متاح دلوقتي، ومفيش تنفيذ محلي مناسب للأمر.":local;
+            runOnUiThread(()->{assistant("⚠️ Online unavailable — fallback: "+answer);stage("reconnecting");speak(answer);});
+        }}).start();}
     private boolean isImage(String s){String x=s.toLowerCase(Locale.ROOT);return x.contains("صمم صورة")||x.contains("اعمل صورة")||x.contains("صورة لـ")||x.contains("generate image")||x.contains("create an image")||x.contains("design an image");}
     private void generateImage(String prompt){system("SHADOW • بيصمم الصورة أونلاين…");new Thread(()->{try{String b64=cloud.generateImage(prompt);byte[] data=android.util.Base64.decode(b64,android.util.Base64.DEFAULT);runOnUiThread(()->{ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(BitmapFactory.decodeStream(new ByteArrayInputStream(data)));messages.addView(image,new LinearLayout.LayoutParams(-1,dp(320)));assistant("اتفضل — الصورة جاهزة.");stage("online");});}catch(Throwable e){runOnUiThread(()->{assistant("مش قادر أولّد الصورة دلوقتي: "+e.getMessage());stage("reconnecting");});}}).start();}
     private void attach(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("Files");p.getMenu().add("Photos");p.getMenu().add("Camera");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("Files")){Intent x=new Intent(Intent.ACTION_OPEN_DOCUMENT);x.addCategory(Intent.CATEGORY_OPENABLE);x.setType("*/*");startActivityForResult(x,FILE);}else if(n.equals("Photos")){Intent x=new Intent(Intent.ACTION_PICK);x.setType("image/*");startActivityForResult(x,FILE);}else{try{startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),CAMERA);}catch(Exception e){system("No camera application is available.");}}return true;});p.show();}
