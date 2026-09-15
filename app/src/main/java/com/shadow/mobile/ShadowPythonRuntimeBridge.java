@@ -26,14 +26,7 @@ public final class ShadowPythonRuntimeBridge {
     /** MOD-58: identity-aware governance gate. */
     public String authorize(String request, boolean authenticated, boolean authorized, String source){
         try{
-            return androidRuntime().callAttr(
-                "authorize",
-                request,
-                context.getFilesDir().getAbsolutePath()+"/shadow_workspace",
-                authenticated,
-                authorized,
-                source == null ? "android" : source
-            ).toString();
+            return androidRuntime().callAttr("authorize", request, context.getFilesDir().getAbsolutePath()+"/shadow_workspace", authenticated, authorized, source == null ? "android" : source).toString();
         }catch(Throwable e){return "BLOCK|UNKNOWN|runtime_unavailable|"+(e.getMessage()==null?"unknown":e.getMessage());}
     }
     /** Backward-compatible safe default: unauthenticated. */
