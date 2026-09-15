@@ -1,0 +1,1 @@
+Build failure diagnosed: JarvisMainActivityV3 was declared final and used weaker protected onCreate; ShadowRadarManager cast Double directly to int. Fix required: make V3 non-final, make onCreate public, cast best.limit.doubleValue(), then rebuild.

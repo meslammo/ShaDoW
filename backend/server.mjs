@@ -1,23 +1,19 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import { applyFiles, status as developmentStatus } from './development-agent.mjs';
+import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
+import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
+import { runAgent, providerStatus, memoryStatus } from './ai-router.mjs';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
-const model = String(process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
 const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1').trim();
 const ttsModel = String(process.env.SHADOW_TTS_MODEL || 'gpt-4o-mini-tts').trim();
 const ttsVoice = String(process.env.SHADOW_TTS_VOICE || 'onyx').trim();
-const systemPrompt = String(process.env.SHADOW_SYSTEM_PROMPT || [
-  'You are SHADOW, a personal Android AI assistant. Your short name is Z when the user asks for your name.',
-  'Answer in the language the user uses. Prefer concise, practical Egyptian Arabic when the user writes Arabic.',
-  'The Android client may send a device profile. Use it only to tailor compatible instructions and installed-app actions.',
-  'When the user asks for current information, websites, images, videos, prices, news, or other fresh facts, use the web search tool before answering.',
-  'When the user asks to create or design an image, use the image-generation endpoint rather than pretending an image exists.',
-  'Do not claim that a device, home, car, file, message, call, or external action happened unless the client/backend has actually confirmed it.',
-  'Dangerous actions and irreversible communications require explicit confirmation. Never reveal server secrets or API keys.'
-].join(' '));
+const ttsVoiceId = String(process.env.SHADOW_TTS_VOICE_ID || '').trim();
+const ttsInstructions = String(process.env.SHADOW_TTS_INSTRUCTIONS || 'Speak with a refined, cinematic, futuristic British AI-assistant character: deep adult male voice, calm authority, precise diction, restrained emotion, intelligent and composed, slightly warm, measured pacing, subtle dry confidence. This is an original Jarvis-inspired delivery, not an imitation of any actor or copyrighted character performance. When speaking Egyptian Arabic (ar-EG), keep the same deep, polished, controlled delivery while using natural Egyptian pronunciation and vocabulary.').trim();
 
 app.disable('x-powered-by');
 app.use(helmet());
@@ -25,17 +21,152 @@ app.use(cors({ origin: true, methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders
 app.use(express.json({ limit: '20mb' }));
 
 const buckets = new Map();
-function rateLimit(req, res, next) { const key=req.ip||'unknown',now=Date.now(),windowMs=60_000,max=30,old=buckets.get(key);if(!old||now-old.started>=windowMs){buckets.set(key,{started:now,count:1});return next();}old.count+=1;if(old.count>max)return res.status(429).json({ok:false,error:'rate_limited'});return next(); }
-app.get('/health', (_req,res)=>res.json({ok:true,service:'shadow-cloud',online:Boolean(apiKey),model,image_model:imageModel,tts_model:ttsModel,tts_voice:ttsVoice,web_search:true,development_agent:true}));
+function rateLimit(req, res, next) {
+  const key = req.ip || 'unknown';
+  const now = Date.now();
+  const state = buckets.get(key);
+  if (!state || now - state.started >= 60000) { buckets.set(key, { started: now, count: 1 }); return next(); }
+  state.count++;
+  if (state.count > 40) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  next();
+}
 
-app.post('/v1/chat',rateLimit,async(req,res)=>{if(!apiKey)return res.status(503).json({ok:false,error:'backend_not_configured'});const message=typeof req.body?.message==='string'?req.body.message.trim():'';if(!message)return res.status(400).json({ok:false,error:'message_required'});if(message.length>12000)return res.status(413).json({ok:false,error:'message_too_large'});const previousResponseId=typeof req.body?.previous_response_id==='string'&&req.body.previous_response_id.trim()?req.body.previous_response_id.trim():undefined;const device=typeof req.body?.device==='string'?req.body.device.slice(0,16000):'';const payload={model,instructions:systemPrompt,input:device?`${message}\n\n[DEVICE_PROFILE]\n${device}`:message,tools:[{type:'web_search_preview'}],store:true};if(previousResponseId)payload.previous_response_id=previousResponseId;try{const upstream=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(55_000)});const body=await upstream.json().catch(()=>({}));if(!upstream.ok){console.error('OpenAI error',upstream.status,JSON.stringify(body).slice(0,3000));return res.status(502).json({ok:false,error:'upstream_ai_error'});}const answer=typeof body.output_text==='string'?body.output_text.trim():extractOutputText(body);if(!answer)return res.status(502).json({ok:false,error:'empty_ai_response'});return res.json({ok:true,answer,response_id:body.id||null,model:body.model||model,used_web_search:hasWebSearch(body)});}catch(error){console.error('AI request failed',error?.message||error);return res.status(502).json({ok:false,error:'ai_unreachable'});}});
+app.get('/health', async (_req, res) => res.json({
+  ok: true,
+  service: 'shadow-cloud',
+  agent: 'unified-multi-ai',
+  providers: providerStatus(),
+  memory: await memoryStatus(),
+  capabilities: {
+    web_search: true,
+    web_fetch: true,
+    github_read: true,
+    github_write_gateway: githubOAuthStatus().configured,
+    files: true,
+    android_action: true,
+    agent_loop: true,
+    offline_fallback: true,
+    voiceprint_required: false,
+  },
+  image_generation: Boolean(apiKey),
+  tts: {
+    model: ttsModel,
+    voice: ttsVoice,
+    voice_id_configured: Boolean(ttsVoiceId),
+    mode: ttsVoiceId ? 'custom' : 'built_in',
+    style: 'jarvis-inspired-original',
+    locale: 'ar-EG',
+    gender: 'male',
+  },
+  development_agent: developmentStatus(),
+  github_authorization: githubOAuthStatus(),
+  voiceprint: { required: false, status: voiceprintStatus() },
+}));
 
-app.post('/v1/development/plan',rateLimit,async(req,res)=>{if(!apiKey)return res.status(503).json({ok:false,error:'backend_not_configured'});const request=typeof req.body?.request==='string'?req.body.request.trim():'';const project=typeof req.body?.project==='string'?req.body.project.slice(0,12000):'';if(!request)return res.status(400).json({ok:false,error:'request_required'});const prompt=`Act as SHADOW Development Agent. Produce a safe implementation plan only; do not claim edits were executed. Return concise JSON with keys summary, files, risks, tests, approval_required. User request: ${request}\nProject context: ${project}`;try{const upstream=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:'You are a senior software development agent. Never claim code changes, commits, pushes, builds, or deployments unless the caller confirms them. Identify affected files, risks, tests and rollback needs.',input:prompt,store:false}),signal:AbortSignal.timeout(55_000)});const body=await upstream.json().catch(()=>({}));if(!upstream.ok)return res.status(502).json({ok:false,error:'upstream_ai_error'});const answer=typeof body.output_text==='string'?body.output_text.trim():extractOutputText(body);return res.json({ok:true,plan:answer||'No plan generated.',approval_required:true});}catch(error){console.error('Development plan failed',error?.message||error);return res.status(502).json({ok:false,error:'development_unreachable'});}});
+app.post('/v1/chat', rateLimit, async (req, res) => {
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
+  if (message.length > 12000) return res.status(413).json({ ok: false, error: 'message_too_large' });
+  const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
+  const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
+  const providerInput = String(req.body?.provider || '').toLowerCase();
+  const preferred = ['openai', 'xai', 'grok', 'deepseek'].includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
+  try {
+    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline), offline_capability: result.offlineCapability || null, attempts: result.attempts || [] });
+  } catch (error) {
+    console.error('Unified agent failed', String(error?.message || error));
+    return res.status(503).json({ ok: false, error: 'agent_failed' });
+  }
+});
 
-app.post('/v1/images',rateLimit,async(req,res)=>{if(!apiKey)return res.status(503).json({ok:false,error:'backend_not_configured'});const prompt=typeof req.body?.prompt==='string'?req.body.prompt.trim():'';if(!prompt)return res.status(400).json({ok:false,error:'prompt_required'});if(prompt.length>8000)return res.status(413).json({ok:false,error:'prompt_too_large'});try{const upstream=await fetch('https://api.openai.com/v1/images/generations',{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:imageModel,prompt,size:'1024x1024',output_format:'png'}),signal:AbortSignal.timeout(120_000)});const body=await upstream.json().catch(()=>({}));if(!upstream.ok){console.error('Image API error',upstream.status,JSON.stringify(body).slice(0,3000));return res.status(502).json({ok:false,error:'image_upstream_error'});}const b64=body?.data?.[0]?.b64_json;if(typeof b64!=='string'||!b64)return res.status(502).json({ok:false,error:'empty_image'});return res.json({ok:true,image_base64:b64,model:imageModel});}catch(error){console.error('Image request failed',error?.message||error);return res.status(502).json({ok:false,error:'image_unreachable'});}});
+app.post('/v1/agent/continue', rateLimit, async (req, res) => {
+  const provider = String(req.body?.provider || '').toLowerCase();
+  const responseId = String(req.body?.response_id || '').trim();
+  const toolCallId = String(req.body?.tool_call_id || '').trim();
+  const output = typeof req.body?.output === 'string' ? req.body.output.slice(0, 20000) : JSON.stringify(req.body?.output ?? '');
+  if (!provider || !toolCallId) return res.status(400).json({ ok: false, error: 'tool_context_required' });
+  const original = String(req.body?.original_message || 'نفّذ الإجراء المطلوب واستكمل.');
+  try {
+    const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline) });
+  } catch { return res.status(503).json({ ok: false, error: 'agent_continue_failed' }); }
+});
 
-app.post('/v1/speech',rateLimit,async(req,res)=>{if(!apiKey)return res.status(503).json({ok:false,error:'backend_not_configured'});const input=typeof req.body?.input==='string'?req.body.input.trim():'';if(!input)return res.status(400).json({ok:false,error:'input_required'});if(input.length>4096)return res.status(413).json({ok:false,error:'input_too_large'});try{const upstream=await fetch('https://api.openai.com/v1/audio/speech',{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:ttsModel,voice:ttsVoice,input,instructions:'Speak Arabic Egyptian naturally with a confident deep adult male assistant voice. Clear, calm, direct, not feminine.',response_format:'mp3'}),signal:AbortSignal.timeout(60_000)});if(!upstream.ok){const body=await upstream.text().catch(()=>'');console.error('Speech API error',upstream.status,body.slice(0,2000));return res.status(502).json({ok:false,error:'speech_upstream_error'});}const buffer=Buffer.from(await upstream.arrayBuffer());res.set('Content-Type','audio/mpeg');res.set('Cache-Control','no-store');return res.send(buffer);}catch(error){console.error('Speech request failed',error?.message||error);return res.status(502).json({ok:false,error:'speech_unreachable'});}});
+app.post('/v1/github/device/start', rateLimit, async (_req, res) => {
+  try { res.json({ ok: true, ...await startDeviceAuthorization() }); }
+  catch (e) { const message = String(e?.message || 'github_oauth_failed'); res.status(message === 'github_oauth_not_configured' ? 503 : 502).json({ ok: false, error: message }); }
+});
+app.post('/v1/github/device/poll', rateLimit, async (req, res) => {
+  try {
+    const code = typeof req.body?.device_code === 'string' ? req.body.device_code.trim() : '';
+    if (!code) return res.status(400).json({ ok: false, error: 'device_code_required' });
+    res.json({ ok: true, ...await pollDeviceAuthorization(code) });
+  } catch (e) { res.status(502).json({ ok: false, error: String(e?.message || 'github_oauth_failed') }); }
+});
 
-function hasWebSearch(body){const output=Array.isArray(body?.output)?body.output:[];return output.some(item=>item?.type==='web_search_call');}
-function extractOutputText(body){const output=Array.isArray(body?.output)?body.output:[];return output.flatMap(item=>Array.isArray(item?.content)?item.content:[]).filter(part=>part?.type==='output_text'&&typeof part?.text==='string').map(part=>part.text).join('\n').trim();}
-app.listen(port,'0.0.0.0',()=>console.log(`SHADOW cloud backend listening on ${port}; model=${model}; image=${imageModel}; tts=${ttsModel}/${ttsVoice}; configured=${Boolean(apiKey)}`));
+app.post('/v1/voiceprint/verify', rateLimit, async (req, res) => {
+  try {
+    const audio = typeof req.body?.audio_base64 === 'string' ? req.body.audio_base64.trim() : '';
+    const contentType = typeof req.body?.content_type === 'string' ? req.body.content_type.slice(0, 80) : 'audio/wav';
+    const result = await verifyVoiceprint(audio, contentType);
+    if (result.verified !== true) return res.status(401).json({ ok: false, ...result });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    const message = String(e?.message || 'voiceprint_failed');
+    res.status(message === 'voiceprint_provider_not_configured' ? 503 : 400).json({ ok: false, error: message });
+  }
+});
+
+app.post('/v1/development/plan', rateLimit, async (req, res) => {
+  const request = typeof req.body?.request === 'string' ? req.body.request.trim() : '';
+  const project = typeof req.body?.project === 'string' ? req.body.project.slice(0, 12000) : '';
+  if (!request) return res.status(400).json({ ok: false, error: 'request_required' });
+  try {
+    const result = await runAgent({ message: `Create a safe software implementation plan only. Do not claim edits executed. Request: ${request}\nProject: ${project}`, preferredProvider: 'auto' });
+    res.json({ ok: true, plan: result.answer, approval_required: true, execution_available: developmentStatus().configured });
+  } catch { res.status(503).json({ ok: false, error: 'development_ai_unavailable' }); }
+});
+
+app.post('/v1/development/apply', rateLimit, async (req, res) => {
+  if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
+  const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : 'shadow-agent-work';
+  const message = typeof req.body?.commit_message === 'string' && req.body.commit_message.trim() ? req.body.commit_message.trim().slice(0, 160) : 'SHADOW Development Agent change';
+  try {
+    const result = await applyFiles({ branch, message, files: req.body?.files, token: typeof req.body?.github_token === 'string' ? req.body.github_token.trim() : '' });
+    res.json({ ok: true, executed: true, result });
+  } catch (e) {
+    const messageOut = String(e?.message || 'github_write_failed');
+    res.status(messageOut === 'github_write_not_configured' ? 503 : 400).json({ ok: false, error: messageOut });
+  }
+});
+
+app.post('/v1/images', rateLimit, async (req, res) => {
+  if (!apiKey) return res.status(503).json({ ok: false, error: 'image_provider_not_configured' });
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+  if (!prompt) return res.status(400).json({ ok: false, error: 'prompt_required' });
+  if (prompt.length > 8000) return res.status(413).json({ ok: false, error: 'prompt_too_large' });
+  try {
+    const response = await fetch('https://api.openai.com/v1/images/generations', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: imageModel, prompt, size: '1024x1024' }), signal: AbortSignal.timeout(120000) });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return res.status(502).json({ ok: false, error: 'image_upstream_error' });
+    const data = body?.data?.[0]?.b64_json;
+    if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_image' });
+    res.json({ ok: true, image_base64: data, model: imageModel });
+  } catch { res.status(502).json({ ok: false, error: 'image_unreachable' }); }
+});
+
+app.post('/v1/speech', rateLimit, async (req, res) => {
+  if (!apiKey) return res.status(503).json({ ok: false, error: 'speech_provider_not_configured' });
+  const input = typeof req.body?.input === 'string' ? req.body.input.trim() : '';
+  if (!input) return res.status(400).json({ ok: false, error: 'input_required' });
+  if (input.length > 4096) return res.status(413).json({ ok: false, error: 'input_too_large' });
+  try {
+    const response = await fetch('https://api.openai.com/v1/audio/speech', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: ttsModel, voice: ttsVoiceId ? { id: ttsVoiceId } : ttsVoice, input, instructions: ttsInstructions, response_format: 'mp3' }), signal: AbortSignal.timeout(60000) });
+    if (!response.ok) return res.status(502).json({ ok: false, error: 'speech_upstream_error' });
+    res.set('Content-Type', 'audio/mpeg').set('Cache-Control', 'no-store').set('X-SHADOW-TTS-Mode', ttsVoiceId ? 'custom' : 'built-in').set('X-SHADOW-TTS-Style', 'jarvis-inspired-original');
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch { res.status(502).json({ ok: false, error: 'speech_unreachable' }); }
+});
+
+app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
