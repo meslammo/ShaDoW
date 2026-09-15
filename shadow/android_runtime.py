@@ -57,7 +57,8 @@ def authorize(request: str, home: Optional[str]=None, authenticated: bool = Fals
     text=str(request or "").strip(); core=_get_core(home)
     from shadow.core.runtime_governance import Intent
     task_id="android-"+str(abs(hash(text+"|"+source)))
-    intent=Intent(intent=text or "empty",goal=text,constraints={"channel":source,"execution":"local-device","identity":"master-authenticated" if authenticated else "not-authenticated"},expected_result="governed Android action or safe response")
+    identity_context = {"identity": "master-authenticated"} if authenticated else {"identity": "not-authenticated"}
+    intent=Intent(intent=text or "empty",goal=text,constraints={"channel":source,"execution":"local-device",**identity_context},expected_result="governed Android action or safe response")
     task=core.submit(task_id,intent)
     result=core.run(task_id,authenticated=bool(authenticated),authorized=bool(authorized),executor=lambda _intent:{"accepted":True,"request":text,"identity":"master-authenticated" if authenticated else "anonymous","source":source},verifier=lambda _intent,value:bool(value and value.get("accepted")),impact="local-device")
     risk=core.gov.classify_risk(text,"local-device").value
