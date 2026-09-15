@@ -1,15 +1,19 @@
 package com.shadow.mobile;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.provider.Settings;
 import java.util.Locale;
 
-/** MOD-59: concrete Android intents/system adapters. */
+/** MOD-65.1: concrete Android execution adapters, including verified flashlight control. */
 public final class ShadowDeviceExecution {
     private ShadowDeviceExecution() {}
+
     public static String execute(Activity a, String raw) {
         if (raw == null) return null;
         String x = raw.trim().toLowerCase(Locale.ROOT);
@@ -38,11 +42,32 @@ public final class ShadowDeviceExecution {
             if (has(x,"رفع الصوت","علي الصوت","على الصوت","زود الصوت","volume up")) { adjust(a,AudioManager.ADJUST_RAISE); return "رفعت مستوى الصوت. ✓"; }
             if (has(x,"وطي الصوت","خفض الصوت","قلل الصوت","volume down")) { adjust(a,AudioManager.ADJUST_LOWER); return "وطّيت مستوى الصوت. ✓"; }
             if (has(x,"اكتم الصوت","mute")) { adjust(a,AudioManager.ADJUST_MUTE); return "كتمت الصوت. ✓"; }
-            if (has(x,"شغل الفلاش","شغل الكشاف","افتح الفلاش","flashlight","torch")) return "FLASHLIGHT: يحتاج تنفيذ CameraManager + صلاحية/حالة جهاز مناسبة؛ لم أزعم نجاحاً بدون التحقق من الحالة الفعلية.";
-            if (has(x,"اقفل الفلاش","اطفي الفلاش","اقفل الكشاف")) return "FLASHLIGHT: الإيقاف المباشر يعتمد على حالة الكاميرا الحالية؛ لم أزعم نجاحاً بدون حالة فعلية.";
+            if (has(x,"شغل الفلاش","شغل الكشاف","افتح الفلاش","flashlight","torch")) return setTorch(a,true);
+            if (has(x,"اقفل الفلاش","اطفي الفلاش","اقفل الكشاف","turn off flashlight","torch off")) return setTorch(a,false);
         } catch (Throwable e) { return "تعذر تنفيذ الأمر على الجهاز: " + e.getClass().getSimpleName(); }
         return null;
     }
+
+    private static String setTorch(Activity a, boolean enabled) {
+        if (android.os.Build.VERSION.SDK_INT < 23) return "الفلاش المباشر غير مدعوم على إصدار Android ده.";
+        CameraManager cm=(CameraManager)a.getSystemService(Context.CAMERA_SERVICE);
+        if(cm==null)return "مش قادر أوصل لخدمة الكاميرا.";
+        try {
+            String selected=null;
+            for(String id:cm.getCameraIdList()){
+                CameraCharacteristics c=cm.getCameraCharacteristics(id);
+                Boolean available=c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                Integer facing=c.get(CameraCharacteristics.LENS_FACING);
+                if(Boolean.TRUE.equals(available) && (facing==null || facing==CameraCharacteristics.LENS_FACING_BACK)){selected=id;break;}
+                if(selected==null && Boolean.TRUE.equals(available))selected=id;
+            }
+            if(selected==null)return "الموبايل مش بيوفر فلاش قابل للتحكم.";
+            cm.setTorchMode(selected,enabled);
+            return enabled ? "شغلت الفلاش. ✓" : "قفلت الفلاش. ✓";
+        } catch (SecurityException e) { return "صلاحية/حالة الكاميرا منعت التحكم في الفلاش."; }
+          catch (Throwable e) { return "تعذر تغيير حالة الفلاش: "+e.getClass().getSimpleName(); }
+    }
+
     private static void adjust(Activity a,int direction){ AudioManager am=(AudioManager)a.getSystemService(Activity.AUDIO_SERVICE); if(am!=null) am.adjustStreamVolume(AudioManager.STREAM_MUSIC,direction,AudioManager.FLAG_SHOW_UI); }
     private static String webOrPackage(Activity a,String pkg,String web,String name){ try { Intent i=a.getPackageManager().getLaunchIntentForPackage(pkg); if(i!=null)return launch(a,i,"فتحت "+name+"."); } catch(Exception ignored){} return launch(a,new Intent(Intent.ACTION_VIEW,Uri.parse(web)),"فتحت رابط "+name+" في المتصفح."); }
     private static String launch(Activity a,Intent i,String ok){ a.startActivity(i); return ok; }
