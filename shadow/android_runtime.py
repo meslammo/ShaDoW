@@ -23,7 +23,7 @@ def _get_runtime(home: Optional[str]=None):
     if home: os.chdir(home)
     _install_shadow_package_alias()
     if _runtime is None:
-        from runtime import ShadowRuntime
+        from shadow.runtime import ShadowRuntime
         _runtime=ShadowRuntime(); _seed_owner_memory(_runtime)
     return _runtime
 
@@ -83,5 +83,5 @@ def handle(request: str, home: Optional[str]=None)->Dict[str,Any]:
 
 def health(home: Optional[str]=None)->Dict[str,Any]:
     _get_runtime(home)
-    from runtime.health import health_report
+    from shadow.runtime.health import health_report
     report=health_report(); report["final_runtime"]=_get_final(home).status(); return report
