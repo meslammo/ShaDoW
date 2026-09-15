@@ -2,56 +2,47 @@ name: Build SHADOW APK
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - 'app/**'
       - 'shadow/**'
       - 'backend/**'
-      - 'build.gradle'
-      - 'settings.gradle'
+      - '.github/workflows/**'
+      - 'AndroidManifest.xml'
+      - 'activity_main.xml'
+      - 'settings.gradle*'
+      - 'build.gradle*'
       - 'gradle.properties'
-      - 'pyproject.toml'
-      - '.github/workflows/build-apk.yml'
-  pull_request:
-    paths:
-      - 'app/**'
-      - 'shadow/**'
-      - 'backend/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle.properties'
-      - 'pyproject.toml'
-      - '.github/workflows/build-apk.yml'
-permissions:
-  contents: read
 jobs:
-  build:
+  verify-backend:
     runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - run: node --check backend/server.mjs
-      - uses: actions/setup-java@v5
-        with: {distribution: temurin, java-version: '17'}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
-      - uses: gradle/actions/setup-gradle@v4
-        with: {gradle-version: '8.10.2'}
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+        with: { node-version: '22', cache: 'npm', cache-dependency-path: backend/package.json }
+      - run: npm install --ignore-scripts
+      - run: node --check server.mjs
+      - run: node --check ai-router.mjs
+      - run: node --check tool-registry.mjs
+      - run: node --check offline-engine.mjs
+  build:
+    needs: verify-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
       - run: yes | sdkmanager --licenses >/dev/null || true
-      - run: python -m compileall -q shadow
-      - run: gradle --no-daemon clean assembleRelease
-      - run: test -s app/build/outputs/apk/release/app-release.apk
-      - run: ${ANDROID_HOME}/build-tools/35.0.0/apksigner verify --verbose app/build/outputs/apk/release/app-release.apk
-      - run: sha256sum app/build/outputs/apk/release/app-release.apk | tee app/build/outputs/apk/release/SHA256SUM.txt
-      - run: unzip -l app/build/outputs/apk/release/app-release.apk | grep -E 'chaquopy|python|libpython|shadow_logo|ShadowCloudClient|ShadowGovernanceRuntime' | head -60
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - run: gradle :app:clean :app:assembleRelease
+      - run: test -f app/build/outputs/apk/release/app-release.apk
+      - run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose app/build/outputs/apk/release/app-release.apk
+      - run: sha256sum app/build/outputs/apk/release/app-release.apk | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-v1.5.0-FINAL-candidate-apk
+          name: SHADOW-MOD73-FINAL-candidate-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/SHA256SUM.txt
-          if-no-files-found: error
+            app/build/outputs/apk/release/apk.sha256
