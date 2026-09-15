@@ -9,7 +9,7 @@ import android.net.Uri;
 import android.provider.ContactsContract;
 import java.util.List;
 
-/** MOD-54.5: governed Core only for deterministic local intents; legacy phone aliases remain fallback adapters. */
+/** MOD-58: deterministic local intents now pass Master identity state into the 12-Core gate. */
 public final class ShadowPhoneController {
     private static final String RADARBOT_PACKAGE = "com.vialsoft.radarbot_free";
     private static ShadowPhoneUseAgent agent;
@@ -20,11 +20,12 @@ public final class ShadowPhoneController {
         if(command==null)return null;
         String original=command.trim(); if(original.isEmpty())return null;
         String x=original.toLowerCase(java.util.Locale.ROOT);
+        ShadowVoiceIdentityGateway identity=new ShadowVoiceIdentityGateway(activity);
         if(isApproval(x)&&pendingSensitiveCommand!=null){String approved=pendingSensitiveCommand;pendingSensitiveCommand=null;return executeInternal(activity,approved,true);}
         if(!ShadowOnlineExecutionRouter.requiresLocalExecution(original)) return null;
         try {
             if(x.startsWith("اتصل ب")||x.startsWith("اتصل بـ")||x.startsWith("كلم ")||x.startsWith("call ")) pendingSensitiveCommand=original;
-            String governed = new ShadowCore(activity).handle(original);
+            String governed = new ShadowCore(activity).handle(original, identity.isAuthenticated(), true, "android-local");
             if(governed != null && !governed.trim().isEmpty()) return governed;
         } catch (Throwable ignored) {}
         if(isRadarbotCommand(x)) return launchRadarbot(activity);
