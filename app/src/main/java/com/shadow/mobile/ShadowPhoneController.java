@@ -9,7 +9,7 @@ import android.net.Uri;
 import android.provider.ContactsContract;
 import java.util.List;
 
-/** MOD-48.8.1: Direct phone execution aliases and deterministic safe launchers. */
+/** MOD-54.5: governed Core only for deterministic local intents; legacy phone aliases remain fallback adapters. */
 public final class ShadowPhoneController {
     private static final String RADARBOT_PACKAGE = "com.vialsoft.radarbot_free";
     private static ShadowPhoneUseAgent agent;
@@ -21,6 +21,12 @@ public final class ShadowPhoneController {
         String original=command.trim(); if(original.isEmpty())return null;
         String x=original.toLowerCase(java.util.Locale.ROOT);
         if(isApproval(x)&&pendingSensitiveCommand!=null){String approved=pendingSensitiveCommand;pendingSensitiveCommand=null;return executeInternal(activity,approved,true);}
+        if(!ShadowOnlineExecutionRouter.requiresLocalExecution(original)) return null;
+        try {
+            if(x.startsWith("اتصل ب")||x.startsWith("اتصل بـ")||x.startsWith("كلم ")||x.startsWith("call ")) pendingSensitiveCommand=original;
+            String governed = new ShadowCore(activity).handle(original);
+            if(governed != null && !governed.trim().isEmpty()) return governed;
+        } catch (Throwable ignored) {}
         if(isRadarbotCommand(x)) return launchRadarbot(activity);
         if(isCalculatorCommand(x)) return launchCalculator(activity);
         if(isNetworkCommand(x)) return ShadowNetworkManager.describe(activity);
@@ -38,7 +44,6 @@ public final class ShadowPhoneController {
         }
         return executeInternal(activity,original,false);
     }
-
     private static String executeInternal(Activity activity,String original,boolean approved){
         String x=original.toLowerCase(java.util.Locale.ROOT);
         if(x.startsWith("اتصل ب")||x.startsWith("اتصل بـ")||x.startsWith("كلم ")||x.startsWith("call ")){
@@ -57,16 +62,13 @@ public final class ShadowPhoneController {
         }
         return null;
     }
-
     private static boolean isCalculatorCommand(String x){
         if(x==null)return false;
         String s=x.toLowerCase(java.util.Locale.ROOT);
         return s.contains("الآلة الحاسبة")||s.contains("الاله الحاسبه")||s.contains("الآلة حاسبة")||s.contains("الاله حاسبه")||s.equals("الحاسبة")||s.equals("الحاسبه")||s.contains("calculator")||s.equals("calc")||s.contains("calculator app")||s.contains("تطبيق الحاسبة");
     }
     private static String launchCalculator(Activity activity){
-        Intent i=new Intent(Intent.ACTION_MAIN);
-        i.addCategory(Intent.CATEGORY_APP_CALCULATOR);
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent i=new Intent(Intent.ACTION_MAIN);i.addCategory(Intent.CATEGORY_APP_CALCULATOR);i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try{activity.startActivity(i);return "تم فتح الآلة الحاسبة. ✓";}catch(Exception ignored){}
         return "مش لاقي تطبيق آلة حاسبة على الموبايل.";
     }

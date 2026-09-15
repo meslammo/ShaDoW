@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** MOD-50.6: Cloud gateway plus GitHub device authorization. */
+/** MOD-54.2: Online gateway with governed local-execution routing. */
 public final class ShadowCloudClient {
     private static final String PREFS = "shadow_cloud";
     private static final String RESPONSE_ID = "previous_response_id";
@@ -27,6 +27,7 @@ public final class ShadowCloudClient {
     public boolean health(){if(!isConfigured())return false;HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/health").openConnection();c.setRequestMethod("GET");c.setConnectTimeout(5000);c.setReadTimeout(7000);return c.getResponseCode()==200;}catch(Exception ignored){return false;}finally{if(c!=null)c.disconnect();}}
 
     public CloudReply chat(String message)throws Exception{
+        if(ShadowOnlineExecutionRouter.requiresLocalExecution(message)) throw new LocalExecutionRequiredException();
         if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");JSONObject body=new JSONObject();body.put("message",message);String previous=prefs().getString(RESPONSE_ID,"");if(!previous.isEmpty())body.put("previous_response_id",previous);body.put("device",deviceProfile());
         HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/v1/chat").openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(60000);c.setRequestProperty("Content-Type","application/json; charset=utf-8");c.setRequestProperty("Accept","application/json");byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());JSONObject result=new JSONObject(json==null?"{}":json);if(code<200||code>=300||!result.optBoolean("ok",false))throw new IllegalStateException(result.optString("error","cloud_request_failed"));String answer=result.optString("answer","").trim();String responseId=result.optString("response_id","");if(!responseId.isEmpty())prefs().edit().putString(RESPONSE_ID,responseId).apply();if(answer.isEmpty())throw new IllegalStateException("empty_cloud_response");return new CloudReply(answer,responseId);}finally{if(c!=null)c.disconnect();}}
 
@@ -42,6 +43,7 @@ public final class ShadowCloudClient {
     private android.content.SharedPreferences prefs(){return context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);}
     private static String read(InputStream stream)throws Exception{if(stream==null)return"";StringBuilder b=new StringBuilder();try(BufferedReader r=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null)b.append(line);}return b.toString();}
     private static byte[] readBytes(InputStream stream)throws Exception{if(stream==null)return new byte[0];java.io.ByteArrayOutputStream b=new java.io.ByteArrayOutputStream();byte[] buf=new byte[8192];int n;while((n=stream.read(buf))!=-1)b.write(buf,0,n);return b.toByteArray();}
+    public static final class LocalExecutionRequiredException extends Exception{private static final long serialVersionUID=1L;}
     public static final class CloudReply{public final String answer;public final String responseId;CloudReply(String answer,String responseId){this.answer=answer;this.responseId=responseId;}}
     public static final class GithubDevice{public final String deviceCode,userCode,verificationUri,verificationUriComplete;public final int expiresIn,interval;GithubDevice(String d,String u,String v,String vc,int e,int i){deviceCode=d;userCode=u;verificationUri=v;verificationUriComplete=vc;expiresIn=e;interval=i;}}
     public static final class GithubPoll{public final String status,accessToken;public final int interval;GithubPoll(String s,String t,int i){status=s;accessToken=t;interval=i;}}
