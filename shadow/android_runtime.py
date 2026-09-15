@@ -1,6 +1,8 @@
 """Android entry point for the embedded SHADOW Python runtime.
 
-MOD-53: expose the governed 12-Core runtime directly to the Android process.
+MOD-58: carry the authenticated voice/passphrase gateway state into the real
+12-Core orchestrator instead of treating the Python core as independently
+trusted.
 """
 from __future__ import annotations
 import os
@@ -13,7 +15,6 @@ _core = None
 
 
 def _install_shadow_package_alias() -> None:
-    """Expose shadow/ as package ``shadow`` inside the Chaquopy VM."""
     if "shadow" in sys.modules:
         return
     package = types.ModuleType("shadow")
@@ -76,41 +77,48 @@ def configure_online(api_key: str, model: str = "gpt-5.6", home: Optional[str] =
     return {"status": "offline", "provider": "offline", "model": "local-safe"}
 
 
-def authorize(request: str, home: Optional[str] = None) -> str:
-    """Run the real MOD-52 state machine and return a Java-friendly gate result."""
+def authorize(request: str, home: Optional[str] = None, authenticated: bool = False, authorized: bool = False, source: str = "android") -> str:
+    """Run the real MOD-52 state machine with explicit identity/authorization context."""
     text = str(request or "").strip()
     core = _get_core(home)
     from shadow.core.runtime_governance import Intent
-    task_id = "android-" + str(abs(hash(text)))
+    task_id = "android-" + str(abs(hash(text + "|" + source)))
     intent = Intent(
         intent=text or "empty",
         goal=text,
-        constraints={"channel": "android", "execution": "local-device"},
+        constraints={
+            "channel": source,
+            "execution": "local-device",
+            "identity": "master-authenticated" if authenticated else "not-authenticated",
+        },
         expected_result="governed Android action or safe response",
     )
     task = core.submit(task_id, intent)
-    # Identity/authorization is a separate layer. For the Android runtime we
-    # allow LOW/MEDIUM intents through and let HIGH/CRITICAL remain fail-closed.
     result = core.run(
         task_id,
-        authenticated=True,
-        authorized=True,
-        executor=lambda _intent: {"accepted": True, "request": text},
+        authenticated=bool(authenticated),
+        authorized=bool(authorized),
+        executor=lambda _intent: {
+            "accepted": True,
+            "request": text,
+            "identity": "master-authenticated" if authenticated else "anonymous",
+            "source": source,
+        },
         verifier=lambda _intent, value: bool(value and value.get("accepted")),
         impact="local-device",
     )
     risk = core.gov.classify_risk(text, "local-device").value
     if result.state.value == "Done":
-        return f"ALLOW|{risk}|governed|{result.state.value}"
+        return f"ALLOW|{risk}|governed|{result.state.value}|identity={'master' if authenticated else 'unverified'}|source={source}"
     reason = (result.error or {}).get("reason", "governance_blocked")
-    return f"BLOCK|{risk}|{reason}|{result.state.value}"
+    return f"BLOCK|{risk}|{reason}|{result.state.value}|identity={'master' if authenticated else 'unverified'}|source={source}"
 
 
 def core_status(home: Optional[str] = None) -> str:
     core = _get_core(home)
     audit = core.gov.export_audit()
     return (
-        "SHADOW MOD-53 12-Core Runtime: ACTIVE\n"
+        "SHADOW MOD-58 12-Core Runtime: ACTIVE\n"
         f"tasks={len(core.tasks)} journal={len(audit['journal'])} checkpoints={len(audit['checkpoints'])}\n"
         f"retry_budget={audit['retry_budget']} time_budget_s={audit['time_budget_s']}"
     )

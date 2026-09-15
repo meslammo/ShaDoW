@@ -5,7 +5,7 @@ import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
-/** MOD-53: real Android ↔ governed SHADOW 12-Core runtime bridge via Chaquopy. */
+/** MOD-58: Android voice identity state is carried into the governed Python 12-Core runtime. */
 public final class ShadowPythonRuntimeBridge {
     private final Context context;
     private final ShadowCapabilityGate gate;
@@ -23,15 +23,21 @@ public final class ShadowPythonRuntimeBridge {
             return gate.releaseStatus()+"\n\n"+result.toString();
         }catch(Throwable e){return gate.releaseStatus()+"\n\n12-Core Runtime: error • "+(e.getMessage()==null?"unknown":e.getMessage());}
     }
-    /**
-     * Runs the MOD-52 governance/orchestrator path in the actual Android process.
-     * The result is intentionally compact so Java can gate local device execution.
-     */
-    public String authorize(String request){
+    /** MOD-58: identity-aware governance gate. */
+    public String authorize(String request, boolean authenticated, boolean authorized, String source){
         try{
-            return androidRuntime().callAttr("authorize",request,context.getFilesDir().getAbsolutePath()+"/shadow_workspace").toString();
+            return androidRuntime().callAttr(
+                "authorize",
+                request,
+                context.getFilesDir().getAbsolutePath()+"/shadow_workspace",
+                authenticated,
+                authorized,
+                source == null ? "android" : source
+            ).toString();
         }catch(Throwable e){return "BLOCK|UNKNOWN|runtime_unavailable|"+(e.getMessage()==null?"unknown":e.getMessage());}
     }
+    /** Backward-compatible safe default: unauthenticated. */
+    public String authorize(String request){return authorize(request,false,false,"android");}
     public String handle(String request){
         try{
             return androidRuntime().callAttr("handle",request,context.getFilesDir().getAbsolutePath()+"/shadow_workspace").toString();

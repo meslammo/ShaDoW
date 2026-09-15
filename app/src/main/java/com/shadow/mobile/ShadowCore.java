@@ -6,9 +6,9 @@ import android.os.BatteryManager;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-/** MOD-53: native offline core governed by the embedded Python 12-Core runtime. */
+/** MOD-58: native offline core governed by the embedded Python 12-Core runtime + identity gateway. */
 public final class ShadowCore {
-    public static final String VERSION = "0.53.0";
+    public static final String VERSION = "0.54.0";
     private final Activity activity;
     private final SharedPreferences prefs;
     private final ShadowGovernanceRuntime governance;
@@ -21,18 +21,24 @@ public final class ShadowCore {
         this.pythonCore = new ShadowPythonRuntimeBridge(activity);
     }
 
-    public String handle(String raw) {
+    public String handle(String raw) { return handle(raw, false, false, "android"); }
+
+    /**
+     * MOD-58: the voice/passphrase gateway is now an input to the actual
+     * Python 12-Core authorization state machine. The native governance gate
+     * remains a second independent fail-closed layer.
+     */
+    public String handle(String raw, boolean masterAuthenticated, boolean authorized, String source) {
         String request = raw == null ? "" : raw.trim();
         if (request.isEmpty()) return "SHADOW\n\nاكتب أمراً أو استخدم الصوت.";
 
-        // MOD-53: every native/offline command passes through the real embedded
-        // Python 12-Core state machine before Android executes a local action.
-        String pythonGate = pythonCore.authorize(request);
+        String pythonGate = pythonCore.authorize(request, masterAuthenticated, authorized, source);
         if (pythonGate.startsWith("BLOCK|")) {
-            String[] parts = pythonGate.split("\\|", 4);
+            String[] parts = pythonGate.split("\\|", 7);
             String risk = parts.length > 1 ? parts[1] : "UNKNOWN";
             String reason = parts.length > 2 ? parts[2] : "governance_blocked";
-            return "SHADOW GOVERNANCE\n\n12-Core Runtime blocked this local action.\nRisk: " + risk + "\nReason: " + reason + "\n\nالتنفيذ المحلي متوقف لحين استيفاء التأكيد/التفويض.";
+            String identity = parts.length > 4 ? parts[4] : "identity=unverified";
+            return "SHADOW GOVERNANCE\n\n12-Core Runtime blocked this local action.\nRisk: " + risk + "\nReason: " + reason + "\n" + identity + "\n\nالتنفيذ المحلي متوقف لحين استيفاء التأكيد/التفويض.";
         }
 
         String gate = governance.authorize(request);
@@ -51,7 +57,7 @@ public final class ShadowCore {
         if (isAny(x, "memory", "ذاكرة", "الذاكرة", "history", "سجل")) return memory();
         if (isAny(x, "time", "الوقت", "الساعة")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
         if (isAny(x, "date", "التاريخ", "النهارده", "اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم.\nCore: ONLINE/OFFLINE\nExecution: GOVERNED LOCAL + PYTHON 12-CORE\nMemory: ACTIVE\nVoice: AVAILABLE";
+        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم.\nCore: ONLINE/OFFLINE\nExecution: GOVERNED LOCAL + PYTHON 12-CORE\nIdentity: " + (masterAuthenticated ? "MASTER AUTHENTICATED" : "UNVERIFIED") + "\nMemory: ACTIVE\nVoice: AVAILABLE";
         if (starts(x, "احسب ") || starts(x, "calculate ") || looksLikeMath(request)) {
             String expression = request.replaceFirst("(?i)^احسب\\s*", "").replaceFirst("(?i)^calculate\\s*", "").trim();
             try { return "CALCULATOR\n\n" + format(eval(expression)); }
@@ -79,7 +85,7 @@ public final class ShadowCore {
         return "SHADOW LOCAL CHAT\n\nأنا شغال محلياً دلوقتي والمحرك الخارجي مش متصل، فمش هألف لك إجابة من عندي. الكلام والصوت والأوامر المحلية يقدروا يفضلوا شغالين بدون إنترنت.";
     }
 
-    private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE/OFFLINE\nExecution   GOVERNED NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     OPTIONAL\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
+    private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE/OFFLINE\nExecution   GOVERNED NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nIdentity    PASSphrase + 12-CORE GATE\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     OPTIONAL\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
     private String home() { return "HOME CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Home موجودة داخل التطبيق. عند إضافة Smart Home endpoint فعلي، يتم توصيله عبر نفس الـdomain."; }
     private String car() { return "CAR CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Car موجودة داخل التطبيق. عند إضافة Car/Vespa API أو tracker فعلي، يتم توصيله عبر نفس الـdomain."; }
     private String device() { return "DEVICE\n\n" + BuildInfo.summary(activity); }
