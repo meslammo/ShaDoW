@@ -53,7 +53,7 @@ def configure_online(api_key: str, model: str="gpt-5.6", home: Optional[str]=Non
     os.environ.pop("OPENAI_API_KEY",None); os.environ["SHADOW_MODEL_PROVIDER"]="offline"; os.environ.pop("SHADOW_MODEL",None)
     return {"status":"offline","provider":"offline","model":"local-safe"}
 
-def authorize(request: str, home: Optional[str]=None, authenticated: bool=False, authorized: bool=False, source: str="android")->str:
+def authorize(request: str, home: Optional[str]=None, authenticated: bool = False, authorized: bool = False, source: str="android")->str:
     text=str(request or "").strip(); core=_get_core(home)
     from shadow.core.runtime_governance import Intent
     task_id="android-"+str(abs(hash(text+"|"+source)))
