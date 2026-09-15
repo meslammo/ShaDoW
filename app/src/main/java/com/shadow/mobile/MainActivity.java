@@ -1,3 +1,4 @@
 package com.shadow.mobile;
-/** MOD-44.9: launcher bridge to unified Jarvis V4 with background radar. */
+
+/** MOD-69.1: launcher now enters the current SHADOW master UI/runtime directly. */
 public final class MainActivity extends JarvisMainActivityV4 {}
