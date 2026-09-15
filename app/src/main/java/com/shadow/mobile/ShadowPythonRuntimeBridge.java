@@ -5,7 +5,7 @@ import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
-/** MOD-46.5: real Android ↔ Python Final Runtime bridge via bundled Chaquopy runtime. */
+/** MOD-53: real Android ↔ governed SHADOW 12-Core runtime bridge via Chaquopy. */
 public final class ShadowPythonRuntimeBridge {
     private final Context context;
     private final ShadowCapabilityGate gate;
@@ -13,16 +13,31 @@ public final class ShadowPythonRuntimeBridge {
     public boolean start(){
         try{if(!Python.isStarted()) Python.start(new AndroidPlatform(context)); return true;}catch(Throwable ignored){return false;}
     }
+    private PyObject androidRuntime(){
+        if(!start()) throw new IllegalStateException("Python runtime unavailable");
+        return Python.getInstance().getModule("android_runtime");
+    }
     public String status(){
-        if(!start()) return "Python Final Runtime: unavailable";
         try{
-            PyObject production=Python.getInstance().getModule("shadow.runtime.production");
-            PyObject runtime=production.callAttr("ProductionRuntime",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
-            return gate.releaseStatus()+"\n\nPython Final Runtime:\n"+runtime.callAttr("status").toString();
-        }catch(Throwable e){return gate.releaseStatus()+"\n\nPython Final Runtime: error • "+(e.getMessage()==null?"unknown":e.getMessage());}
+            PyObject result=androidRuntime().callAttr("core_status",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
+            return gate.releaseStatus()+"\n\n"+result.toString();
+        }catch(Throwable e){return gate.releaseStatus()+"\n\n12-Core Runtime: error • "+(e.getMessage()==null?"unknown":e.getMessage());}
+    }
+    /**
+     * Runs the MOD-52 governance/orchestrator path in the actual Android process.
+     * The result is intentionally compact so Java can gate local device execution.
+     */
+    public String authorize(String request){
+        try{
+            return androidRuntime().callAttr("authorize",request,context.getFilesDir().getAbsolutePath()+"/shadow_workspace").toString();
+        }catch(Throwable e){return "BLOCK|UNKNOWN|runtime_unavailable|"+(e.getMessage()==null?"unknown":e.getMessage());}
+    }
+    public String handle(String request){
+        try{
+            return androidRuntime().callAttr("handle",request,context.getFilesDir().getAbsolutePath()+"/shadow_workspace").toString();
+        }catch(Throwable e){return "12-Core Runtime error • "+(e.getMessage()==null?"unknown":e.getMessage());}
     }
     public String develop(String request){
-        if(!start()) return "Python Final Runtime: unavailable";
         try{
             PyObject production=Python.getInstance().getModule("shadow.runtime.production");
             PyObject runtime=production.callAttr("ProductionRuntime",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
