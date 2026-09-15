@@ -26,8 +26,7 @@ public final class ShadowPhoneController {
             String governed = new ShadowCore(activity).handle(original);
             if(governed != null && !governed.trim().isEmpty()) return governed;
         } catch (Throwable ignored) {
-            // Fail closed: continue only to legacy adapter behavior; no exception
-            from the embedded runtime is allowed to crash the Android UI thread.
+            // Keep the UI thread alive if the embedded runtime itself throws.
         }
 
         String x=original.toLowerCase(java.util.Locale.ROOT);
