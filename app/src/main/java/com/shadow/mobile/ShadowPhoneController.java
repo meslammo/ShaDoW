@@ -9,7 +9,7 @@ import android.net.Uri;
 import android.provider.ContactsContract;
 import java.util.List;
 
-/** MOD-48.8.1: Direct phone execution aliases and deterministic safe launchers. */
+/** MOD-54.3: governed Core is the first local execution gate; legacy phone aliases remain fallback adapters. */
 public final class ShadowPhoneController {
     private static final String RADARBOT_PACKAGE = "com.vialsoft.radarbot_free";
     private static ShadowPhoneUseAgent agent;
@@ -19,6 +19,17 @@ public final class ShadowPhoneController {
     public static String execute(Activity activity,String command){
         if(command==null)return null;
         String original=command.trim(); if(original.isEmpty())return null;
+
+        // MOD-54: every deterministic local execution attempt enters the real
+        // Python 12-Core governance/runtime before legacy adapters can act.
+        try {
+            String governed = new ShadowCore(activity).handle(original);
+            if(governed != null && !governed.trim().isEmpty()) return governed;
+        } catch (Throwable ignored) {
+            // Fail closed: continue only to legacy adapter behavior; no exception
+            from the embedded runtime is allowed to crash the Android UI thread.
+        }
+
         String x=original.toLowerCase(java.util.Locale.ROOT);
         if(isApproval(x)&&pendingSensitiveCommand!=null){String approved=pendingSensitiveCommand;pendingSensitiveCommand=null;return executeInternal(activity,approved,true);}
         if(isRadarbotCommand(x)) return launchRadarbot(activity);
