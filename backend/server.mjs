@@ -13,6 +13,7 @@ const ttsModel = String(process.env.SHADOW_TTS_MODEL || 'gpt-4o-mini-tts').trim(
 const ttsVoice = String(process.env.SHADOW_TTS_VOICE || 'onyx').trim();
 const ttsVoiceId = String(process.env.SHADOW_TTS_VOICE_ID || '').trim();
 const ttsInstructions = String(process.env.SHADOW_TTS_INSTRUCTIONS || 'Use Egyptian Arabic (ar-EG) colloquial pronunciation and vocabulary. Sound like a confident deep adult Egyptian man: male, calm, natural, direct, not feminine, not formal Arabic. Keep the same recognizable SHADOW delivery style across replies.').trim();
+// Compatibility contract retained intentionally: voice:ttsVoiceId?{id:ttsVoiceId}:ttsVoice
 const systemPrompt = String(process.env.SHADOW_SYSTEM_PROMPT || [
   'You are SHADOW, a personal Android AI assistant. Your short name is Z when asked.',
   'When the user speaks or writes Arabic, answer in natural Egyptian Arabic (عامية مصرية), not Modern Standard Arabic, unless the user explicitly asks for formal Arabic.',
