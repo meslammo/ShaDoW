@@ -6,22 +6,35 @@ import android.os.BatteryManager;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-/** MOD-48.2: native offline core with governance gate and verified local execution. */
+/** MOD-53: native offline core governed by the embedded Python 12-Core runtime. */
 public final class ShadowCore {
-    public static final String VERSION = "0.52.0";
+    public static final String VERSION = "0.53.0";
     private final Activity activity;
     private final SharedPreferences prefs;
     private final ShadowGovernanceRuntime governance;
+    private final ShadowPythonRuntimeBridge pythonCore;
 
     public ShadowCore(Activity activity) {
         this.activity = activity;
         this.prefs = activity.getSharedPreferences("shadow_core", Activity.MODE_PRIVATE);
         this.governance = new ShadowGovernanceRuntime(activity);
+        this.pythonCore = new ShadowPythonRuntimeBridge(activity);
     }
 
     public String handle(String raw) {
         String request = raw == null ? "" : raw.trim();
         if (request.isEmpty()) return "SHADOW\n\nاكتب أمراً أو استخدم الصوت.";
+
+        // MOD-53: every native/offline command passes through the real embedded
+        // Python 12-Core state machine before Android executes a local action.
+        String pythonGate = pythonCore.authorize(request);
+        if (pythonGate.startsWith("BLOCK|")) {
+            String[] parts = pythonGate.split("\\|", 4);
+            String risk = parts.length > 1 ? parts[1] : "UNKNOWN";
+            String reason = parts.length > 2 ? parts[2] : "governance_blocked";
+            return "SHADOW GOVERNANCE\n\n12-Core Runtime blocked this local action.\nRisk: " + risk + "\nReason: " + reason + "\n\nالتنفيذ المحلي متوقف لحين استيفاء التأكيد/التفويض.";
+        }
+
         String gate = governance.authorize(request);
         if (gate != null) return gate;
         String x = request.toLowerCase(Locale.ROOT);
@@ -29,8 +42,8 @@ public final class ShadowCore {
 
         String phoneAction = ShadowMobileActions.execute(activity, request);
         if (phoneAction != null) { governance.record("VERIFIED LOCAL ACTION | " + phoneAction); return envelope("ACTION", request, phoneAction); }
-        if (isAny(x, "status", "حالة", "وضع", "system")) return status() + "\n\n" + governance.status();
-        if (isAny(x, "governance", "الأمان", "الامان", "الحوكمة")) return governance.status();
+        if (isAny(x, "status", "حالة", "وضع", "system")) return status() + "\n\n" + governance.status() + "\n\n" + pythonCore.status();
+        if (isAny(x, "governance", "الأمان", "الامان", "الحوكمة")) return governance.status() + "\n\n" + pythonCore.status();
         if (isAny(x, "discover", "اكتشف التطبيقات", "التطبيقات المثبتة", "installed apps")) return "DISCOVERY\n\n" + governance.discoverApps();
         if (isAny(x, "home", "البيت", "المنزل", "سمارت هوم")) return home();
         if (isAny(x, "car", "السيارة", "العربية", "العربيه", "المركبة", "vespa")) return car();
@@ -38,13 +51,13 @@ public final class ShadowCore {
         if (isAny(x, "memory", "ذاكرة", "الذاكرة", "history", "سجل")) return memory();
         if (isAny(x, "time", "الوقت", "الساعة")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
         if (isAny(x, "date", "التاريخ", "النهارده", "اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم.\nCore: ONLINE/OFFLINE\nExecution: GOVERNED LOCAL\nMemory: ACTIVE\nVoice: AVAILABLE";
+        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم.\nCore: ONLINE/OFFLINE\nExecution: GOVERNED LOCAL + PYTHON 12-CORE\nMemory: ACTIVE\nVoice: AVAILABLE";
         if (starts(x, "احسب ") || starts(x, "calculate ") || looksLikeMath(request)) {
             String expression = request.replaceFirst("(?i)^احسب\\s*", "").replaceFirst("(?i)^calculate\\s*", "").trim();
             try { return "CALCULATOR\n\n" + format(eval(expression)); }
             catch (Exception e) { return "CALCULATOR\n\nالتعبير غير صالح أو غير آمن."; }
         }
-        if (x.contains("ما انت") || x.contains("مين انت") || x.contains("who are you")) return "SHADOW\n\nأنا SHADOW: مساعد Android موحّد؛ نواة أصلية + Python runtime مدمج، ذاكرة، صوت، وأدوات الهاتف.\nالذكاء السحابي اختياري، والكلام الأساسي والأوامر المحلية يفضلوا شغالين بدون إنترنت.";
+        if (x.contains("ما انت") || x.contains("مين انت") || x.contains("who are you")) return "SHADOW\n\nأنا SHADOW: مساعد Android موحّد؛ نواة أصلية + Python 12-Core runtime مدمج، ذاكرة، صوت، وأدوات الهاتف.\nالذكاء السحابي اختياري، والكلام الأساسي والأوامر المحلية يفضلوا شغالين بدون إنترنت.";
         return null;
     }
 
