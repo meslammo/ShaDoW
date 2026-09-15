@@ -50,7 +50,9 @@ class UnifiedRuntime:
             self.mode = "offline"
             self.fallback_count += 1
             self.last_online_probe = time.time()
-            return offline_fn()
+            value = offline_fn()
+            self.last_success = time.time()
+            return value
 
     def probe(self, online_fn) -> bool:
         self.last_online_probe = time.time()
@@ -180,7 +182,7 @@ class VoiceprintAdapter:
 
     def status(self) -> Dict[str, Any]:
         configured = bool(os.environ.get("SHADOW_VOICEPRINT_PROVIDER"))
-        return {"available": False, "enrolled": False, "verified": False,
+        return {"available": False, "enrolled": self.enrolled, "verified": False,
                 "provider_configured": configured,
                 "reason": "raw-audio speaker embedding provider is not configured; SpeechRecognizer text is never biometric evidence"}
 
