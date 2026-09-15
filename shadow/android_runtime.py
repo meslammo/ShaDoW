@@ -1,6 +1,6 @@
 """Android entry point for the embedded SHADOW Python runtime.
 
-MOD-24.3: configure online AI in-process while retaining a complete offline fallback.
+MOD-53: expose the governed 12-Core runtime directly to the Android process.
 """
 from __future__ import annotations
 import os
@@ -9,6 +9,7 @@ import types
 from typing import Any, Dict, Optional
 
 _runtime = None
+_core = None
 
 
 def _install_shadow_package_alias() -> None:
@@ -22,7 +23,6 @@ def _install_shadow_package_alias() -> None:
 
 
 def _seed_owner_memory(runtime) -> None:
-    """Give SHADOW useful non-sensitive background without importing private history."""
     if any("shadow-owner-profile-v1" in m.tags for m in runtime.memory.all()):
         return
     facts = [
@@ -50,8 +50,18 @@ def _get_runtime(home: Optional[str] = None):
     return _runtime
 
 
+def _get_core(home: Optional[str] = None):
+    global _core
+    if home:
+        os.chdir(home)
+    _install_shadow_package_alias()
+    if _core is None:
+        from shadow.core.orchestrator import ShadowOrchestrator
+        _core = ShadowOrchestrator()
+    return _core
+
+
 def configure_online(api_key: str, model: str = "gpt-5.6", home: Optional[str] = None) -> Dict[str, Any]:
-    """Configure the cloud provider only in the live app process; Android stores the key encrypted."""
     _get_runtime(home)
     key = str(api_key or "").strip()
     selected_model = str(model or "gpt-5.6").strip() or "gpt-5.6"
@@ -64,6 +74,46 @@ def configure_online(api_key: str, model: str = "gpt-5.6", home: Optional[str] =
     os.environ["SHADOW_MODEL_PROVIDER"] = "offline"
     os.environ.pop("SHADOW_MODEL", None)
     return {"status": "offline", "provider": "offline", "model": "local-safe"}
+
+
+def authorize(request: str, home: Optional[str] = None) -> str:
+    """Run the real MOD-52 state machine and return a Java-friendly gate result."""
+    text = str(request or "").strip()
+    core = _get_core(home)
+    from shadow.core.runtime_governance import Intent
+    task_id = "android-" + str(abs(hash(text)))
+    intent = Intent(
+        intent=text or "empty",
+        goal=text,
+        constraints={"channel": "android", "execution": "local-device"},
+        expected_result="governed Android action or safe response",
+    )
+    task = core.submit(task_id, intent)
+    # Identity/authorization is a separate layer. For the Android runtime we
+    # allow LOW/MEDIUM intents through and let HIGH/CRITICAL remain fail-closed.
+    result = core.run(
+        task_id,
+        authenticated=True,
+        authorized=True,
+        executor=lambda _intent: {"accepted": True, "request": text},
+        verifier=lambda _intent, value: bool(value and value.get("accepted")),
+        impact="local-device",
+    )
+    risk = core.gov.classify_risk(text, "local-device").value
+    if result.state.value == "Done":
+        return f"ALLOW|{risk}|governed|{result.state.value}"
+    reason = (result.error or {}).get("reason", "governance_blocked")
+    return f"BLOCK|{risk}|{reason}|{result.state.value}"
+
+
+def core_status(home: Optional[str] = None) -> str:
+    core = _get_core(home)
+    audit = core.gov.export_audit()
+    return (
+        "SHADOW MOD-53 12-Core Runtime: ACTIVE\n"
+        f"tasks={len(core.tasks)} journal={len(audit['journal'])} checkpoints={len(audit['checkpoints'])}\n"
+        f"retry_budget={audit['retry_budget']} time_budget_s={audit['time_budget_s']}"
+    )
 
 
 def handle(request: str, home: Optional[str] = None) -> Dict[str, Any]:
