@@ -1,4 +1,4 @@
-"""MOD-60..66 final runtime services.
+"""MOD-60..67 final runtime services.
 
 Provider-neutral, fail-closed runtime services for SHADOW. Cloud/online execution
 is preferred, deterministic offline execution is the fallback, discovery is
@@ -10,6 +10,8 @@ import hashlib, json, os, time
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from shadow.voiceprint_provider import RawAudioVoiceprintProvider
 
 @dataclass(frozen=True)
 class Capability:
@@ -93,6 +95,8 @@ class DiscoveryEngine:
             Capability("shadow.home", "Smart-home adapter", "adapter", True, False, "high"),
             Capability("shadow.car", "Car/vehicle adapter", "adapter", True, False, "high"),
             Capability("shadow.companions", "Companion capability bus", "adapter", True, True, "medium"),
+            Capability("shadow.voiceprint", "Raw-audio speaker verification", "provider", True, False, "critical"),
+            Capability("shadow.custom_voice", "Custom TTS voice", "provider", True, False, "medium"),
         ]
 
     def snapshot(self) -> Dict[str, Any]:
@@ -176,20 +180,28 @@ class CompanionRegistry:
         return [asdict(x) for x in self.items.values()]
 
 class VoiceprintAdapter:
-    """Fail-closed boundary for future raw-audio speaker verification."""
+    """Fail-closed adapter backed by a real raw-audio speaker provider."""
     def __init__(self):
         self.enrolled = False
+        self.provider = RawAudioVoiceprintProvider()
 
     def status(self) -> Dict[str, Any]:
-        configured = bool(os.environ.get("SHADOW_VOICEPRINT_PROVIDER"))
-        return {"available": False, "enrolled": self.enrolled, "verified": False,
-                "provider_configured": configured,
-                "reason": "raw-audio speaker embedding provider is not configured; SpeechRecognizer text is never biometric evidence"}
+        provider = self.provider.status()
+        return {
+            "available": self.provider.configured,
+            "enrolled": self.enrolled,
+            "verified": False,
+            "provider_configured": self.provider.configured,
+            "provider": provider.get("provider", "none"),
+            "reason": provider.get("reason")
+            if self.provider.configured
+            else "raw-audio speaker embedding provider is not configured; SpeechRecognizer text is never biometric evidence",
+        }
 
-    def verify(self, audio_bytes: bytes) -> bool:
-        if not audio_bytes:
-            return False
-        raise RuntimeError("VOICEPRINT_PROVIDER_NOT_CONFIGURED")
+    def verify(self, audio_bytes: bytes, content_type: str = "audio/wav") -> Dict[str, Any]:
+        result = self.provider.verify(audio_bytes, content_type)
+        self.enrolled = bool(result.enrolled)
+        return asdict(result)
 
 class FinalRuntime:
     def __init__(self, root: str = ""):
@@ -207,4 +219,4 @@ class FinalRuntime:
                 "provider_boundaries": {
                     "cloud_ai": bool(os.environ.get("OPENAI_API_KEY")),
                     "custom_tts": bool(os.environ.get("SHADOW_TTS_VOICE_ID")),
-                    "voiceprint": bool(os.environ.get("SHADOW_VOICEPRINT_PROVIDER"))}}
+                    "voiceprint": self.voiceprint.provider.configured}}
