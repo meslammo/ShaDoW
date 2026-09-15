@@ -7,7 +7,7 @@ import android.net.Uri;
 import android.provider.Settings;
 import java.util.Locale;
 
-/** MOD-59: concrete Android intents/system adapters; unsupported direct toggles open the proper system panel. */
+/** MOD-59: concrete Android intents/system adapters. */
 public final class ShadowDeviceExecution {
     private ShadowDeviceExecution() {}
     public static String execute(Activity a, String raw) {
@@ -23,7 +23,7 @@ public final class ShadowDeviceExecution {
             if (has(x,"افتح الملفات","الملفات","مدير الملفات","file manager")) { Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("*/*"); i.addCategory(Intent.CATEGORY_OPENABLE); return launch(a,i,"فتحت مدير الملفات."); }
             if (has(x,"افتح التقويم","التقويم","calendar")) return launch(a,new Intent(Intent.ACTION_VIEW,Uri.parse("content://com.android.calendar/time/")),"فتحت التقويم.");
             if (has(x,"جهات الاتصال","contacts")) return launch(a,new Intent(Intent.ACTION_VIEW,Uri.parse("content://contacts/people/")),"فتحت جهات الاتصال.");
-            if (has(x,"افتح الساعة","الساعة","clock")) return launch(a,new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CLOCK),"فتحت الساعة.");
+            if (has(x,"افتح الساعة","الساعة","clock")) return launch(a,new Intent(Intent.ACTION_MAIN),"فتحت تطبيق الساعة.");
             if (has(x,"افتح الخرائط","افتح الخريطة","خرائط","maps")) return launch(a,new Intent(Intent.ACTION_VIEW,Uri.parse("geo:0,0?q=")),"فتحت الخرائط.");
             if (has(x,"افتح المتصفح","المتصفح","browser")) return launch(a,new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com")),"فتحت المتصفح.");
             if (has(x,"افتح الموسيقى","الموسيقى","music","player")) return launch(a,new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC),"فتحت تطبيق الموسيقى.");
