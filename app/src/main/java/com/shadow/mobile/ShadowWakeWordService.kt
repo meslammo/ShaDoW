@@ -29,10 +29,10 @@ import kotlinx.coroutines.launch
  * the microphone while the foreground conversation is active and restarts after
  * the conversation returns to idle.
  *
- * Two wake-word entries are supported by the same service contract:
- * "Hey Jarvis" via jarvis_v1.onnx and "Hey Shadow" via hey_shadow.onnx.
- * The Shadow classifier asset is pinned from a public reference project and
- * still requires physical-device phrase validation before claiming production accuracy.
+ * Two supported wake phrases are aliases for the same SHADOW master route:
+ * "Hey Jarvis" and "Hey Shadow" both activate SHADOW and open the same master interaction surface.
+ * The wake classifier assets are pinned in CI; microphone/phrase validation is a later device test,
+ * not a build or routing prerequisite.
  */
 class ShadowWakeWordService : Service() {
 
@@ -120,6 +120,7 @@ class ShadowWakeWordService : Service() {
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
             )
             putExtra(EXTRA_WAKE_TRIGGERED, true)
+            putExtra(EXTRA_WAKE_ASSISTANT, "shadow")
         }
 
         // A normal startActivity is used when the app is already visible/unlocked.
@@ -245,6 +246,7 @@ class ShadowWakeWordService : Service() {
         const val ACTION_PAUSE = "com.shadow.mobile.wake.PAUSE"
         const val ACTION_RESUME = "com.shadow.mobile.wake.RESUME"
         const val EXTRA_WAKE_TRIGGERED = "shadow_wake_triggered"
+        const val EXTRA_WAKE_ASSISTANT = "shadow_wake_assistant"
 
         @Volatile private var instance: ShadowWakeWordService? = null
 
