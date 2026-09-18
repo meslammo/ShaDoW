@@ -338,8 +338,9 @@ export async function streamAgent({ message, previousResponseId = '', device = '
         if (onDelta) onDelta(event.delta);
       } else if (type === 'response.output_item.added' && event.item?.type === 'function_call') {
         const item = event.item;
-        const id = String(item.call_id || item.id || '');
-        calls.set(id, { call_id: id, name: String(item.name || ''), arguments: String(item.arguments || '') });
+        const id = String(item.id || item.call_id || '');
+        const callId = String(item.call_id || item.id || '');
+        calls.set(id, { call_id: callId, name: String(item.name || ''), arguments: String(item.arguments || '') });
       } else if (type === 'response.function_call_arguments.delta') {
         const id = String(event.item_id || event.call_id || '');
         const call = calls.get(id);
