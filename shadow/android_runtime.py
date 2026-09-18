@@ -50,8 +50,8 @@ def configure_online(api_key: str, model: str="gpt-5.6", home: Optional[str]=Non
     if key:
         os.environ["OPENAI_API_KEY"]=key; os.environ["SHADOW_MODEL_PROVIDER"]="openai"; os.environ["SHADOW_MODEL"]=selected_model
         return {"status":"ready","provider":"openai","model":selected_model}
-    os.environ.pop("OPENAI_API_KEY",None); os.environ["SHADOW_MODEL_PROVIDER"]="offline"; os.environ.pop("SHADOW_MODEL",None)
-    return {"status":"offline","provider":"offline","model":"local-safe"}
+    os.environ.pop("OPENAI_API_KEY",None); os.environ.pop("SHADOW_MODEL_PROVIDER",None); os.environ.pop("SHADOW_MODEL",None)
+    return {"status":"not_configured","provider":"none","model":None}
 
 def authorize(request: str, home: Optional[str]=None, authenticated: bool = False, authorized: bool = False, source: str="android")->str:
     text=str(request or "").strip(); core=_get_core(home)
