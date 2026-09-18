@@ -95,4 +95,16 @@ public final class ShadowVoiceStateMachine {
             callback.onIdle();
         }
     }
+
+    /** Complete a voice turn when no TTS output was requested. */
+    public synchronized void responseFinishedWithoutTts() {
+        if (state != State.PROCESSING) return;
+        if (handsFree) {
+            state = State.LISTENING;
+            callback.onListening();
+        } else {
+            state = State.IDLE;
+            callback.onIdle();
+        }
+    }
 }
