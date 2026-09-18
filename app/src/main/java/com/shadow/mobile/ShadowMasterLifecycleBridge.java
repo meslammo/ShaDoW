@@ -51,6 +51,8 @@ public final class ShadowMasterLifecycleBridge implements ShadowMasterEventBus.L
             core.governance().companionState("cloud-ai", event.type.toString());
         } else if (route.equals("image")) {
             core.governance().companionState("image-provider", event.type.toString());
+        } else if (route.equals("spatial")) {
+            core.governance().companionState("spatial", event.detail);
         }
 
         // Core 10/12: record the cross-runtime orchestration handoff.
