@@ -15,3 +15,11 @@
 - The library license/terms remain those of its upstream distribution.
 
 SHADOW's own source remains under the repository's MIT license.
+
+
+## Hey Shadow wake classifier
+- Source project: jakes1345/ShadowCypher
+- Source commit: 827829b09399d6c02ba108607e70aa05bf7485a5
+- Asset: hey_shadow.onnx
+- Project license: MIT
+- Note: the source project documents the classifier as a "Hey Shadow" detector, but production phrase accuracy is not claimed by SHADOW until physical-device validation.
