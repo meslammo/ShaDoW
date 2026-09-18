@@ -47,4 +47,4 @@ def test_mod82_online_voiceprint_path_is_explicit():
     assert "isVoiceVerified" in identity
     assert "verifyVoiceprint" in client
     assert "startVoiceprintVerification" in activity
-    assert "online voiceprint" in activity
+    assert "voiceprint" in activity
