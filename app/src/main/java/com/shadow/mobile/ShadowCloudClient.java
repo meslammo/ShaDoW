@@ -50,6 +50,19 @@ public final class ShadowCloudClient {
     }
     public GithubDevice startGithubDevice()throws Exception{JSONObject r=postJson("/v1/github/device/start",new JSONObject(),15000);if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","github_authorization_failed"));return new GithubDevice(r.optString("device_code"),r.optString("user_code"),r.optString("verification_uri"),r.optString("verification_uri_complete",""),r.optInt("expires_in",900),r.optInt("interval",5));}
     public GithubPoll pollGithubDevice(String deviceCode)throws Exception{JSONObject body=new JSONObject();body.put("device_code",deviceCode);JSONObject r=postJson("/v1/github/device/poll",body,15000);if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","github_authorization_failed"));return new GithubPoll(r.optString("status"),r.optString("access_token",""),r.optInt("interval",5));}
+    public String createDevelopmentPullRequest(String githubToken,String branch,String title,String body,boolean draft)throws Exception{
+        JSONObject payload=new JSONObject();
+        payload.put("approved",true);
+        payload.put("github_token",githubToken==null?"":githubToken);
+        payload.put("branch",branch==null?"":branch);
+        payload.put("title",title==null?"":title);
+        payload.put("body",body==null?"":body);
+        payload.put("draft",draft);
+        JSONObject result=postJson("/v1/development/pull-request",payload,30000);
+        if(!result.optBoolean("ok",false)) throw new IllegalStateException(result.optString("error","pull_request_failed"));
+        JSONObject pr=result.optJSONObject("result");
+        return pr==null?result.toString():pr.toString();
+    }
     public void applyDevelopment(String githubToken,String branch,String commitMessage,JSONArray files)throws Exception{JSONObject body=new JSONObject();body.put("approved",true);body.put("github_token",githubToken);body.put("branch",branch);body.put("commit_message",commitMessage);body.put("files",files);JSONObject r=postJson("/v1/development/apply",body,60000);if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","github_write_failed"));}
     private JSONObject postJson(String path,JSONObject body,int timeout)throws Exception{if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+path).openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(timeout);c.setRequestProperty("Content-Type","application/json; charset=utf-8");c.setRequestProperty("Accept","application/json");byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());return new JSONObject(json==null?"{}":json);}finally{if(c!=null)c.disconnect();}}
     public String generateImage(String prompt)throws Exception{JSONObject result=postJson("/v1/images",new JSONObject().put("prompt",prompt).put("size","1024x1024"),120000);if(!result.optBoolean("ok",false))throw new IllegalStateException(result.optString("error","image_generation_failed"));String data=result.optString("image_base64","").trim();if(data.isEmpty())throw new IllegalStateException("empty_image");return data;}
