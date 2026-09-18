@@ -13,6 +13,7 @@ public final class ShadowMasterLifecycleBridge implements ShadowMasterEventBus.L
     private final ShadowCompanionRegistry companions;
     private final ShadowVerificationLedger verification;
     private final ShadowRecoveryLedger recovery;
+    private final ShadowMasterCycle cycle;
 
     public ShadowMasterLifecycleBridge(
             ShadowMasterEventBus bus,
@@ -22,7 +23,8 @@ public final class ShadowMasterLifecycleBridge implements ShadowMasterEventBus.L
             ShadowPythonRuntimeBridge python,
             ShadowCompanionRegistry companions,
             ShadowVerificationLedger verification,
-            ShadowRecoveryLedger recovery) {
+            ShadowRecoveryLedger recovery,
+            ShadowMasterCycle cycle) {
         this.bus = bus;
         this.core = core;
         this.development = development;
@@ -31,12 +33,17 @@ public final class ShadowMasterLifecycleBridge implements ShadowMasterEventBus.L
         this.companions = companions;
         this.verification = verification;
         this.recovery = recovery;
+        this.cycle = cycle == null ? new ShadowMasterCycle() : cycle;
         this.bus.subscribe(this);
     }
 
     @Override public void onEvent(ShadowMasterEventBus.Event event) {
         String route = event.route == null ? "" : event.route;
         String detail = "event#" + event.eventId + " | core=" + event.coreLayer + " | " + event.type + " | " + route + " | " + event.detail + " | ok=" + event.success;
+        if (event.type == ShadowMasterEventBus.Type.INPUT_RECEIVED) cycle.begin(event.request, route);
+        cycle.record(event.coreLayer);
+        if (event.type == ShadowMasterEventBus.Type.FAILED || event.type == ShadowMasterEventBus.Type.PAUSED) cycle.fail();
+        if (event.type == ShadowMasterEventBus.Type.COMPLETED) cycle.finish();
 
         // Core 07: shared governance journal.
         core.governance().record("MASTER BUS | " + detail + " | request=" + event.request);
@@ -97,7 +104,8 @@ public final class ShadowMasterLifecycleBridge implements ShadowMasterEventBus.L
         if (python != null) b.append("Python: ").append(python.status()).append("\n");
         if (companions != null) b.append("Companions: ").append(companions.snapshot()).append("\n");
         if (verification != null) b.append("Verification: ").append(verification.snapshot()).append("\n");
-        if (recovery != null) b.append("Recovery: ").append(recovery.status());
+        if (recovery != null) b.append("Recovery: ").append(recovery.status()).append("\n");
+        if (cycle != null) b.append(cycle.status());
         return b.toString();
     }
 
