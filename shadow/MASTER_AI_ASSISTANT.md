@@ -141,10 +141,10 @@ Supported user controls:
 - `رد كتابة` / `من غير صوت` → text only.
 - `رد صوتي` → voice + text.
 
-Current cloud TTS configuration:
-- `gpt-4o-mini-tts`
-- voice `onyx`
-- Egyptian Arabic male-style instructions
+Voice configuration:
+- Android TextToSpeech is the default client response path to reduce cloud TTS usage.
+- Cloud TTS (`gpt-4o-mini-tts`) remains available as an explicit backend path.
+- Think Hard / Deep Think are reasoning controls; Deep Think requests `xhigh` reasoning when the OpenAI provider/model supports it.
 
 Custom uploaded voice / biometric voice identity remains **NOT PROVEN COMPLETE**.
 
@@ -537,3 +537,21 @@ Definition of Done: all critical flows pass device and cloud E2E tests with evid
 **Fix GitHub Routing → Complete OAuth → Prove End-to-End Self-Development.**
 
 The immediate implementation must never hide a GitHub failure behind Chat. If OAuth is unavailable, SHADOW must say so explicitly and remain fail-closed.
+
+
+## MOD-75.27 — Master Lifecycle Wiring
+
+The Android master route now publishes lifecycle events to a bounded event bus. A lifecycle bridge fans those events into the existing governance journal, project/development memory, companion/device state boundaries, and the embedded Python runtime handoff.
+
+### Reasoning UI
+- **Normal:** existing dark SHADOW surface.
+- **Think Hard:** black background + red interactive controls/effects; OpenAI reasoning effort `high`.
+- **Deep Think:** black background + red interactive controls/effects; OpenAI reasoning effort `xhigh` when supported.
+- **Stop Deep Think:** returns the UI to the normal surface and reasoning effort to `none`.
+
+### Wake words
+- `Hey Jarvis` → `jarvis_v1.onnx`.
+- `Hey Shadow` → `hey_shadow.onnx`.
+- Shared assets: `melspectrogram.onnx` + `embedding_model.onnx`.
+- The build fetches all wake assets at pinned commits and prints SHA-256 hashes.
+- Physical microphone validation remains required before claiming production wake-word accuracy.
