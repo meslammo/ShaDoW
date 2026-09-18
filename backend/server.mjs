@@ -1,7 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { applyFiles, status as developmentStatus } from './development-agent.mjs';
+import { applyFiles, createPullRequest, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
 import { runAgent, providerStatus, memoryStatus } from './ai-router.mjs';
@@ -131,6 +131,21 @@ app.post('/v1/development/plan', rateLimit, async (req, res) => {
   } catch { res.status(503).json({ ok: false, error: 'development_ai_unavailable' }); }
 });
 
+
+app.post('/v1/development/pull-request', rateLimit, async (req, res) => {
+  if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
+  const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : '';
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 200) : '';
+  const body = typeof req.body?.body === 'string' ? req.body.body.slice(0, 10000) : '';
+  if (!branch || !title) return res.status(400).json({ ok: false, error: 'branch_and_title_required' });
+  try {
+    const result = await createPullRequest({ branch, title, body, draft: req.body?.draft !== false, token: typeof req.body?.github_token === 'string' ? req.body.github_token.trim() : '' });
+    res.json({ ok: true, executed: true, result });
+  } catch (e) {
+    const message = String(e?.message || 'pull_request_failed');
+    res.status(message === 'github_write_not_configured' ? 503 : 400).json({ ok: false, error: message });
+  }
+});
 app.post('/v1/development/apply', rateLimit, async (req, res) => {
   if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
   const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : 'shadow-agent-work';
