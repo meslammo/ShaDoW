@@ -45,7 +45,6 @@ app.get('/health', async (_req, res) => res.json({
     files: true,
     android_action: true,
     agent_loop: true,
-    offline_fallback: true,
     voiceprint_required: false,
   },
   image_generation: Boolean(apiKey),
@@ -75,7 +74,7 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const preferred = ['openai', 'xai', 'grok', 'deepseek'].includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
     const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline), offline_capability: result.offlineCapability || null, attempts: result.attempts || [] });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
     return res.status(503).json({ ok: false, error: 'agent_failed' });
@@ -93,7 +92,7 @@ app.post('/v1/agent/continue', rateLimit, async (req, res) => {
   const original = String(req.body?.original_message || 'نفّذ الإجراء المطلوب واستكمل.');
   try {
     const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider, reasoningEffort });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline) });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null });
   } catch { return res.status(503).json({ ok: false, error: 'agent_continue_failed' }); }
 });
 
