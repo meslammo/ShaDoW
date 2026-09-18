@@ -12,8 +12,6 @@ import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
-import androidx.core.app.NotificationCompat
-import androidx.core.app.ServiceCompat
 import com.rementia.openwakeword.lib.WakeWordEngine
 import com.rementia.openwakeword.lib.model.DetectionMode
 import com.rementia.openwakeword.lib.model.WakeWordModel
@@ -52,7 +50,7 @@ class ShadowWakeWordService : Service() {
         try {
             val type = if (Build.VERSION.SDK_INT >= 29)
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
-            ServiceCompat.startForeground(this, NOTIFICATION_ID, ongoingNotification(), type)
+            startForeground(NOTIFICATION_ID, ongoingNotification())
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to enter microphone foreground service", t)
             stopSelf()
@@ -139,14 +137,20 @@ class ShadowWakeWordService : Service() {
     private fun notifyWake(launch: Intent) {
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val pi = PendingIntent.getActivity(this, 100, launch, flags)
-        val n = NotificationCompat.Builder(this, CHANNEL_WAKE)
+        val n = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_WAKE)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("SHADOW")
             .setContentText("Wake word detected")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(Notification.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pi)
             .setFullScreenIntent(pi, true)
+            .build() else Notification.Builder(this)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("SHADOW")
+            .setContentText("Wake word detected")
+            .setAutoCancel(true)
+            .setContentIntent(pi)
             .build()
         getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_WAKE_ID, n)
         serviceScope.launch {
@@ -162,12 +166,18 @@ class ShadowWakeWordService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ONGOING)
+        return if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ONGOING)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("SHADOW")
             .setContentText("Wake word is active")
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(Notification.PRIORITY_LOW)
+            .setContentIntent(open)
+            .build() else Notification.Builder(this)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("SHADOW")
+            .setContentText("Wake word is active")
+            .setOngoing(true)
             .setContentIntent(open)
             .build()
     }
