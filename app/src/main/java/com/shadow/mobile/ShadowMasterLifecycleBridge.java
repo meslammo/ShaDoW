@@ -36,7 +36,7 @@ public final class ShadowMasterLifecycleBridge implements ShadowMasterEventBus.L
 
     @Override public void onEvent(ShadowMasterEventBus.Event event) {
         String route = event.route == null ? "" : event.route;
-        String detail = event.type + " | " + route + " | " + event.detail + " | ok=" + event.success;
+        String detail = "event#" + event.eventId + " | core=" + event.coreLayer + " | " + event.type + " | " + route + " | " + event.detail + " | ok=" + event.success;
 
         // Core 07: shared governance journal.
         core.governance().record("MASTER BUS | " + detail + " | request=" + event.request);
