@@ -1,8 +1,6 @@
 """Final provider-neutral runtime services for SHADOW.
 
-Online execution is preferred. Deterministic local execution remains available as a
-fallback. Biometric voiceprint is an optional legacy adapter only and is never a
-product requirement; absence of its provider fails closed rather than blocking SHADOW.
+Online execution is required for AI conversation. Local execution is limited to governed device/runtime adapters. Biometric voiceprint is an optional online security adapter.
 """
 from __future__ import annotations
 import hashlib, json, os, time
@@ -17,7 +15,6 @@ class Capability:
     name: str
     source: str
     online: bool
-    offline: bool
     risk: str = "low"
 
 class UnifiedRuntime:
@@ -68,19 +65,19 @@ class DiscoveryEngine:
     def __init__(self, root: str = ""): self.root = Path(root or ".")
     def discover(self) -> List[Capability]:
         return [
-            Capability("android.device", "Android device control", "native", False, True, "medium"),
-            Capability("android.apps", "Installed application launch", "native", False, True),
-            Capability("android.contacts", "Contacts and calling", "native", False, True, "high"),
-            Capability("android.media", "Camera/media/volume", "native", False, True, "medium"),
-            Capability("shadow.12core", "Governed 12-Core runtime", "embedded-python", False, True, "high"),
-            Capability("shadow.cloud", "Cloud AI gateway", "railway", True, False),
-            Capability("shadow.tts", "Shadow TTS gateway", "railway", True, False),
-            Capability("shadow.github", "GitHub development gateway", "oauth", True, False, "high"),
-            Capability("shadow.home", "Smart-home adapter boundary", "adapter", True, True, "high"),
-            Capability("shadow.car", "Vehicle adapter boundary", "adapter", True, True, "high"),
-            Capability("shadow.companions", "Companion capability bus", "adapter", True, True, "medium"),
-            Capability("shadow.voiceprint", "Legacy optional speaker verification", "legacy-provider", True, False, "critical"),
-            Capability("shadow.custom_voice", "Custom TTS provider boundary", "provider", True, False, "medium"),
+            Capability("android.device", "Android device control", "native", False, "medium"),
+            Capability("android.apps", "Installed application launch", "native", False),
+            Capability("android.contacts", "Contacts and calling", "native", False, "high"),
+            Capability("android.media", "Camera/media/volume", "native", False, "medium"),
+            Capability("shadow.12core", "Governed 12-Core runtime", "embedded-python", False, "high"),
+            Capability("shadow.cloud", "Cloud AI gateway", "railway", True),
+            Capability("shadow.tts", "Shadow TTS gateway", "railway", True),
+            Capability("shadow.github", "GitHub development gateway", "oauth", True, "high"),
+            Capability("shadow.home", "Smart-home adapter boundary", "adapter", True, "high"),
+            Capability("shadow.car", "Vehicle adapter boundary", "adapter", True, "high"),
+            Capability("shadow.companions", "Companion capability bus", "adapter", True, "medium"),
+            Capability("shadow.voiceprint", "Speaker verification", "provider", True, "critical"),
+            Capability("shadow.custom_voice", "Custom TTS provider boundary", "provider", True, "medium"),
         ]
     def snapshot(self) -> Dict[str, Any]:
         caps = self.discover(); return {"count": len(caps), "capabilities": [asdict(c) for c in caps]}
