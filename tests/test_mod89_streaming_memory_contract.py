@@ -17,4 +17,4 @@ def test_mod89_memory_is_explicitly_governed():
     router = Path("backend/ai-router.mjs").read_text(encoding="utf-8")
     assert "memory_save only when the user explicitly asks" in router
     assert "Relevant SHADOW memory" in router
-    assert "do not invent or expose sensitive data" in router
+    assert "never invent or expose sensitive data" in router
