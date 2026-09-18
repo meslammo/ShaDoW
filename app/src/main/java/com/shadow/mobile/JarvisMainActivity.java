@@ -45,7 +45,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void setReasoningTheme(boolean on){reasoningMode=on;if(rootView==null)return;rootView.setBackgroundColor(on?REASON_BLACK:BG);if(composerRef!=null){GradientDrawable g=bg(on?REASON_BLACK:SURFACE,24);if(on)g.setStroke(dp(1),REASON_RED);composerRef.setBackground(g);}if(plusButtonRef!=null)plusButtonRef.setTextColor(on?REASON_RED:TEXT);if(sendButtonRef!=null)sendButtonRef.setTextColor(on?REASON_RED:TEXT);if(micButtonRef!=null)micButtonRef.setTextColor(on?REASON_RED:TEXT);if(menuButtonRef!=null)menuButtonRef.setTextColor(on?REASON_RED:TEXT);if(moreButtonRef!=null)moreButtonRef.setTextColor(on?REASON_RED:TEXT);if(input!=null){input.setTextColor(TEXT);input.setHintTextColor(on?REASON_RED:MUTED);}stage(on?"deep thinking":"online");}
     private void setReasoning(boolean on,String effort){reasoningEffort=on?(effort==null||effort.isEmpty()?"high":effort):"none";setReasoningTheme(on);}
     private TextView tv(String s,float z){TextView v=new TextView(this);v.setText(s);v.setTextColor(TEXT);v.setTextSize(z);return v;}
-    private void stage(String s){if(status!=null)status.setText(ShadowProcessIndicators.render(s));}
+    private void stage(String s){if(status!=null){status.setText(ShadowProcessIndicators.render(s));status.setTextColor(reasoningMode?REASON_RED:Color.rgb(112,210,160));}if(liveVoice!=null&&reasoningMode)liveVoice.setTextColor(REASON_RED);}
     @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);orchestrator=new ShadowMasterOrchestrator();identity=new ShadowVoiceIdentityGateway(this);remotes=new ShadowRemoteController(this);developmentAgent=new ShadowDevelopmentAgent(this);pythonBridge=new ShadowPythonRuntimeBridge(this);spatialRadar=new ShadowRadarController(this,orchestrator.events());lifecycleBridge=new ShadowMasterLifecycleBridge(orchestrator.events(),core,developmentAgent,remotes,pythonBridge);
         voiceState=new ShadowVoiceStateMachine(handsFreeVoice,new ShadowVoiceStateMachine.Callback(){
             public void onListening(){runOnUiThread(()->{ShadowWakeWordService.pauseListening();stage("listening");if(liveVoice!=null){liveVoice.setVisibility(View.VISIBLE);if(liveVoice.getText().toString().isEmpty())liveVoice.setText("🎙 Listening…");}if(handsFreeVoice&&!voiceTurnActive){voiceTurnActive=true;}if(handsFreeVoice&&!voice.isActive())voiceHandler.postDelayed(()->{if(handsFreeVoice&&!isFinishing()&&!voice.isActive())listen();},250);});}
@@ -107,6 +107,31 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج توثيق هوية الـMaster قبل ما نكمل."); return; }
 
         if(plan.route==ShadowMasterOrchestrator.Route.GITHUB){handleGithubCommand(request);return;}
+        if(plan.route==ShadowMasterOrchestrator.Route.DEVELOPMENT){
+            stage("planning");
+            new Thread(()->{
+                final String planText;
+                try{planText=developmentAgent.plan(request);}catch(Throwable e){runOnUiThread(()->assistant("Development Agent تعذر تشغيله الآن."));return;}
+                runOnUiThread(()->{assistant("🧠 Development Plan\n\n"+planText);stage("done");speak(planText);});
+            }).start();
+            return;
+        }
+        if(plan.route==ShadowMasterOrchestrator.Route.SPATIAL){
+            if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){
+                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},904);
+            }else{
+                spatialRadar.start();
+                assistant("Spatial route اتفعل واتصل بالـMaster Bus. مش بخزن إحداثيات داخل event log.");
+                stage("done");
+            }
+            return;
+        }
+        if(plan.route==ShadowMasterOrchestrator.Route.COMPANION){
+            core.governance().companionState("companion", "ROUTED");
+            assistant("Companion route جاهز. الـMaster Bus موصل الـCompanion/Device boundary، والتنفيذ الفعلي لسا مربوط بقدرة companion موثقة.");
+            stage("done");
+            return;
+        }
         if(plan.route==ShadowMasterOrchestrator.Route.IMAGE){stage("designing");generateImage(request);return;}
         if(plan.route==ShadowMasterOrchestrator.Route.SYSTEM){
             new Thread(()->{
