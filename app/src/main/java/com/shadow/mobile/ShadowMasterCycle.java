@@ -33,10 +33,13 @@ public final class ShadowMasterCycle {
         boolean base = visited.contains("identity")
                 && visited.contains("understanding")
                 && visited.contains("reasoning")
-                && visited.contains("action-security")
                 && visited.contains("verification")
                 && visited.contains("communication");
         if (!base) return false;
+        if (route.equals("local-device") || route.equals("development") || route.equals("github")
+                || route.equals("companion") || route.equals("spatial") || route.equals("image")) {
+            if (!visited.contains("action-security")) return false;
+        }
         switch (route) {
             case "development":
             case "github": return visited.contains("development");
