@@ -9,8 +9,7 @@ SHADOW is a personal AI assistant / orchestration layer for Mohamed. It is not o
 
 Primary operating rule:
 - **Online = primary path.**
-- **Offline = automatic fallback only.**
-- When connectivity returns, SHADOW automatically returns to Online.
+- **Online-only AI:** SHADOW requires a reachable cloud AI provider for conversational intelligence; no offline AI mode or fallback is exposed.
 - Phone is the first host; Watch, Car, Smart Home, PC, TV, IoT and future companions are extensions.
 
 ## 2. Authority and Identity
@@ -79,7 +78,7 @@ Uses checkpoints, journal entries, transactions and rollback plans.
 - Gap: universal rollback adapters are **PARTIALLY IMPLEMENTED**.
 
 ### Core 10 — Communication
-Handles text, voice, status, errors, notifications and Online/Offline transitions.
+Handles text, voice, status, errors, notifications and online provider transitions.
 - Current: text default, optional voice response, cloud TTS and local TTS fallback exist.
 - Custom uploaded voice: **NEEDS VERIFICATION / NOT YET PROVEN INTEGRATED**.
 
@@ -120,31 +119,16 @@ Coordinates all cores and maintains a single lifecycle state.
 
 Interrupts pause the active operation at a checkpoint. Resume reloads the checkpoint. Failure selects a bounded recovery path. High-risk requests stop at the governance gate until explicit confirmation is present.
 
-## 6. Online / Offline Architecture
-
-```text
-ONLINE PRIMARY
-Phone → Cloud Backend → AI/Web → Response / Action → Verification
-
-NETWORK FAILURE
-Phone → Local Runtime → Safe Offline Capability → Verification
-
-NETWORK RECOVERY
-Local Runtime → Connectivity Check → Online Cloud Path
-```
-
-Offline must not be a user-selected operating mode.
-
-## 7. Voice
+## 6. Online-Only Architecture\n\n```text\nPHONE\n  ↓\nMASTER ROUTE\n  ↓\nCLOUD AI / WEB / TOOLS\n  ↓\nEXECUTION\n  ↓\nVERIFICATION\n  ↓\nMEMORY / AUDIT\n```\n\nWhen all configured online AI providers fail, SHADOW reports the online failure and does not switch to a local AI/offline conversation engine. Local Android adapters remain execution components only; they are not a user-facing offline AI mode.\n\n## 7. Voice
 
 Supported user controls:
 - `رد كتابة` / `من غير صوت` → text only.
 - `رد صوتي` → voice + text.
 
-Current cloud TTS configuration:
-- `gpt-4o-mini-tts`
-- voice `onyx`
-- Egyptian Arabic male-style instructions
+Voice configuration:
+- Android TextToSpeech is the default client response path to reduce cloud TTS usage.
+- Cloud TTS (`gpt-4o-mini-tts`) remains available as an explicit backend path.
+- Think Hard / Deep Think are reasoning controls; Deep Think requests `xhigh` reasoning when the OpenAI provider/model supports it.
 
 Custom uploaded voice / biometric voice identity remains **NOT PROVEN COMPLETE**.
 
@@ -152,7 +136,7 @@ Custom uploaded voice / biometric voice identity remains **NOT PROVEN COMPLETE**
 
 Primary components:
 - `JarvisMainActivity` — UI, state indicators, command routing, voice controls.
-- `ShadowCore` — local runtime, governance and offline behavior.
+- `ShadowCore` — governed local execution/runtime adapters used by the online master route.
 - `ShadowPhoneController` — deterministic phone actions.
 - `ShadowCloudClient` — Cloud API gateway.
 - `ShadowGithubAuth` — encrypted GitHub token storage through Android Keystore.
@@ -171,6 +155,29 @@ Examples:
 - Voice → Speech API.
 
 A GitHub intent must never fall through to Chat.
+
+## MOD-75 — Master Route Integration
+
+The Android Voice 2 surface is now the transport/UI boundary for the master route. Typed and spoken input share one routing contract before execution.
+
+Current contract:
+
+`Input → Identity → Understanding → Master Route → Planning → Route Handler → Verification → Response`
+
+Implemented in the Android app:
+- `ShadowMasterOrchestrator` classifies requests into Chat, Local Device, GitHub/Development, Image, or System.
+- GitHub/development requests are isolated from normal Chat routing.
+- Local-device requests stay on the governed local execution path.
+- Voice and text enter the same request route.
+- Android TTS is the default client response path; cloud TTS is not called for every answer by default.
+
+Still required for full 12-Core completion:
+- Universal cross-core event/event-bus state.
+- Secure voice identity/voiceprint verification.
+- Wake-word device accuracy validation can be performed later; it is not a build/routing prerequisite.
+- Universal verification/evidence adapters.
+- Universal rollback/recovery adapters.
+- Full Companion/Device/Spatial integration under the same bus.
 
 ## 9. Cloud Backend
 
@@ -369,7 +376,7 @@ Infinite loops are prohibited by retry budgets and progress checks.
 
 ## 18. Version Timeline
 
-- MOD-48.6 / v1.5.0 — Online-first behavior, automatic offline fallback, text/voice response preference.
+- MOD-48.6 / v1.5.0 — Online-first behavior, text/voice response preference. Offline fallback was later removed by MOD-76.
 - MOD-48.7 / v1.5.1 — Cloud error hardening and TTS input limits.
 - MOD-48.8.2 / v1.5.2 — Local phone execution bridge.
 - MOD-50.9 / v1.5.4 — GitHub OAuth module and scope/status hardening.
@@ -384,7 +391,7 @@ Infinite loops are prohibited by retry budgets and progress checks.
 |---|---|---|---|
 | Android UI | IMPLEMENTED | CI + device test | continue device validation |
 | Online primary path | IMPLEMENTED | backend health + device test | monitor |
-| Offline fallback | IMPLEMENTED | device network-off test | expand coverage |
+| Offline AI | REMOVED | N/A | online-only provider path |
 | Local phone actions | PARTIALLY IMPLEMENTED | device E2E | add governed adapters |
 | Governance | IMPLEMENTED | runtime/CI tests | expand evidence adapters |
 | Cloud Chat | IMPLEMENTED | Railway + API response | billing/credits must remain valid |
@@ -505,12 +512,29 @@ Definition of Done: all critical flows pass device and cloud E2E tests with evid
 
 ## 22. What SHADOW Is Today vs What SHADOW Must Become
 
-**Today:** a real Android + Cloud foundation with Online-first behavior, local fallback, governance primitives, phone execution, GitHub OAuth code, and a guarded Development Agent.
+**Today:** a real Android + Cloud foundation with online-only AI, governance primitives, phone execution, GitHub OAuth code, and a guarded Development Agent.
 
-**Must become:** a unified personal AI operating/orchestration layer with proven identity, universal intent routing, verified execution, governed memory, dynamic tools/companions, complete GitHub self-development, web discovery, recovery, and multi-device control.
+**Must become:** a unified personal AI operating/orchestration layer with proven identity, universal intent routing, verified execution, governed memory, dynamic tools/companions, complete GitHub self-development, web discovery, recovery, and multi-device control. The user-facing assistant identity is SHADOW; legacy Jarvis-named implementation classes are internal compatibility code only.
 
 ## 23. Next Immediate Action
 
 **Fix GitHub Routing → Complete OAuth → Prove End-to-End Self-Development.**
 
 The immediate implementation must never hide a GitHub failure behind Chat. If OAuth is unavailable, SHADOW must say so explicitly and remain fail-closed.
+
+
+## MOD-75.27 — Master Lifecycle Wiring
+
+The Android master route now publishes lifecycle events to a bounded event bus. A lifecycle bridge fans those events into the existing governance journal, project/development memory, companion/device state boundaries, and the embedded Python runtime handoff.
+
+### Reasoning UI
+- **Normal:** existing dark SHADOW surface.
+- **Think Hard:** black background + red interactive controls/effects; OpenAI reasoning effort `high`.
+- **Deep Think:** black background + red interactive controls/effects; OpenAI reasoning effort `xhigh` when supported.
+- **Stop Deep Think:** returns the UI to the normal surface and reasoning effort to `none`.
+
+### Wake word
+- `Hey Shadow` → `hey_shadow.onnx` is the sole wake phrase.
+- Shared assets: `melspectrogram.onnx` + `embedding_model.onnx`.
+- The build fetches the wake assets at pinned commits and prints SHA-256 hashes.
+- Physical microphone validation is a later device test and does not block build, routing, or integration.

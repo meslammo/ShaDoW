@@ -6,7 +6,7 @@ import android.os.BatteryManager;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-/** MOD-58/70.2: native offline core governed by the embedded Python 12-Core runtime + identity gateway. */
+/** MOD-58/70.2: governed local execution/runtime layer used by the online master route. */
 public final class ShadowCore {
     public static final String VERSION = "0.55.0";
     private final Activity activity;
@@ -21,6 +21,7 @@ public final class ShadowCore {
         this.pythonCore = new ShadowPythonRuntimeBridge(activity);
     }
 
+    public ShadowGovernanceRuntime governance() { return governance; }
     public String handle(String raw) { return handle(raw, false, false, "android"); }
 
     public String handle(String raw, boolean masterAuthenticated, boolean authorized, String source) {
@@ -59,36 +60,17 @@ public final class ShadowCore {
         if (isAny(x, "memory", "ذاكرة", "الذاكرة", "history", "سجل")) return memory();
         if (isAny(x, "time", "الوقت", "الساعة")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
         if (isAny(x, "date", "التاريخ", "النهارده", "اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم.\nCore: ONLINE/OFFLINE\nExecution: GOVERNED LOCAL + PYTHON 12-CORE\nIdentity: " + (masterAuthenticated ? "MASTER AUTHENTICATED" : "UNVERIFIED") + "\nMemory: ACTIVE\nVoice: AVAILABLE";
+        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم أونلاين.\nCore: ONLINE\nExecution: GOVERNED LOCAL + PYTHON 12-CORE\nIdentity: " + (masterAuthenticated ? "MASTER AUTHENTICATED" : "UNVERIFIED") + "\nMemory: ACTIVE\nVoice: AVAILABLE";
         if (starts(x, "احسب ") || starts(x, "calculate ") || looksLikeMath(request)) {
             String expression = request.replaceFirst("(?i)^احسب\\s*", "").replaceFirst("(?i)^calculate\\s*", "").trim();
             try { return "CALCULATOR\n\n" + format(eval(expression)); }
             catch (Exception e) { return "CALCULATOR\n\nالتعبير غير صالح أو غير آمن."; }
         }
-        if (x.contains("ما انت") || x.contains("مين انت") || x.contains("who are you")) return "SHADOW\n\nأنا SHADOW: مساعد Android موحّد؛ نواة أصلية + Python 12-Core runtime مدمج، ذاكرة، صوت، وأدوات الهاتف.\nالذكاء السحابي اختياري، والكلام الأساسي والأوامر المحلية يفضلوا شغالين بدون إنترنت.";
+        if (x.contains("ما انت") || x.contains("مين انت") || x.contains("who are you")) return "SHADOW\n\nأنا SHADOW: مساعد Android موحّد؛ نواة أصلية + Python 12-Core runtime مدمج، ذاكرة، صوت، وأدوات الهاتف.\nالذكاء السحابي هو مسار الذكاء الأساسي، والتنفيذ المحلي هنا Adapter مُدار داخل دورة SHADOW.";
         return null;
     }
 
-    /** Internal fallback only. UI should not expose a separate local-chat mode. */
-    public String offlineChat(String raw) {
-        String request = raw == null ? "" : raw.trim();
-        String x = request.toLowerCase(Locale.ROOT);
-        if (x.isEmpty()) return "SHADOW\n\nأنا معاك. قول اللي عايز تقوله.";
-        if (isAny(x, "عامل ايه", "أخبارك", "اخبارك", "كويس", "تمام", "how are you", "how's it going")) return "SHADOW\n\nتمام يا محمد، أنا شغال معاك. قولّي عايز نعمل إيه دلوقتي.";
-        if (isAny(x, "بتعمل ايه", "بتعمل إيه", "موجود", "سامعني", "بتسمعني", "are you there", "can you hear me")) return "SHADOW\n\nأيوه، سامعك وجاهز. اكتب أو اضغط MIC واتكلم.";
-        if (isAny(x, "شكرا", "شكرًا", "thanks", "thank you")) return "SHADOW\n\nالعفو يا محمد. نكمل.";
-        if (isAny(x, "صباح الخير", "مساء الخير", "good morning", "good evening")) return "SHADOW\n\nصباح/مساء النور يا محمد. أنا موجود معاك.";
-        if (isAny(x, "بحبك", "love you")) return "SHADOW\n\nوأنا مقدّر كلامك يا محمد. يلا نكمل شغلنا.";
-        if (isAny(x, "اتكلم", "كلمني", "نتكلم", "عايز اتكلم", "talk to me", "let's talk")) return "SHADOW\n\nأنا معاك. اتكلم براحتك.";
-        if (x.contains("مضايق") || x.contains("زهقان") || x.contains("خنقت") || x.contains("تعبان")) return "SHADOW\n\nفاهم إنك مضغوط. أنا موجود معاك. قولّي إيه اللي مضايقك ونمشي فيه خطوة خطوة.";
-        if (x.contains("مبسوط") || x.contains("فرحان")) return "SHADOW\n\nجميل. خلينا نستغل المزاج ده وننجز حاجة مفيدة.";
-        if (x.contains("اسمك")) return "SHADOW\n\nأنا SHADOW. وإنت محمد.";
-        if (x.contains("الساعة") || x.contains("الوقت")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
-        if (x.contains("النهارده") || x.contains("التاريخ") || x.contains("اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        return "SHADOW\n\nأنا ما عنديش اتصال بالخدمة الخارجية دلوقتي، ومش هألف لك إجابة من عندي. الأوامر المدعومة محليًا تفضل شغالة، ولما الاتصال يرجع المسار الذكي الخارجي يشتغل تلقائيًا.";
-    }
-
-    private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE/OFFLINE\nExecution   GOVERNED NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nIdentity    PASSphrase + 12-CORE GATE\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     OPTIONAL\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
+    private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE\nExecution   GOVERNED NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nIdentity    PASSphrase + 12-CORE GATE\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     ONLINE REQUIRED\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
     private String home() { return "HOME CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Home موجودة داخل التطبيق. عند إضافة Smart Home endpoint فعلي، يتم توصيله عبر نفس الـdomain."; }
     private String car() { return "CAR CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Car موجودة داخل التطبيق. عند إضافة Car/Vespa API أو tracker فعلي، يتم توصيله عبر نفس الـdomain."; }
     private String device() { return "DEVICE\n\n" + BuildInfo.summary(activity); }

@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'com.chaquo.python'
+    id 'org.jetbrains.kotlin.android'
 }
 android {
     namespace 'com.shadow.mobile'
@@ -10,8 +11,8 @@ android {
         applicationId 'com.shadow.mobile.test'
         minSdk 26
         targetSdk 35
-        versionCode 86
-        versionName '1.8.1-mod73-unified-runtime'
+        versionCode 90
+        versionName '1.8.5-mod88-shadow-master-online-only'
         buildConfigField 'String', 'SHADOW_BACKEND_URL', '"https://shadow-cloud-api-production.up.railway.app"'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
@@ -23,5 +24,22 @@ android {
             dependsOn tasks.matching { it.name == 'installDebugPythonRequirements' || it.name == 'installReleasePythonRequirements' }
         }
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
 }
 chaquopy { defaultConfig { version = '3.11' }; sourceSets { main { srcDirs = ['../shadow'] } } }
+
+dependencies {
+    implementation 'xyz.rementia:openwakeword:0.1.5'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+}
+
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}

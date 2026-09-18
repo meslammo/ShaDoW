@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
-import { runOffline, offlineStatus } from './offline-engine.mjs';
 
 const { Pool } = pg;
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
@@ -32,14 +31,17 @@ let lastDbError = '';
 const systemPrompt = String(process.env.SHADOW_SYSTEM_PROMPT || [
   'You are SHADOW, a personal unified AI assistant for one owner.',
   'Use natural Egyptian Arabic when the user uses Arabic unless formal Arabic is requested.',
-  'Operate as an agent: understand -> plan -> choose tools -> execute -> observe -> verify -> continue.',
+  'Operate as the SHADOW master agent: understand -> classify -> plan -> route -> choose tools -> execute -> observe -> verify -> continue.',
+  'Use one conversation path for typed and spoken requests; voice is only a transport layer, not a separate intelligence mode.',
+  'Never route a GitHub/development request as ordinary chat when a development or GitHub tool is required.' ,
   'Never claim an action happened unless a tool or device result confirms it.',
   'Use web tools for current/public information and verify important claims from sources.',
   'Use GitHub tools only for public repository reading unless an explicitly authorized write gateway is available.',
   'Use file tools only inside the SHADOW workspace and never expose secrets.',
   'Never store or reveal passwords, API keys, access tokens, private keys, or authentication secrets.',
+  'Use memory_search only when prior context is useful; use memory_save only when the user explicitly asks SHADOW to remember a non-sensitive fact or preference, and use memory_forget when the user asks to forget something.',
   'For risky or irreversible device/file actions, request explicit confirmation before execution.',
-  'When all online AI providers fail, continue with the internal offline fallback; never expose a separate Local Chat mode.',
+  'When all online AI providers fail, fail clearly and do not synthesize a local/offline AI answer.',
 ].join(' '));
 
 async function ensureDb() {
@@ -121,6 +123,12 @@ async function searchMemory(query) {
     return terms.every(t => hay.includes(t));
   }).slice(0, 20);
 }
+async function memoryPrompt(query) {
+  const matches = await searchMemory(query);
+  if (!matches.length) return '';
+  return matches.slice(0, 8).map((item, index) => '[' + (index + 1) + '] ' + String(item.fact || '') + (item.reason ? ' — ' + String(item.reason) : '')).join('\n').slice(0, 6000);
+}
+
 async function forgetMemory(query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return { forgotten: 0 };
@@ -208,14 +216,17 @@ async function callResponses(provider, payload) {
   }
   return body;
 }
-async function responsesAgent(provider, message, previousResponseId, device) {
+async function responsesAgent(provider, message, previousResponseId, device, reasoningEffort = 'none') {
   let previous = previousResponseId || undefined;
   let input = device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message;
   let usedWeb = false;
+  const remembered = await memoryPrompt(message);
+  const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
   const model = provider === 'xai' ? cfg.xaiModel : cfg.openaiModel;
   for (let i = 0; i < 8; i++) {
     const builtInWeb = provider === 'xai' ? [{ type: 'web_search' }, { type: 'x_search' }] : [{ type: 'web_search_preview' }];
-    const payload = { model, instructions: systemPrompt, input, tools: [...builtInWeb, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')], store: true };
+    const payload = { model, instructions: systemPrompt + memoryBlock, input, tools: [...builtInWeb, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')], store: true };
+    if (provider === 'openai' && reasoningEffort !== 'none') payload.reasoning = { effort: reasoningEffort };
     if (previous) payload.previous_response_id = previous;
     const body = await callResponses(provider, payload);
     usedWeb ||= webUsed(body);
@@ -235,11 +246,12 @@ async function responsesAgent(provider, message, previousResponseId, device) {
   }
   throw new Error('agent_loop_limit');
 }
-async function deepseekAgent(message, device) {
+async function deepseekAgent(message, device, reasoningEffort = 'none') {
   const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message }];
   const tools = TOOL_DEFINITIONS.map(x => ({ type: 'function', function: { name: x.name, description: x.description, parameters: x.parameters } }));
   for (let i = 0; i < 8; i++) {
-    const response = await fetch(DEEPSEEK_URL, { method: 'POST', headers: { Authorization: `Bearer ${cfg.deepseekKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2 }), signal: AbortSignal.timeout(65000) });
+    const deepBody = { model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2 };
+    const response = await fetch(DEEPSEEK_URL, { method: 'POST', headers: { Authorization: `Bearer ${cfg.deepseekKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(deepBody), signal: AbortSignal.timeout(65000) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { const e = new Error(body?.error?.message || `upstream_${response.status}`); e.http = response.status; throw e; }
     const messageOut = body?.choices?.[0]?.message;
@@ -256,32 +268,137 @@ async function deepseekAgent(message, device) {
   throw new Error('agent_loop_limit');
 }
 
-export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto' }) {
-  const order = preferredProvider === 'openai' ? ['openai'] : preferredProvider === 'xai' ? ['xai'] : preferredProvider === 'deepseek' ? ['deepseek'] : ['openai', 'xai', 'deepseek'];
+async function streamResponses(requestPayload, onEvent) {
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + cfg.openaiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...requestPayload, stream: true }),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    let message = 'upstream_' + response.status;
+    try { const parsed = JSON.parse(body); message = parsed?.error?.code || parsed?.error?.message || message; } catch {}
+    const error = new Error(message);
+    error.http = response.status;
+    throw error;
+  }
+  if (!response.body) throw new Error('stream_body_missing');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  let eventBuffer = '';
+  const consume = async (flush) => {
+    if (pending) { eventBuffer += pending; pending = ''; }
+    const parts = eventBuffer.split(/\r?\n\r?\n/);
+    if (!flush) eventBuffer = parts.pop() || '';
+    else eventBuffer = '';
+    for (const part of parts) {
+      const data = part.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n');
+      if (!data || data === '[DONE]') continue;
+      await onEvent(JSON.parse(data));
+    }
+  };
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    pending += decoder.decode(chunk.value, { stream: true });
+    await consume(false);
+  }
+  pending += decoder.decode();
+  await consume(true);
+  try { reader.releaseLock(); } catch {}
+}
+
+export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', onDelta, onDone, onPending }) {
+  if (!cfg.openaiKey) throw new Error('no_online_ai_provider_available');
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
+  const remembered = await memoryPrompt(message);
+  const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
+  const model = cfg.openaiModel;
+  let previous = previousResponseId || undefined;
+  let input = device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message;
+  let usedWeb = false;
+
+  for (let round = 0; round < 8; round++) {
+    const calls = new Map();
+    let responseId = previous || null;
+    const payload = {
+      model,
+      instructions: systemPrompt + memoryBlock,
+      input,
+      tools: [{ type: 'web_search_preview' }, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')],
+      store: true,
+    };
+    if (normalizedEffort !== 'none') payload.reasoning = { effort: normalizedEffort };
+
+    await streamResponses(previous ? { ...payload, previous_response_id: previous } : payload, async (event) => {
+      const type = String(event?.type || '');
+      if (type === 'response.output_text.delta' && typeof event.delta === 'string') {
+        if (onDelta) onDelta(event.delta);
+      } else if (type === 'response.output_item.added' && event.item?.type === 'function_call') {
+        const item = event.item;
+        const id = String(item.id || item.call_id || '');
+        const callId = String(item.call_id || item.id || '');
+        calls.set(id, { call_id: callId, name: String(item.name || ''), arguments: String(item.arguments || '') });
+      } else if (type === 'response.function_call_arguments.delta') {
+        const id = String(event.item_id || event.call_id || '');
+        const call = calls.get(id);
+        if (call && typeof event.delta === 'string') call.arguments += event.delta;
+      } else if (type === 'response.function_call_arguments.done') {
+        const id = String(event.item_id || event.call_id || '');
+        const call = calls.get(id);
+        if (call && typeof event.arguments === 'string') call.arguments = event.arguments;
+      } else if (type === 'response.web_search_call.completed') {
+        usedWeb = true;
+      } else if (type === 'response.completed' && event.response?.id) {
+        responseId = event.response.id;
+      }
+    });
+
+    if (!calls.size) {
+      if (onDone) onDone({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb });
+      return { responseId, provider: 'openai', model, usedWeb };
+    }
+
+    const outputs = [];
+    for (const call of calls.values()) {
+      let args = {};
+      try { args = JSON.parse(call.arguments || '{}'); } catch {}
+      const result = await runTool(call.name, args);
+      if (result.kind === 'client_action') {
+        const pendingAction = { ...result, toolCallId: call.call_id };
+        if (onPending) onPending({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb, pendingAction });
+        return { responseId, provider: 'openai', model, usedWeb, pendingAction };
+      }
+      outputs.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result.value) });
+    }
+
+    previous = responseId || undefined;
+    input = outputs;
+  }
+  throw new Error('agent_loop_limit');
+}
+
+export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none' }) {
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
+  const normalOrder = preferredProvider === 'openai' ? ['openai'] : preferredProvider === 'xai' ? ['xai'] : preferredProvider === 'deepseek' ? ['deepseek'] : ['openai', 'xai', 'deepseek'];
+  const order = normalizedEffort !== 'none' && (preferredProvider === 'auto' || !preferredProvider) && cfg.openaiKey ? ['openai', 'xai', 'deepseek'] : normalOrder;
   const attempts = [];
   for (const provider of order) {
     const key = provider === 'openai' ? cfg.openaiKey : provider === 'xai' ? cfg.xaiKey : cfg.deepseekKey;
     if (!key) { attempts.push({ provider, reason: 'not_configured' }); continue; }
     try {
-      const output = provider === 'deepseek' ? await deepseekAgent(message, device) : await responsesAgent(provider, message, previousResponseId, device);
+      const output = provider === 'deepseek' ? await deepseekAgent(message, device, normalizedEffort) : await responsesAgent(provider, message, previousResponseId, device, normalizedEffort);
       if (!output.answer) throw new Error('empty_ai_response');
-      return { ...output, attempts };
+      return { ...output, reasoningEffort: normalizedEffort, attempts };
     } catch (e) {
       attempts.push({ provider, reason: String(e?.message || e), http: e?.http || null });
     }
   }
-  const offline = runOffline(message);
-  return {
-    provider: 'offline',
-    model: 'shadow-offline-engine',
-    answer: offline.answer,
-    responseId: null,
-    usedWeb: false,
-    pendingAction: null,
-    offline: true,
-    offlineCapability: offline.capability,
-    attempts,
-  };
+  const error = new Error('no_online_ai_provider_available');
+  error.attempts = attempts;
+  throw error;
 }
 
 export async function memoryStatus() {
@@ -293,8 +410,7 @@ export function providerStatus() {
     openai: { configured: Boolean(cfg.openaiKey), model: cfg.openaiModel },
     xai: { configured: Boolean(cfg.xaiKey), model: cfg.xaiModel },
     deepseek: { configured: Boolean(cfg.deepseekKey), model: cfg.deepseekModel },
-    routing: 'openai -> xAI/Grok -> DeepSeek -> offline',
-    offline: offlineStatus(),
+    routing: 'openai -> xAI/Grok -> DeepSeek',
     tools: TOOL_DEFINITIONS.map(x => x.name),
     workspace: cfg.workspaceDir,
     memory: { database_configured: Boolean(cfg.databaseUrl), database_ready: dbReady, fallback_file: cfg.memoryDir },

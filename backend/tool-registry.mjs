@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { runOffline } from './offline-engine.mjs';
 
 const WORKSPACE = path.resolve(process.env.SHADOW_WORKSPACE_DIR || '/data/shadow-workspace');
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -94,7 +93,6 @@ export async function executeTool(name, args, helpers = {}) {
     return { kind: 'result', value: await fileWrite(args.path, args.content) };
   }
   if (name === 'android_action') return { kind: 'client_action', action: String(args.action || ''), argument: String(args.argument || ''), reason: String(args.reason || ''), requires_confirmation: Boolean(args.requires_confirmation) };
-  if (name === 'offline_fallback') return { kind: 'result', value: runOffline(args.message) };
   throw new Error('unknown_tool');
 }
 

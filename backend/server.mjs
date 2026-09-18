@@ -1,10 +1,10 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { applyFiles, status as developmentStatus } from './development-agent.mjs';
+import { applyFiles, createPullRequest, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
-import { runAgent, providerStatus, memoryStatus } from './ai-router.mjs';
+import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router.mjs';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -40,12 +40,13 @@ app.get('/health', async (_req, res) => res.json({
   capabilities: {
     web_search: true,
     web_fetch: true,
+    streaming_chat: true,
+    streaming_provider: 'openai',
     github_read: true,
     github_write_gateway: githubOAuthStatus().configured,
     files: true,
     android_action: true,
     agent_loop: true,
-    offline_fallback: true,
     voiceprint_required: false,
   },
   image_generation: Boolean(apiKey),
@@ -70,13 +71,55 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
   const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
   const providerInput = String(req.body?.provider || '').toLowerCase();
+  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
+  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   const preferred = ['openai', 'xai', 'grok', 'deepseek'].includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
-    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline), offline_capability: result.offlineCapability || null, attempts: result.attempts || [] });
+    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
     return res.status(503).json({ ok: false, error: 'agent_failed' });
+  }
+});
+
+app.post('/v1/chat/stream', rateLimit, async (req, res) => {
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
+  if (message.length > 12000) return res.status(413).json({ ok: false, error: 'message_too_large' });
+  const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
+  const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
+  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
+  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
+  res.statusCode = 200;
+  res.set({
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+  const send = (payload) => { if (!res.writableEnded) res.write('data: ' + JSON.stringify(payload) + '\n\n'); };
+  try {
+    const result = await streamAgent({
+      message,
+      previousResponseId: previous,
+      device,
+      reasoningEffort,
+      onDelta: (text) => send({ type: 'delta', text }),
+      onPending: (data) => send({ type: 'pending_action', ...data }),
+      onDone: (data) => send({ type: 'done', ...data }),
+    });
+    if (!res.writableEnded) {
+      if (!result.pendingAction && result.responseId && !result.provider) send({ type: 'done', ...result });
+      send({ type: 'eof' });
+      res.end();
+    }
+  } catch (error) {
+    console.error('Streaming agent failed', String(error?.message || error));
+    send({ type: 'error', error: String(error?.message || 'agent_failed') });
+    send({ type: 'eof' });
+    if (!res.writableEnded) res.end();
   }
 });
 
@@ -85,11 +128,13 @@ app.post('/v1/agent/continue', rateLimit, async (req, res) => {
   const responseId = String(req.body?.response_id || '').trim();
   const toolCallId = String(req.body?.tool_call_id || '').trim();
   const output = typeof req.body?.output === 'string' ? req.body.output.slice(0, 20000) : JSON.stringify(req.body?.output ?? '');
+  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
+  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   if (!provider || !toolCallId) return res.status(400).json({ ok: false, error: 'tool_context_required' });
   const original = String(req.body?.original_message || 'نفّذ الإجراء المطلوب واستكمل.');
   try {
-    const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline) });
+    const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider, reasoningEffort });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null });
   } catch { return res.status(503).json({ ok: false, error: 'agent_continue_failed' }); }
 });
 
@@ -128,6 +173,21 @@ app.post('/v1/development/plan', rateLimit, async (req, res) => {
   } catch { res.status(503).json({ ok: false, error: 'development_ai_unavailable' }); }
 });
 
+
+app.post('/v1/development/pull-request', rateLimit, async (req, res) => {
+  if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
+  const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : '';
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 200) : '';
+  const body = typeof req.body?.body === 'string' ? req.body.body.slice(0, 10000) : '';
+  if (!branch || !title) return res.status(400).json({ ok: false, error: 'branch_and_title_required' });
+  try {
+    const result = await createPullRequest({ branch, title, body, draft: req.body?.draft !== false, token: typeof req.body?.github_token === 'string' ? req.body.github_token.trim() : '' });
+    res.json({ ok: true, executed: true, result });
+  } catch (e) {
+    const message = String(e?.message || 'pull_request_failed');
+    res.status(message === 'github_write_not_configured' ? 503 : 400).json({ ok: false, error: message });
+  }
+});
 app.post('/v1/development/apply', rateLimit, async (req, res) => {
   if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
   const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : 'shadow-agent-work';

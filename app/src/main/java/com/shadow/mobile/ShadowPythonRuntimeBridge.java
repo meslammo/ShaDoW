@@ -23,6 +23,20 @@ public final class ShadowPythonRuntimeBridge {
             return gate.releaseStatus()+"\n\n"+result.toString();
         }catch(Throwable e){return gate.releaseStatus()+"\n\n12-Core Runtime: error • "+(e.getMessage()==null?"unknown":e.getMessage());}
     }
+    /** MOD-100: unified 12-Core composition root status. */
+    public String masterStatus(){
+        try{
+            PyObject result=androidRuntime().callAttr("master_status",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
+            return result.toString();
+        }catch(Throwable e){return "12-Core Master: unavailable • "+(e.getMessage()==null?"unknown":e.getMessage());}
+    }
+    /** MOD-100: ask the composition root for the governed multi-core plan. */
+    public String masterPlan(String request, boolean authenticated){
+        try{
+            PyObject result=androidRuntime().callAttr("master_plan",request,context.getFilesDir().getAbsolutePath()+"/shadow_workspace",authenticated);
+            return result.toString();
+        }catch(Throwable e){return "12-Core Plan: unavailable • "+(e.getMessage()==null?"unknown":e.getMessage());}
+    }
     /** MOD-58: identity-aware governance gate. */
     public String authorize(String request, boolean authenticated, boolean authorized, String source){
         try{

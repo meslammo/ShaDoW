@@ -8,6 +8,18 @@ from typing import Any, Dict, Optional
 _runtime = None
 _core = None
 _final = None
+_master = None
+
+def _get_master(home: Optional[str]=None):
+    global _master
+    if home:
+        os.chdir(home)
+    _install_shadow_package_alias()
+    if _master is None:
+        from shadow.core.twelve_core_runtime import TwelveCoreRuntime
+        _master = TwelveCoreRuntime(os.getcwd())
+    return _master
+
 
 def _install_shadow_package_alias() -> None:
     if "shadow" in sys.modules: return
@@ -50,8 +62,8 @@ def configure_online(api_key: str, model: str="gpt-5.6", home: Optional[str]=Non
     if key:
         os.environ["OPENAI_API_KEY"]=key; os.environ["SHADOW_MODEL_PROVIDER"]="openai"; os.environ["SHADOW_MODEL"]=selected_model
         return {"status":"ready","provider":"openai","model":selected_model}
-    os.environ.pop("OPENAI_API_KEY",None); os.environ["SHADOW_MODEL_PROVIDER"]="offline"; os.environ.pop("SHADOW_MODEL",None)
-    return {"status":"offline","provider":"offline","model":"local-safe"}
+    os.environ.pop("OPENAI_API_KEY",None); os.environ.pop("SHADOW_MODEL_PROVIDER",None); os.environ.pop("SHADOW_MODEL",None)
+    return {"status":"not_configured","provider":"none","model":None}
 
 def authorize(request: str, home: Optional[str]=None, authenticated: bool = False, authorized: bool = False, source: str="android")->str:
     text=str(request or "").strip(); core=_get_core(home)
@@ -70,6 +82,14 @@ def core_status(home: Optional[str]=None)->str:
     return "SHADOW MOD-58..64 12-Core Runtime: ACTIVE\n"+f"tasks={len(core.tasks)} journal={len(audit['journal'])} checkpoints={len(audit['checkpoints'])}\n"+f"retry_budget={audit['retry_budget']} time_budget_s={audit['time_budget_s']}"
 
 def final_status(home: Optional[str]=None)->Dict[str,Any]: return _get_final(home).status()
+def master_status(home: Optional[str]=None)->Dict[str,Any]: return _get_master(home).status()
+
+def master_plan(request: str, home: Optional[str]=None, authenticated: bool=False)->Dict[str,Any]:
+    return _get_master(home).plan(request, authenticated=authenticated)
+
+def master_authorize(request: str, home: Optional[str]=None, capability: str="general", confirmed: bool=False)->Dict[str,Any]:
+    return _get_master(home).authorize(request, capability=capability, confirmed=confirmed)
+
 
 def discover(home: Optional[str]=None)->Dict[str,Any]: return _get_final(home).discovery.snapshot()
 

@@ -1,7 +1,7 @@
-name: Build SHADOW APK
+name: Build SHADOW APK — SHADOW Wake / Online Only
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
       - main
     paths:
@@ -30,7 +30,6 @@ jobs:
           node --check server.mjs
           node --check ai-router.mjs
           node --check tool-registry.mjs
-          node --check offline-engine.mjs
 
   build:
     needs: verify-backend
@@ -55,8 +54,23 @@ jobs:
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - name: Fetch wake-word model assets
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/assets
+          BASE="https://raw.githubusercontent.com/Bwarhness/jarvis-assistant/17edf69264ae421d68a103cde1bc2c1dcab2f673/app/src/main/assets"
+          SHADOW_BASE="https://raw.githubusercontent.com/jakes1345/ShadowCypher/827829b09399d6c02ba108607e70aa05bf7485a5/android/assistant/src/main/assets"
+          curl -fL "$BASE/melspectrogram.onnx" -o app/src/main/assets/melspectrogram.onnx
+          curl -fL "$BASE/embedding_model.onnx" -o app/src/main/assets/embedding_model.onnx
+          curl -fL "$SHADOW_BASE/hey_shadow.onnx" -o app/src/main/assets/hey_shadow.onnx
+          test -s app/src/main/assets/melspectrogram.onnx
+          test -s app/src/main/assets/embedding_model.onnx
+          test -s app/src/main/assets/hey_shadow.onnx
+          sha256sum app/src/main/assets/*.onnx
+
       - name: Build release APK
-        run: gradle :app:clean :app:assembleRelease
+        run: gradle :app:clean :app:test :app:assembleRelease
       - name: Verify APK
         shell: bash
         run: |
@@ -67,7 +81,7 @@ jobs:
           sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-MOD73-FINAL-candidate-apk
+          name: SHADOW-MOD76-ONLINE-ONLY-candidate-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256

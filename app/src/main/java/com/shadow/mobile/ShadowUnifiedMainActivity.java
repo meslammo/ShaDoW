@@ -25,7 +25,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.Locale;
 
-/** MOD-70.4: one unified Shadow command surface. Online is primary; offline is internal fallback only. */
+/** MOD-70.4: legacy unified Shadow command surface. Online-only AI contract. */
 public class ShadowUnifiedMainActivity extends Activity implements TextToSpeech.OnInitListener {
     private final int BG=Color.rgb(13,14,17), SURFACE=Color.rgb(29,31,36), SURFACE2=Color.rgb(42,44,51), TEXT=Color.rgb(241,243,246), MUTED=Color.rgb(155,160,170);
     private ShadowCore core;
@@ -67,7 +67,7 @@ public class ShadowUnifiedMainActivity extends Activity implements TextToSpeech.
         TextView more=tv("⋮",26); more.setGravity(Gravity.CENTER); head.addView(more,new LinearLayout.LayoutParams(dp(48),dp(52))); root.addView(head);
 
         ScrollView sc=new ScrollView(this); sc.setFillViewport(true); messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); messages.setPadding(dp(12),dp(10),dp(12),dp(18)); sc.addView(messages); root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
-        assistant("أهلاً محمد 👋\nأنا SHADOW.\nقول اللي إنت عايزه بطريقتك العادية.\nالأوامر العادية بتنفيذ مباشر، والإنترنت هو المسار الأساسي، وبدون إنترنت الـfallback بيشتغل تلقائيًا من غير ما يظهر كـLocal Chat.");
+        assistant("أهلاً محمد 👋\nأنا SHADOW.\nقول اللي إنت عايزه بطريقتك العادية.\nالأوامر العادية بتنفيذ مباشر، والإنترنت هو مسار الذكاء الوحيد.");
 
         LinearLayout bar=new LinearLayout(this); bar.setGravity(Gravity.CENTER_VERTICAL); bar.setPadding(dp(5),dp(3),dp(5),dp(3)); bar.setBackground(bg(SURFACE,24));
         TextView plus=tv("＋",25); plus.setGravity(Gravity.CENTER); bar.addView(plus,new LinearLayout.LayoutParams(dp(48),dp(56)));
@@ -132,9 +132,14 @@ public class ShadowUnifiedMainActivity extends Activity implements TextToSpeech.
             ShadowCloudClient.CloudReply r=cloud.chat(s); online=true; runOnUiThread(()->{assistant(r.answer);speakNow(r.answer);stage("done");});
         }catch(Throwable e){
             online=false;
-            String fallback=null;
-            try{fallback=core.handle(s,identity.isAuthenticated(),true,"android-unified");}catch(Throwable ignored){}
-            final String answer=(fallback==null||fallback.trim().isEmpty())?core.offlineChat(s):fallback;
+            String answerValue;
+            try{
+                String fallback=core.handle(s,identity.isAuthenticated(),true,"android-unified");
+                answerValue=(fallback==null||fallback.trim().isEmpty())?"الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.":fallback;
+            }catch(Throwable ignored){
+                answerValue="الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.";
+            }
+            final String answer=answerValue;
             runOnUiThread(()->{assistant(answer);speakNow(answer);stage("done");});
         }
     }
