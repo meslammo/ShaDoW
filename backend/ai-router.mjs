@@ -122,6 +122,12 @@ async function searchMemory(query) {
     return terms.every(t => hay.includes(t));
   }).slice(0, 20);
 }
+async function memoryPrompt(query) {
+  const matches = await searchMemory(query);
+  if (!matches.length) return '';
+  return matches.slice(0, 8).map((item, index) => '[' + (index + 1) + '] ' + String(item.fact || '') + (item.reason ? ' — ' + String(item.reason) : '')).join('\n').slice(0, 6000);
+}
+
 async function forgetMemory(query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return { forgotten: 0 };
@@ -213,10 +219,12 @@ async function responsesAgent(provider, message, previousResponseId, device, rea
   let previous = previousResponseId || undefined;
   let input = device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message;
   let usedWeb = false;
+  const remembered = await memoryPrompt(message);
+  const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
   const model = provider === 'xai' ? cfg.xaiModel : cfg.openaiModel;
   for (let i = 0; i < 8; i++) {
     const builtInWeb = provider === 'xai' ? [{ type: 'web_search' }, { type: 'x_search' }] : [{ type: 'web_search_preview' }];
-    const payload = { model, instructions: systemPrompt, input, tools: [...builtInWeb, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')], store: true };
+    const payload = { model, instructions: systemPrompt + memoryBlock, input, tools: [...builtInWeb, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')], store: true };
     if (provider === 'openai' && reasoningEffort !== 'none') payload.reasoning = { effort: reasoningEffort };
     if (previous) payload.previous_response_id = previous;
     const body = await callResponses(provider, payload);
@@ -255,6 +263,117 @@ async function deepseekAgent(message, device, reasoningEffort = 'none') {
       if (result.kind === 'client_action') return { provider: 'deepseek', model: cfg.deepseekModel, answer: 'هحتاج أنفذ الإجراء ده على الجهاز.', responseId: null, usedWeb: false, pendingAction: { ...result, toolCallId: toolCall.id } };
       messages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(result.value) });
     }
+  }
+  throw new Error('agent_loop_limit');
+}
+
+async function streamResponses(requestPayload, onEvent) {
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + cfg.openaiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...requestPayload, stream: true }),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    let message = 'upstream_' + response.status;
+    try { const parsed = JSON.parse(body); message = parsed?.error?.code || parsed?.error?.message || message; } catch {}
+    const error = new Error(message);
+    error.http = response.status;
+    throw error;
+  }
+  if (!response.body) throw new Error('stream_body_missing');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  let eventBuffer = '';
+  const consume = async (flush) => {
+    if (pending) { eventBuffer += pending; pending = ''; }
+    const parts = eventBuffer.split(/\r?\n\r?\n/);
+    if (!flush) eventBuffer = parts.pop() || '';
+    else eventBuffer = '';
+    for (const part of parts) {
+      const data = part.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n');
+      if (!data || data === '[DONE]') continue;
+      await onEvent(JSON.parse(data));
+    }
+  };
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    pending += decoder.decode(chunk.value, { stream: true });
+    await consume(false);
+  }
+  pending += decoder.decode();
+  await consume(true);
+  try { reader.releaseLock(); } catch {}
+}
+
+export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', onDelta, onDone, onPending }) {
+  if (!cfg.openaiKey) throw new Error('no_online_ai_provider_available');
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
+  const remembered = await memoryPrompt(message);
+  const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
+  const model = cfg.openaiModel;
+  let previous = previousResponseId || undefined;
+  let input = device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message;
+  let usedWeb = false;
+
+  for (let round = 0; round < 8; round++) {
+    const calls = new Map();
+    let responseId = previous || null;
+    const payload = {
+      model,
+      instructions: systemPrompt + memoryBlock,
+      input,
+      tools: [{ type: 'web_search_preview' }, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')],
+      store: true,
+    };
+    if (normalizedEffort !== 'none') payload.reasoning = { effort: normalizedEffort };
+
+    await streamResponses(previous ? { ...payload, previous_response_id: previous } : payload, async (event) => {
+      const type = String(event?.type || '');
+      if (type === 'response.output_text.delta' && typeof event.delta === 'string') {
+        if (onDelta) onDelta(event.delta);
+      } else if (type === 'response.output_item.added' && event.item?.type === 'function_call') {
+        const item = event.item;
+        const id = String(item.call_id || item.id || '');
+        calls.set(id, { call_id: id, name: String(item.name || ''), arguments: String(item.arguments || '') });
+      } else if (type === 'response.function_call_arguments.delta') {
+        const id = String(event.item_id || event.call_id || '');
+        const call = calls.get(id);
+        if (call && typeof event.delta === 'string') call.arguments += event.delta;
+      } else if (type === 'response.function_call_arguments.done') {
+        const id = String(event.item_id || event.call_id || '');
+        const call = calls.get(id);
+        if (call && typeof event.arguments === 'string') call.arguments = event.arguments;
+      } else if (type === 'response.web_search_call.completed') {
+        usedWeb = true;
+      } else if (type === 'response.completed' && event.response?.id) {
+        responseId = event.response.id;
+      }
+    });
+
+    if (!calls.size) {
+      if (onDone) onDone({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb });
+      return { responseId, provider: 'openai', model, usedWeb };
+    }
+
+    const outputs = [];
+    for (const call of calls.values()) {
+      let args = {};
+      try { args = JSON.parse(call.arguments || '{}'); } catch {}
+      const result = await runTool(call.name, args);
+      if (result.kind === 'client_action') {
+        const pendingAction = { ...result, toolCallId: call.call_id };
+        if (onPending) onPending({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb, pendingAction });
+        return { responseId, provider: 'openai', model, usedWeb, pendingAction };
+      }
+      outputs.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result.value) });
+    }
+
+    previous = responseId || undefined;
+    input = outputs;
   }
   throw new Error('agent_loop_limit');
 }
