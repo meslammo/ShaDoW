@@ -210,6 +210,103 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         runStreamChat(request,plan);
         return;
     }
+    private TextView beginStreamingAssistant(){
+        LinearLayout block=new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0,dp(3),0,dp(3));
+        TextView v=tv("",16);
+        v.setPadding(0,dp(8),dp(18),dp(5));
+        v.setAutoLinkMask(android.text.util.Linkify.WEB_URLS);
+        block.addView(v,new LinearLayout.LayoutParams(-1,-2));
+        messages.addView(block);
+        bottom();
+        return v;
+    }
+    private void appendStreamingAssistant(TextView view,String delta){
+        if(view==null||delta==null||delta.isEmpty())return;
+        view.append(delta);
+        bottom();
+    }
+    private void runStreamChat(String request,ShadowMasterOrchestrator.Plan plan){
+        stage("online");
+        new Thread(()->{
+            final StringBuilder transcript=new StringBuilder();
+            final TextView[] streamView=new TextView[1];
+            final boolean[] streamed={false};
+            try{
+                cloud.streamChat(request,reasoningEffort,new ShadowCloudClient.StreamListener(){
+                    public void onDelta(String delta){
+                        if(delta==null||delta.isEmpty())return;
+                        streamed[0]=true;
+                        transcript.append(delta);
+                        runOnUiThread(()->{
+                            if(streamView[0]==null)streamView[0]=beginStreamingAssistant();
+                            appendStreamingAssistant(streamView[0],delta);
+                            stage("analyzing");
+                        });
+                    }
+                    public void onDone(ShadowCloudClient.StreamDone done){
+                        cloudOnline=true;
+                        final String answer=transcript.toString().trim();
+                        runOnUiThread(()->{
+                            masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"online_stream_completed",!answer.isEmpty());
+                            masterEvent(ShadowMasterEventBus.Type.MEMORY_WRITE,request,plan.routeName(),"conversation_response",true);
+                            masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"online_stream_chat_completed",!answer.isEmpty());
+                            if(!answer.isEmpty()){
+                                if(streamView[0]==null)assistant(answer);
+                                speak(answer);
+                            }
+                            stage("online");
+                        });
+                    }
+                    public void onPending(ShadowCloudClient.PendingAction action,String provider,String responseId){
+                        cloudOnline=true;
+                        runOnUiThread(()->{
+                            if(streamView[0]!=null&&!transcript.toString().trim().isEmpty())streamView[0].append("\n");
+                            ShadowCloudClient.CloudReply pendingReply=new ShadowCloudClient.CloudReply(transcript.toString().trim(),responseId,provider,"",false,action);
+                            masterEvent(ShadowMasterEventBus.Type.ACTION_REQUESTED,request,plan.routeName(),"online_stream_action_pending",true);
+                            handlePendingAction(request,pendingReply);
+                        });
+                    }
+                });
+            }catch(Throwable cloudError){
+                cloudOnline=false;
+                final String message=String.valueOf(cloudError.getMessage()==null?"online_service_unavailable":cloudError.getMessage());
+                if(!streamed[0]){
+                    try{
+                        final ShadowCloudClient.CloudReply fallback=cloud.chat(request,reasoningEffort);
+                        cloudOnline=true;
+                        runOnUiThread(()->{
+                            if(fallback.pendingAction!=null){
+                                masterEvent(ShadowMasterEventBus.Type.ACTION_REQUESTED,request,plan.routeName(),"online_stream_fallback_action_pending",true);
+                                handlePendingAction(request,fallback);
+                                return;
+                            }
+                            masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"online_fallback_response_received",!fallback.answer.isEmpty());
+                            masterEvent(ShadowMasterEventBus.Type.MEMORY_WRITE,request,plan.routeName(),"conversation_response",true);
+                            masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"online_chat_completed",!fallback.answer.isEmpty());
+                            assistant(fallback.answer);
+                            speak(fallback.answer);
+                            stage("online");
+                        });
+                    }catch(Throwable fallbackError){
+                        runOnUiThread(()->{
+                            masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"online_agent_unavailable:"+fallbackError.getClass().getSimpleName(),false);
+                            assistant("الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.");
+                            stage("reconnecting");
+                        });
+                    }
+                }else{
+                    runOnUiThread(()->{
+                        masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"online_stream_interrupted:"+message,false);
+                        assistant("البث النصي انقطع أثناء الرد. جرّب نفس الأمر مرة تانية.");
+                        stage("reconnecting");
+                    });
+                }
+            }
+        }).start();
+    }
+
     private boolean isImage(String s){String x=s.toLowerCase(Locale.ROOT);return x.contains("صمم صورة")||x.contains("اعمل صورة")||x.contains("صورة لـ")||x.contains("generate image")||x.contains("create an image")||x.contains("design an image");}
     private void generateImage(String prompt){system("SHADOW • بيصمم الصورة أونلاين…");new Thread(()->{try{String b64=cloud.generateImage(prompt);byte[] data=android.util.Base64.decode(b64,android.util.Base64.DEFAULT);runOnUiThread(()->{ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(BitmapFactory.decodeStream(new ByteArrayInputStream(data)));messages.addView(image,new LinearLayout.LayoutParams(-1,dp(320)));masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,prompt,"image","image_rendered",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,prompt,"image","image_completed",true);assistant("اتفضل — الصورة جاهزة.");stage("online");});}catch(Throwable e){runOnUiThread(()->{assistant("مش قادر أولّد الصورة دلوقتي: "+e.getMessage());stage("reconnecting");});}}).start();}
     private void attach(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("Files");p.getMenu().add("Photos");p.getMenu().add("Camera");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("Files")){Intent x=new Intent(Intent.ACTION_OPEN_DOCUMENT);x.addCategory(Intent.CATEGORY_OPENABLE);x.setType("*/*");startActivityForResult(x,FILE);}else if(n.equals("Photos")){Intent x=new Intent(Intent.ACTION_PICK);x.setType("image/*");startActivityForResult(x,FILE);}else{try{startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),CAMERA);}catch(Exception e){system("No camera application is available.");}}return true;});p.show();}
