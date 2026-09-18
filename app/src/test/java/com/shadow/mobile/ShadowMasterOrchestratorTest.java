@@ -30,4 +30,14 @@ public class ShadowMasterOrchestratorTest {
         assertTrue(p.confirmationRequired);
         assertEquals(ShadowMasterOrchestrator.Stage.AUTHENTICATING, p.firstStage);
     }
+
+    @Test public void developmentRequestHasDedicatedRoute() {
+        ShadowMasterOrchestrator.Plan p = router.plan("كمل شادو وحلل المشروع", true);
+        assertEquals(ShadowMasterOrchestrator.Route.DEVELOPMENT, p.route);
+    }
+
+    @Test public void spatialRequestHasDedicatedRoute() {
+        ShadowMasterOrchestrator.Plan p = router.plan("شغل رادار شادو", true);
+        assertEquals(ShadowMasterOrchestrator.Route.SPATIAL, p.route);
+    }
 }
