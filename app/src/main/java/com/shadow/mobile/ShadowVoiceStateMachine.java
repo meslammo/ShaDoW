@@ -21,7 +21,7 @@ public final class ShadowVoiceStateMachine {
         void stopTtsPlayback();
     }
 
-    private final boolean handsFree;
+    private boolean handsFree;
     private final Callback callback;
     private State state = State.IDLE;
     private long lastTtsStartMs = 0L;
@@ -33,6 +33,10 @@ public final class ShadowVoiceStateMachine {
 
     public synchronized State getState() {
         return state;
+    }
+
+    public synchronized void setHandsFree(boolean enabled) {
+        handsFree = enabled;
     }
 
     public synchronized void userStartedListening() {
