@@ -26,8 +26,10 @@ import java.util.*;
 public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int MIC=801,FILE=802,CAMERA=803;
     private final int BG=Color.rgb(13,14,17),SURFACE=Color.rgb(29,31,36),SURFACE2=Color.rgb(42,44,51),TEXT=Color.rgb(241,243,246),MUTED=Color.rgb(155,160,170);
-    private ShadowCore core; private ShadowCloudClient cloud; private ShadowGithubAuth githubAuth; private ShadowVoiceRecognizer voice; private ShadowVoiceIdentityGateway identity; private ShadowRemoteController remotes; private ShadowVoiceStateMachine voiceState; private LinearLayout messages; private EditText input; private ShadowStatusView status; private TextView liveVoice; private TextView micButton; private TextToSpeech tts; private MediaPlayer player; private boolean conversation=true, cloudOnline;
+    private ShadowCore core; private ShadowCloudClient cloud; private ShadowGithubAuth githubAuth; private ShadowMasterOrchestrator orchestrator; private ShadowVoiceRecognizer voice; private ShadowVoiceIdentityGateway identity; private ShadowRemoteController remotes; private ShadowVoiceStateMachine voiceState; private LinearLayout messages; private EditText input; private ShadowStatusView status; private TextView liveVoice; private TextView micButton; private TextToSpeech tts; private MediaPlayer player; private boolean conversation=true, cloudOnline;
     private boolean voiceOutput=true;
+    /** MOD-75: Android TTS is the default voice path; cloud TTS stays opt-in to avoid unnecessary provider cost. */
+    private boolean cloudVoice=false;
     private boolean handsFreeVoice=true;
     private boolean voiceTurnActive=false;
     private final Handler voiceHandler=new Handler(Looper.getMainLooper());
@@ -38,7 +40,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private GradientDrawable bg(int c,float r){GradientDrawable g=new GradientDrawable();g.setColor(c);g.setCornerRadius(dp(r));return g;}
     private TextView tv(String s,float z){TextView v=new TextView(this);v.setText(s);v.setTextColor(TEXT);v.setTextSize(z);return v;}
     private void stage(String s){if(status!=null)status.setText(ShadowProcessIndicators.render(s));}
-    @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);identity=new ShadowVoiceIdentityGateway(this);remotes=new ShadowRemoteController(this);
+    @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);orchestrator=new ShadowMasterOrchestrator();identity=new ShadowVoiceIdentityGateway(this);remotes=new ShadowRemoteController(this);
         voiceState=new ShadowVoiceStateMachine(handsFreeVoice,new ShadowVoiceStateMachine.Callback(){
             public void onListening(){runOnUiThread(()->{ShadowWakeWordService.pauseListening();stage("listening");if(liveVoice!=null){liveVoice.setVisibility(View.VISIBLE);if(liveVoice.getText().toString().isEmpty())liveVoice.setText("🎙 Listening…");}if(handsFreeVoice&&!voiceTurnActive){voiceTurnActive=true;}if(handsFreeVoice&&!voice.isActive())voiceHandler.postDelayed(()->{if(handsFreeVoice&&!isFinishing()&&!voice.isActive())listen();},250);});}
             public void onProcessing(){runOnUiThread(()->{stage("thinking");if(liveVoice!=null){liveVoice.setVisibility(View.VISIBLE);liveVoice.setText("⏳ Processing…");}});}
@@ -69,7 +71,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void assistant(String s){LinearLayout block=new LinearLayout(this);block.setOrientation(LinearLayout.VERTICAL);block.setPadding(0,dp(3),0,dp(3));TextView v=tv(s,16);v.setPadding(0,dp(8),dp(18),dp(5));v.setAutoLinkMask(android.text.util.Linkify.WEB_URLS);block.addView(v,new LinearLayout.LayoutParams(-1,-2));LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);bar.setPadding(0,0,0,dp(2));TextView copy=action("⧉"),like=action("👍"),dislike=action("👎"),read=action("🔊"),share=action("↗"),more=action("⋮");bar.addView(copy);bar.addView(like);bar.addView(dislike);bar.addView(read);bar.addView(share);bar.addView(more);copy.setOnClickListener(x->copyText(s));like.setOnClickListener(x->{like.setTextColor(Color.rgb(112,210,160));Toast.makeText(this,"تم تسجيل الإعجاب",Toast.LENGTH_SHORT).show();});dislike.setOnClickListener(x->{dislike.setTextColor(Color.rgb(230,120,120));Toast.makeText(this,"تم تسجيل عدم الإعجاب",Toast.LENGTH_SHORT).show();});read.setOnClickListener(x->speakNow(s));share.setOnClickListener(x->shareText(s));more.setOnClickListener(x->assistantMenu(s));block.addView(bar,new LinearLayout.LayoutParams(-1,dp(42)));messages.addView(block);bottom();}
     private void copyText(String s){try{ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);cm.setPrimaryClip(ClipData.newPlainText("SHADOW",s));Toast.makeText(this,"اتنسخ للحافظة",Toast.LENGTH_SHORT).show();}catch(Exception e){system("مش قادر أنسخ الرسالة.");}}
     private void shareText(String s){try{Intent i=new Intent(Intent.ACTION_SEND);i.setType("text/plain");i.putExtra(Intent.EXTRA_TEXT,s);startActivity(Intent.createChooser(i,"مشاركة رد SHADOW"));}catch(Exception e){system("المشاركة غير متاحة دلوقتي.");}}
-    private void speakNow(String s){if(cloudOnline){boolean old=voiceOutput;voiceOutput=true;speak(s);voiceOutput=old;}else localSpeak(s);}
+    private void speakNow(String s){localSpeak(s);}
     private void assistantMenu(String s){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("⧉ نسخ");p.getMenu().add("↗ مشاركة");p.getMenu().add("🔊 قراءة بصوت");p.getMenu().add("⏹ إيقاف الصوت");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.contains("نسخ"))copyText(s);else if(n.contains("مشاركة"))shareText(s);else if(n.contains("قراءة"))speakNow(s);else {stopCurrentTts();voiceState.userStoppedListening();}return true;});p.show();}
     private void system(String s){TextView v=tv(s,11);v.setTextColor(MUTED);messages.addView(v);bottom();}
     private void bottom(){messages.post(()->{ViewParent p=messages.getParent();if(p instanceof ScrollView)((ScrollView)p).fullScroll(View.FOCUS_DOWN);});}
@@ -84,9 +86,42 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void handlePendingAction(String original, ShadowCloudClient.CloudReply reply){final ShadowCloudClient.PendingAction pa=reply.pendingAction;if(pa==null)return;final String command=(pa.action+" "+pa.argument).trim();Runnable execute=()->{stage("executing");String result;try{result=ShadowDeviceExecution.execute(this,command);}catch(Throwable e){result="تعذر التنفيذ: "+e.getClass().getSimpleName();}final String verified=(result==null||result.trim().isEmpty())?"لم يرجع الجهاز نتيجة مؤكدة لتنفيذ الإجراء.":result;stage("verifying");new Thread(()->{try{ShadowCloudClient.CloudReply next=cloud.continueAgent(reply.provider,reply.responseId,pa.toolCallId,original,verified);runOnUiThread(()->{assistant(next.answer.isEmpty()?verified:next.answer);if(!next.answer.isEmpty())speak(next.answer);stage(next.offline?"reconnecting":"online");if(next.pendingAction!=null)handlePendingAction(original,next);});}catch(Exception e){runOnUiThread(()->{assistant(verified);if(!verified.isEmpty())speak(verified);stage("online");});}}).start();};
         if(pa.requiresConfirmation)runOnUiThread(()->new AlertDialog.Builder(this).setTitle("تأكيد تنفيذ الإجراء").setMessage(pa.reason.isEmpty()?command:pa.reason+"\n\n"+command).setPositiveButton("تنفيذ",(d,w)->execute.run()).setNegativeButton("إلغاء",(d,w)->{assistant("تم إلغاء الإجراء.");stage("online");}).show());else runOnUiThread(execute);
     }
-    private void send(){String s=input.getText().toString().trim();if(s.isEmpty())return;user(s);input.setText("");if(handleIdentityCommand(s))return;if(!authorizeSensitive(s))return;if(handleOutputCommand(s))return;if(isGithubCommand(s)){handleGithubCommand(s);return;}stage("thinking");
-        if(isImage(s)){stage("designing");generateImage(s);return;}
-        stage("online");new Thread(()->{try{ShadowCloudClient.CloudReply r=cloud.chat(s);cloudOnline=true;runOnUiThread(()->{stage("analyzing");if(r.pendingAction!=null){if(!r.answer.isEmpty())assistant(r.answer);handlePendingAction(s,r);return;}assistant(r.answer);speak(r.answer);stage(r.offline?"reconnecting":"online");});}catch(Throwable cloudError){cloudOnline=false;String local=null;try{local=ShadowPhoneController.execute(this,s);}catch(Throwable ignored){}if(local==null||local.trim().isEmpty())try{local=core.handle(s);}catch(Throwable ignored){}if(local==null||local.trim().isEmpty())try{local=core.offlineChat(s);}catch(Throwable ignored){}final String answer=(local==null||local.trim().isEmpty())?"الأونلاين مش متاح دلوقتي، ومفيش تنفيذ محلي مناسب للأمر.":local;runOnUiThread(()->{assistant(answer);stage("reconnecting");speak(answer);});}}).start();}
+    private void send(){String s=input.getText().toString().trim();if(s.isEmpty())return;user(s);input.setText("");
+        if(handleIdentityCommand(s))return;
+        if(!authorizeSensitive(s))return;
+        if(handleOutputCommand(s))return;
+
+        final ShadowMasterOrchestrator.Plan plan=orchestrator.plan(s,identity.isAuthenticated());
+        stage(plan.stageLabel());
+        if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج توثيق هوية الـMaster قبل ما نكمل."); return; }
+
+        if(plan.route==ShadowMasterOrchestrator.Route.GITHUB){handleGithubCommand(s);return;}
+        if(plan.route==ShadowMasterOrchestrator.Route.IMAGE){stage("designing");generateImage(s);return;}
+        if(plan.route==ShadowMasterOrchestrator.Route.SYSTEM){
+            new Thread(()->{
+                String answer;
+                try{answer=core.handle(s,identity.isAuthenticated(),true,"android-master-orchestrator");}
+                catch(Throwable e){answer="تعذر قراءة حالة النظام."; }
+                final String out=answer==null||answer.trim().isEmpty()?"حالة النظام غير متاحة الآن.":answer;
+                runOnUiThread(()->{assistant(out);stage("done");speak(out);});
+            }).start();
+            return;
+        }
+        if(plan.route==ShadowMasterOrchestrator.Route.LOCAL_DEVICE){
+            stage("executing");
+            new Thread(()->{
+                String local=null;
+                try{local=ShadowPhoneController.execute(this,s);}catch(Throwable ignored){}
+                if(local==null||local.trim().isEmpty())try{local=core.handle(s,identity.isAuthenticated(),true,"android-master-orchestrator");}catch(Throwable ignored){}
+                final String out=(local==null||local.trim().isEmpty())?"ملقتش إجراء محلي مناسب للأمر.":local;
+                runOnUiThread(()->{stage("verifying");assistant(out);stage("done");speak(out);});
+            }).start();
+            return;
+        }
+
+        // CHAT route: one online-first conversational path. Offline/local handling
+        // remains an internal fallback only; there is no separate user-facing chat mode.
+        stage("online");new Thread(()->{try{ShadowCloudClient.CloudReply r=cloud.chat(s);cloudOnline=true;runOnUiThread(()->{stage("analyzing");if(r.pendingAction!=null){if(!r.answer.isEmpty())assistant(r.answer);handlePendingAction(s,r);return;}assistant(r.answer);speak(r.answer);stage(r.offline?"reconnecting":"online");});}catch(Throwable cloudError){cloudOnline=false;String local=null;try{local=core.handle(s,identity.isAuthenticated(),true,"android-master-orchestrator");}catch(Throwable ignored){}if(local==null||local.trim().isEmpty())try{local=core.offlineChat(s);}catch(Throwable ignored){}final String answer=(local==null||local.trim().isEmpty())?"الأونلاين مش متاح دلوقتي، ومفيش إجابة آمنة متاحة للأمر.":local;runOnUiThread(()->{assistant(answer);stage("reconnecting");speak(answer);});}}).start();}
     private boolean isImage(String s){String x=s.toLowerCase(Locale.ROOT);return x.contains("صمم صورة")||x.contains("اعمل صورة")||x.contains("صورة لـ")||x.contains("generate image")||x.contains("create an image")||x.contains("design an image");}
     private void generateImage(String prompt){system("SHADOW • بيصمم الصورة أونلاين…");new Thread(()->{try{String b64=cloud.generateImage(prompt);byte[] data=android.util.Base64.decode(b64,android.util.Base64.DEFAULT);runOnUiThread(()->{ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(BitmapFactory.decodeStream(new ByteArrayInputStream(data)));messages.addView(image,new LinearLayout.LayoutParams(-1,dp(320)));assistant("اتفضل — الصورة جاهزة.");stage("online");});}catch(Throwable e){runOnUiThread(()->{assistant("مش قادر أولّد الصورة دلوقتي: "+e.getMessage());stage("reconnecting");});}}).start();}
     private void attach(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("Files");p.getMenu().add("Photos");p.getMenu().add("Camera");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("Files")){Intent x=new Intent(Intent.ACTION_OPEN_DOCUMENT);x.addCategory(Intent.CATEGORY_OPENABLE);x.setType("*/*");startActivityForResult(x,FILE);}else if(n.equals("Photos")){Intent x=new Intent(Intent.ACTION_PICK);x.setType("image/*");startActivityForResult(x,FILE);}else{try{startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),CAMERA);}catch(Exception e){system("No camera application is available.");}}return true;});p.show();}
@@ -108,7 +143,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
 
     @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(result==RESULT_OK&&data!=null)system("Attached: "+(data.getData()!=null?String.valueOf(data.getData().getLastPathSegment()):"camera capture"));}
     private boolean arabic(String s){for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c>=0x0600&&c<=0x06FF)return true;}return false;}
-    private void speak(String s){if(s==null||s.trim().isEmpty())return;if(!voiceOutput){if(voiceTurnActive&&voiceState!=null)voiceState.responseFinishedWithoutTts();return;}if(voiceState!=null)voiceState.ttsStarted();if(cloudOnline)new Thread(()->{try{byte[] audio=cloud.synthesizeSpeech(s);File f=new File(getCacheDir(),"shadow_voice.mp3");try(FileOutputStream o=new FileOutputStream(f)){o.write(audio);}runOnUiThread(()->play(f));}catch(Exception e){runOnUiThread(()->localSpeak(s));}}).start();else localSpeak(s);}
+    private void speak(String s){if(s==null||s.trim().isEmpty())return;if(!voiceOutput){if(voiceTurnActive&&voiceState!=null)voiceState.responseFinishedWithoutTts();return;}if(voiceState!=null)voiceState.ttsStarted();if(cloudOnline&&cloudVoice)new Thread(()->{try{byte[] audio=cloud.synthesizeSpeech(s);File f=new File(getCacheDir(),"shadow_voice.mp3");try(FileOutputStream o=new FileOutputStream(f)){o.write(audio);}runOnUiThread(()->play(f));}catch(Exception e){runOnUiThread(()->localSpeak(s));}}).start();else localSpeak(s);}
     private void play(File f){try{if(player!=null)player.release();player=new MediaPlayer();player.setDataSource(f.getAbsolutePath());player.setOnCompletionListener(m->{m.release();player=null;stopBargeInMonitor();if(voiceState!=null)voiceState.ttsFinished();});player.setOnErrorListener((m,what,extra)->{try{m.release();}catch(Exception ignored){}player=null;stopBargeInMonitor();if(voiceState!=null)voiceState.ttsFinished();return true;});player.setOnPreparedListener(m->{m.start();startBargeInMonitor();});player.prepare();}catch(Exception e){localSpeak("حصلت مشكلة في الصوت.");}}
     private void localSpeak(String s){if(tts==null||!voiceOutput){if(voiceState!=null)voiceState.responseFinishedWithoutTts();return;}try{tts.setLanguage(arabic(s)?new Locale("ar","EG"):Locale.US);tts.setPitch(.72f);tts.setSpeechRate(.96f);tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"shadow");}catch(Exception ignored){if(voiceState!=null)voiceState.ttsFinished();}}
     @Override public void onInit(int c){if(tts!=null){tts.setLanguage(new Locale("ar","EG"));tts.setPitch(.72f);tts.setSpeechRate(.96f);tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){@Override public void onStart(String id){startBargeInMonitor();}@Override public void onDone(String id){stopBargeInMonitor();runOnUiThread(()->{if(voiceState!=null)voiceState.ttsFinished();});}@Override public void onError(String id){stopBargeInMonitor();runOnUiThread(()->{if(voiceState!=null)voiceState.ttsFinished();});}});}}
