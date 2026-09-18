@@ -59,6 +59,20 @@ jobs:
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - name: Fetch wake-word model assets
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/assets
+          BASE="https://raw.githubusercontent.com/Bwarhness/jarvis-assistant/17edf69264ae421d68a103cde1bc2c1dcab2f673/app/src/main/assets"
+          curl -fL "$BASE/melspectrogram.onnx" -o app/src/main/assets/melspectrogram.onnx
+          curl -fL "$BASE/embedding_model.onnx" -o app/src/main/assets/embedding_model.onnx
+          curl -fL "$BASE/jarvis_v1.onnx" -o app/src/main/assets/jarvis_v1.onnx
+          test -s app/src/main/assets/melspectrogram.onnx
+          test -s app/src/main/assets/embedding_model.onnx
+          test -s app/src/main/assets/jarvis_v1.onnx
+          sha256sum app/src/main/assets/*.onnx
+
       - name: Build release APK
         run: gradle :app:clean :app:test :app:assembleRelease
       - name: Verify APK
