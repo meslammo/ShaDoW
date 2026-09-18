@@ -40,6 +40,8 @@ app.get('/health', async (_req, res) => res.json({
   capabilities: {
     web_search: true,
     web_fetch: true,
+    streaming_chat: true,
+    streaming_provider: 'openai',
     github_read: true,
     github_write_gateway: githubOAuthStatus().configured,
     files: true,
