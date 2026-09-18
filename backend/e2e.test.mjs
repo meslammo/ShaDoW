@@ -44,7 +44,7 @@ before(async()=>{
     res.end(JSON.stringify({id:'fixture-chat-1',output_text:'E2E chat response'}));
   });
   const upstreamPort=await listenEphemeral(upstream);
-  app=spawn('node',['server.mjs'],{
+  app=spawn('/bin/bash',['-lc','exec node server.mjs'],{
     cwd:join(process.cwd(),'backend'),
     env:{...process.env,PORT:String(appPort),OPENAI_API_KEY:'e2e-test-key',OPENAI_MODEL:'e2e-fixture-model',
       SHADOW_OPENAI_RESPONSES_URL:'http://127.0.0.1:'+upstreamPort+'/v1/responses',
