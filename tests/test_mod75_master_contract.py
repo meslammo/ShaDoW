@@ -56,3 +56,11 @@ def test_mod85_master_cycle_contract():
     assert "class ShadowMasterCycle" in cycle
     assert "cycle.record(event.coreLayer)" in bridge
     assert "masterCycle=new ShadowMasterCycle()" in activity
+
+def test_mod86_route_mapping_covers_core_layers():
+    bus = Path("app/src/main/java/com/shadow/mobile/ShadowMasterEventBus.java").read_text(encoding="utf-8")
+    cycle = Path("app/src/main/java/com/shadow/mobile/ShadowMasterCycle.java").read_text(encoding="utf-8")
+    for route, core in [("companion", "companion"), ("spatial", "spatial"), ("development", "development"), ("github", "development"), ("local-device", "device"), ("image", "integration"), ("chat", "web/personal")]:
+        assert '"' + route + '"'.replace("\\", "") in bus
+        assert '"' + core + '"' in bus
+    assert "verification" in cycle
