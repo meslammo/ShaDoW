@@ -48,6 +48,15 @@ public final class ShadowCloudClient {
         if(answer.isEmpty()&&pending==null)throw new IllegalStateException("empty_online_response");
         return new CloudReply(answer,responseId,provider,model,usedWeb,pending);
     }
+    public VoiceprintReply verifyVoiceprint(byte[] audio,String contentType)throws Exception{
+        if(audio==null||audio.length==0)throw new IllegalArgumentException("audio_required");
+        JSONObject body=new JSONObject();
+        body.put("audio_base64",android.util.Base64.encodeToString(audio,android.util.Base64.NO_WRAP));
+        body.put("content_type",contentType==null?"audio/wav":contentType);
+        JSONObject result=postJson("/v1/voiceprint/verify",body,30000);
+        return new VoiceprintReply(result.optBoolean("verified",false),result.optBoolean("enrolled",false),result.optDouble("score",Double.NaN),result.optString("reason",""));
+    }
+
     public GithubDevice startGithubDevice()throws Exception{JSONObject r=postJson("/v1/github/device/start",new JSONObject(),15000);if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","github_authorization_failed"));return new GithubDevice(r.optString("device_code"),r.optString("user_code"),r.optString("verification_uri"),r.optString("verification_uri_complete",""),r.optInt("expires_in",900),r.optInt("interval",5));}
     public GithubPoll pollGithubDevice(String deviceCode)throws Exception{JSONObject body=new JSONObject();body.put("device_code",deviceCode);JSONObject r=postJson("/v1/github/device/poll",body,15000);if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","github_authorization_failed"));return new GithubPoll(r.optString("status"),r.optString("access_token",""),r.optInt("interval",5));}
     public String createDevelopmentPullRequest(String githubToken,String branch,String title,String body,boolean draft)throws Exception{
@@ -75,6 +84,7 @@ public final class ShadowCloudClient {
     public static final class LocalExecutionRequiredException extends Exception{private static final long serialVersionUID=1L;}
     public static final class PendingAction{public final String action,argument,reason,toolCallId;public final boolean requiresConfirmation;PendingAction(String a,String g,String r,boolean c,String i){action=a;argument=g;reason=r;requiresConfirmation=c;toolCallId=i;}}
     public static final class CloudReply{public final String answer,responseId,provider,model;public final boolean usedWeb;public final PendingAction pendingAction;CloudReply(String a,String r,String p,String m,boolean w,PendingAction pa){answer=a;responseId=r;provider=p;model=m;usedWeb=w;pendingAction=pa;}}
+    public static final class VoiceprintReply{public final boolean verified,enrolled;public final double score;public final String reason;VoiceprintReply(boolean v,boolean e,double s,String r){verified=v;enrolled=e;score=s;reason=r;}}
     public static final class GithubDevice{public final String deviceCode,userCode,verificationUri,verificationUriComplete;public final int expiresIn,interval;GithubDevice(String d,String u,String v,String vc,int e,int i){deviceCode=d;userCode=u;verificationUri=v;verificationUriComplete=vc;expiresIn=e;interval=i;}}
     public static final class GithubPoll{public final String status,accessToken;public final int interval;GithubPoll(String s,String t,int i){status=s;accessToken=t;interval=i;}}
 }
