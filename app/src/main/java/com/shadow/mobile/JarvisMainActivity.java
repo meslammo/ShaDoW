@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
+import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -37,7 +38,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private LinearLayout rootView,composerRef; private TextView plusButtonRef,sendButtonRef,micButtonRef,menuButtonRef,moreButtonRef;
     private boolean voiceTurnActive=false;
     private final Handler voiceHandler=new Handler(Looper.getMainLooper());
-    private ShadowBargeInMonitor bargeInMonitor;
+    private ShadowBargeInMonitor bargeInMonitor; private MediaRecorder voiceprintRecorder; private File voiceprintFile;
     private static final String WAKE_PREFS="shadow_voice_prefs";
     private static final String WAKE_ENABLED="wake_enabled";
     private int dp(float n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}
@@ -83,8 +84,56 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void system(String s){TextView v=tv(s,11);v.setTextColor(MUTED);messages.addView(v);bottom();}
     private void bottom(){messages.post(()->{ViewParent p=messages.getParent();if(p instanceof ScrollView)((ScrollView)p).fullScroll(View.FOCUS_DOWN);});}
     private void check(){new Thread(()->{cloudOnline=cloud.health();runOnUiThread(()->stage(cloudOnline?"online":"reconnecting"));}).start();}
-    private boolean handleIdentityCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")||x.equals("voice identity status")){assistant(identity.status());return true;}if(x.contains("اقفل الهوية")||x.contains("اقفل الهويه")||x.equals("lock identity")||x.equals("logout shadow")){identity.lock();assistant("تم قفل هوية الـMaster. الأوامر الحساسة هتحتاج كلمة السر تاني.");return true;}if(x.startsWith("عيّن كلمة السر:")||x.startsWith("عين كلمة السر:")||x.startsWith("عيّن كلمه السر:")||x.startsWith("عين كلمه السر:")||x.startsWith("set passphrase:")||x.startsWith("set password:")){String p=identity.extractPassphrase(s);if(identity.enroll(p)){assistant("تم تسجيل كلمة سر الـMaster محليًا بشكل آمن. مش هخزن الكلمة نفسها، فقط SHA-256.\nقول: كلمة السر: <الكلمة> عند طلب أمر حساس.");}else assistant("كلمة السر لازم تكون 6 أحرف/رموز على الأقل.");return true;}return false;}
-    private boolean authorizeSensitive(String s){if(!identity.isSensitiveCommand(s)||identity.isAuthenticated())return true;String phrase=identity.extractPassphrase(s);if(!phrase.isEmpty()&&identity.authenticate(phrase)){system("SHADOW • Master identity authenticated for this session ✓");return true;}assistant("الأمر ده حساس وعايز تأكيد هوية الـMaster.\nلو كلمة السر متسجلة، ابعتها بالشكل: كلمة السر: <الكلمة>\nأو استخدم: عيّن كلمة السر: <كلمة جديدة>");return false;}
+    private boolean handleIdentityCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("تحقق من صوتي")||x.contains("تحقق بصوتي")||x.equals("verify my voice")||x.equals("voiceprint verify")){startVoiceprintVerification();return true;}if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")||x.equals("voice identity status")){assistant(identity.status());return true;}if(x.contains("اقفل الهوية")||x.contains("اقفل الهويه")||x.equals("lock identity")||x.equals("logout shadow")){identity.lock();assistant("تم قفل هوية الـMaster. الأوامر الحساسة هتحتاج كلمة السر تاني.");return true;}if(x.startsWith("عيّن كلمة السر:")||x.startsWith("عين كلمة السر:")||x.startsWith("عيّن كلمه السر:")||x.startsWith("عين كلمه السر:")||x.startsWith("set passphrase:")||x.startsWith("set password:")){String p=identity.extractPassphrase(s);if(identity.enroll(p)){assistant("تم تسجيل كلمة سر الـMaster محليًا بشكل آمن. مش هخزن الكلمة نفسها، فقط SHA-256.\nقول: كلمة السر: <الكلمة> عند طلب أمر حساس.");}else assistant("كلمة السر لازم تكون 6 أحرف/رموز على الأقل.");return true;}return false;}
+    private void startVoiceprintVerification(){
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},MIC);return;}
+        if(voiceprintRecorder!=null)return;
+        try{
+            voiceprintFile=new File(getCacheDir(),"shadow_voiceprint.3gp");
+            voiceprintRecorder=new MediaRecorder();
+            voiceprintRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            voiceprintRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+            voiceprintRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+            voiceprintRecorder.setOutputFile(voiceprintFile.getAbsolutePath());
+            voiceprintRecorder.prepare();
+            voiceprintRecorder.start();
+            stage("authenticating");
+            assistant("SHADOW بيعمل تحقق صوتي أونلاين لمدة 4 ثواني. التسجيل مش هيتخزن كذاكرة.");
+            voiceHandler.postDelayed(this::finishVoiceprintVerification,4000);
+        }catch(Throwable e){cleanupVoiceprint();assistant("تعذر بدء التحقق الصوتي: "+e.getClass().getSimpleName());stage("online");}
+    }
+    private void finishVoiceprintVerification(){
+        MediaRecorder recorder=voiceprintRecorder;
+        voiceprintRecorder=null;
+        try{if(recorder!=null){recorder.stop();recorder.reset();recorder.release();}}catch(Throwable ignored){}
+        File f=voiceprintFile;voiceprintFile=null;
+        if(f==null||!f.exists()){assistant("التسجيل الصوتي غير متاح للتحقق.");stage("online");return;}
+        new Thread(()->{
+            try{
+                byte[] bytes=readFileBytes(f);
+                ShadowCloudClient.VoiceprintReply r=cloud.verifyVoiceprint(bytes,"audio/3gpp");
+                if(r.verified){
+                    identity.markVoiceVerified(10*60*1000L);
+                    runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.IDENTITY_VERIFIED,"voiceprint verification","identity","online_voiceprint_verified",true);assistant("تم التحقق من هوية صوتك أونلاين ✓");stage("online");});
+                }else{
+                    runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.FAILED,"voiceprint verification","identity","voiceprint_not_verified:"+r.reason,true);assistant("التحقق الصوتي لم ينجح: "+(r.reason==null||r.reason.isEmpty()?"غير متحقق":r.reason));stage("online");});
+                }
+            }catch(Throwable e){runOnUiThread(()->{assistant("خدمة التحقق الصوتي الأونلاين غير متاحة حالياً.");stage("reconnecting");});}
+            finally{try{if(f.exists())f.delete();}catch(Exception ignored){}}
+        }).start();
+    }
+    private void cleanupVoiceprint(){
+        try{if(voiceprintRecorder!=null){voiceprintRecorder.stop();voiceprintRecorder.release();}}catch(Throwable ignored){}
+        voiceprintRecorder=null;
+        try{if(voiceprintFile!=null&&voiceprintFile.exists())voiceprintFile.delete();}catch(Exception ignored){}
+        voiceprintFile=null;
+    }
+    private static byte[] readFileBytes(File file)throws Exception{
+        try(FileInputStream in=new FileInputStream(file);ByteArrayOutputStream out=new ByteArrayOutputStream()){
+            byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1)out.write(buf,0,n);return out.toByteArray();
+        }
+    }
+    private boolean authorizeSensitive(String s){if(!identity.isSensitiveCommand(s)||identity.isAuthenticated()||identity.isVoiceVerified())return true;String phrase=identity.extractPassphrase(s);if(!phrase.isEmpty()&&identity.authenticate(phrase)){system("SHADOW • Master identity authenticated for this session ✓");return true;}assistant("الأمر ده حساس وعايز تأكيد هوية الـMaster.\nلو كلمة السر متسجلة، ابعتها بالشكل: كلمة السر: <الكلمة>\nأو استخدم: عيّن كلمة السر: <كلمة جديدة>");return false;}
     private boolean handleReasoningCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.equals("think hard")||x.equals("thinkhard")||x.equals("فكر بعمق")||x.equals("تفكير عميق")){setReasoning(true,"high");assistant("🧠 Think Hard اتفعل — الموديل هيستخدم reasoning أعلى، والواجهة بقت Black/Red.");return true;}if(x.equals("deep think")||x.equals("deep thinking")||x.equals("تفكير عميق جدا")||x.equals("تفكير عميق جدًا")){setReasoning(true,"xhigh");assistant("🔴 Deep Think اتفعل — أعلى reasoning متاح للمسار الحالي، والواجهة Black/Red.");return true;}if(x.equals("stop thinking")||x.equals("إيقاف التفكير")||x.equals("الغاء التفكير")||x.equals("إلغاء التفكير")){setReasoning(false,"none");assistant("تم إيقاف وضع التفكير العميق.");return true;}return false;}
     private boolean handleOutputCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.equals("رد كتابة")||x.equals("رد كتابه")||x.equals("من غير صوت")||x.equals("بدون صوت")||x.equals("text only")||x.equals("text response")){voiceOutput=false;assistant("تم — هرد كتابة فقط من دلوقتي.");stage("done");return true;}if(x.equals("رد صوتي")||x.equals("شغل الصوت")||x.equals("شغّل الصوت")||x.equals("voice on")||x.equals("voice response")){voiceOutput=true;assistant("تم — الصوت اتفعّل.");speak("تم — الصوت اتفعّل.");stage("done");return true;}return false;}
     private boolean isGithubCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);boolean github=x.contains("github")||x.contains("git hub")||x.contains("جيت هاب")||x.contains("جيتهاب")||x.contains("github.com")||x.contains("meslammo/shadow");if(!github)return false;return x.contains("authorization")||x.contains("authorize")||x.contains("auth")||x.contains("اربط")||x.contains("ابدأ")||x.contains("ابدء")||x.contains("connect")||x.contains("ربط")||x.contains("حالة")||x.contains("status")||x.contains("افصل")||x.contains("disconnect")||x.contains("تطوير")||x.contains("عدل")||x.contains("عدّل")||x.contains("نفذ")||x.contains("نفّذ")||x.contains("development")||x.contains("develop")||x.contains("repo")||x.contains("repository")||x.contains("فرع")||x.contains("branch");}
@@ -184,5 +233,5 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void play(File f){try{if(player!=null)player.release();player=new MediaPlayer();player.setDataSource(f.getAbsolutePath());player.setOnCompletionListener(m->{m.release();player=null;stopBargeInMonitor();if(voiceState!=null)voiceState.ttsFinished();});player.setOnErrorListener((m,what,extra)->{try{m.release();}catch(Exception ignored){}player=null;stopBargeInMonitor();if(voiceState!=null)voiceState.ttsFinished();return true;});player.setOnPreparedListener(m->{m.start();startBargeInMonitor();});player.prepare();}catch(Exception e){localSpeak("حصلت مشكلة في الصوت.");}}
     private void localSpeak(String s){if(tts==null||!voiceOutput){if(voiceState!=null)voiceState.responseFinishedWithoutTts();return;}try{tts.setLanguage(arabic(s)?new Locale("ar","EG"):Locale.US);tts.setPitch(.72f);tts.setSpeechRate(.96f);tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"shadow");}catch(Exception ignored){if(voiceState!=null)voiceState.ttsFinished();}}
     @Override public void onInit(int c){if(tts!=null){tts.setLanguage(new Locale("ar","EG"));tts.setPitch(.72f);tts.setSpeechRate(.96f);tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){@Override public void onStart(String id){startBargeInMonitor();}@Override public void onDone(String id){stopBargeInMonitor();runOnUiThread(()->{if(voiceState!=null)voiceState.ttsFinished();});}@Override public void onError(String id){stopBargeInMonitor();runOnUiThread(()->{if(voiceState!=null)voiceState.ttsFinished();});}});}}
-    @Override protected void onDestroy(){handsFreeVoice=false;voiceHandler.removeCallbacksAndMessages(null);if(voiceState!=null)voiceState.setHandsFree(false);stopBargeInMonitor();if(bargeInMonitor!=null)bargeInMonitor.destroy();if(voice!=null)voice.destroy();stopCurrentTts();if(tts!=null)tts.shutdown();if(spatialRadar!=null)spatialRadar.stop();if(lifecycleBridge!=null)lifecycleBridge.destroy();super.onDestroy();}
+    @Override protected void onDestroy(){cleanupVoiceprint();handsFreeVoice=false;voiceHandler.removeCallbacksAndMessages(null);if(voiceState!=null)voiceState.setHandsFree(false);stopBargeInMonitor();if(bargeInMonitor!=null)bargeInMonitor.destroy();if(voice!=null)voice.destroy();stopCurrentTts();if(tts!=null)tts.shutdown();if(spatialRadar!=null)spatialRadar.stop();if(lifecycleBridge!=null)lifecycleBridge.destroy();super.onDestroy();}
 }
