@@ -152,7 +152,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         String request=s;
         String lower=s.toLowerCase(Locale.ROOT);
         if(lower.startsWith("think hard:")||lower.startsWith("thinkhard:")||lower.startsWith("deep think:")||lower.startsWith("deep thinking:")||lower.startsWith("فكر بعمق:")){int colon=s.indexOf(':');if(colon>0){setReasoning(true,lower.startsWith("deep")||lower.startsWith("deep thinking")?"xhigh":"high");request=s.substring(colon+1).trim();}}
-        masterEvent(ShadowMasterEventBus.Type.INPUT_RECEIVED,request,"master","input_received",true); final ShadowMasterOrchestrator.Plan plan=orchestrator.plan(request,identity.isAuthenticated()); masterEvent(ShadowMasterEventBus.Type.IDENTITY_VERIFIED,request,plan.routeName(),identity.isAuthenticated()?"master_authenticated":"identity_unverified",identity.isAuthenticated());
+        masterEvent(ShadowMasterEventBus.Type.INPUT_RECEIVED,request,"master","input_received",true); final ShadowMasterOrchestrator.Plan plan=orchestrator.plan(request,identity.isAuthenticated()); masterEvent(ShadowMasterEventBus.Type.ROUTE_SELECTED,request,plan.routeName(),"route="+plan.routeName(),true); masterEvent(ShadowMasterEventBus.Type.PLAN_READY,request,plan.routeName(),"master_plan_ready",true); masterEvent(ShadowMasterEventBus.Type.IDENTITY_VERIFIED,request,plan.routeName(),identity.isAuthenticated()?"master_authenticated":"identity_unverified",identity.isAuthenticated());
         stage(plan.stageLabel());
         if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج توثيق هوية الـMaster قبل ما نكمل."); return; }
 
