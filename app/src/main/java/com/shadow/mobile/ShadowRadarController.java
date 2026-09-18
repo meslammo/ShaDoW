@@ -1,0 +1,12 @@
+package com.shadow.mobile;
+import android.content.*;import android.location.*;import android.media.*;import android.os.*;
+/** MOD-42: foreground standalone radar controller with SHADOW-owned alert beep/vibration. */
+public final class ShadowRadarController implements LocationListener{
+ private final Context c;private final LocationManager lm;private final ShadowRadarManager radar;private final ToneGenerator tone;private final Vibrator vib;private final ShadowMasterEventBus bus;private long last=0;
+ public ShadowRadarController(Context x){this(x,null);}
+ public ShadowRadarController(Context x, ShadowMasterEventBus eventBus){c=x.getApplicationContext();bus=eventBus;lm=(LocationManager)c.getSystemService(Context.LOCATION_SERVICE);radar=new ShadowRadarManager(c);tone=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,90);vib=(Vibrator)c.getSystemService(Context.VIBRATOR_SERVICE);}
+ public void start(){if(bus!=null)bus.publish(new ShadowMasterEventBus.Event(ShadowMasterEventBus.Type.ACTION_REQUESTED,"","spatial","radar_start",true));if(lm!=null&&c.checkSelfPermission("android.permission.ACCESS_FINE_LOCATION")==0){lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,5f,this);}}
+ public void stop(){try{lm.removeUpdates(this);}catch(Exception ignored){}tone.release();if(bus!=null)bus.publish(new ShadowMasterEventBus.Event(ShadowMasterEventBus.Type.COMPLETED,"","spatial","radar_stop",true));}
+ @Override public void onLocationChanged(Location l){if(bus!=null)bus.publish(new ShadowMasterEventBus.Event(ShadowMasterEventBus.Type.ACTION_EXECUTED,"","spatial","location_update",true));if(System.currentTimeMillis()-last>600000L){last=System.currentTimeMillis();radar.syncNearby(l.getLatitude(),l.getLongitude(),5000);}String msg=radar.check(l);if(msg!=null){c.getSharedPreferences("shadow_radar",0).edit().putString("last_alert",msg).apply();tone.startTone(ToneGenerator.TONE_PROP_BEEP2,350);if(vib!=null&&Build.VERSION.SDK_INT>=26)vib.vibrate(VibrationEffect.createOneShot(300,VibrationEffect.DEFAULT_AMPLITUDE));}}
+ @Override public void onProviderEnabled(String p){}@Override public void onProviderDisabled(String p){}@Override public void onStatusChanged(String p,int s,Bundle b){}
+}

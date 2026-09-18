@@ -1,54 +1,87 @@
-name: Build SHADOW APK
+name: Build SHADOW APK — SHADOW Wake / Online Only
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'app/**'
-      - 'shadow/**'
-      - 'backend/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle.properties'
-      - 'pyproject.toml'
-      - '.github/workflows/build-apk.yml'
   pull_request:
+    branches:
+      - main
     paths:
       - 'app/**'
       - 'shadow/**'
       - 'backend/**'
-      - 'build.gradle'
-      - 'settings.gradle'
+      - '.github/workflows/**'
+      - 'AndroidManifest.xml'
+      - 'activity_main.xml'
+      - 'settings.gradle*'
+      - 'build.gradle*'
       - 'gradle.properties'
-      - 'pyproject.toml'
-      - '.github/workflows/build-apk.yml'
-permissions:
-  contents: read
+
 jobs:
-  build:
+  verify-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - run: node --check backend/server.mjs
-      - uses: actions/setup-java@v5
-        with: {distribution: temurin, java-version: '17'}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
-      - uses: gradle/actions/setup-gradle@v4
-        with: {gradle-version: '8.10.2'}
-      - uses: android-actions/setup-android@v3
-      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - run: python -m compileall -q shadow
-      - run: gradle --no-daemon clean assembleRelease
-      - run: test -s app/build/outputs/apk/release/app-release.apk
-      - run: ${ANDROID_HOME}/build-tools/35.0.0/apksigner verify --verbose app/build/outputs/apk/release/app-release.apk
-      - run: sha256sum app/build/outputs/apk/release/app-release.apk | tee app/build/outputs/apk/release/SHA256SUM.txt
-      - run: unzip -l app/build/outputs/apk/release/app-release.apk | grep -E 'chaquopy|python|libpython|shadow_logo|ShadowCloudClient' | head -40
+        with:
+          node-version: '22'
+      - name: Verify backend syntax
+        working-directory: backend
+        run: |
+          npm install --ignore-scripts
+          node --check server.mjs
+          node --check ai-router.mjs
+          node --check tool-registry.mjs
+
+  build:
+    needs: verify-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android SDK
+        shell: bash
+        run: |
+          set -e
+          if [ -z "${ANDROID_HOME:-}" ]; then export ANDROID_HOME="$(find "$HOME" /usr/local -maxdepth 5 -type d -name sdk 2>/dev/null | head -n 1)"; fi
+          test -n "$ANDROID_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"; fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - name: Fetch wake-word model assets
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/assets
+          BASE="https://raw.githubusercontent.com/Bwarhness/jarvis-assistant/17edf69264ae421d68a103cde1bc2c1dcab2f673/app/src/main/assets"
+          SHADOW_BASE="https://raw.githubusercontent.com/jakes1345/ShadowCypher/827829b09399d6c02ba108607e70aa05bf7485a5/android/assistant/src/main/assets"
+          curl -fL "$BASE/melspectrogram.onnx" -o app/src/main/assets/melspectrogram.onnx
+          curl -fL "$BASE/embedding_model.onnx" -o app/src/main/assets/embedding_model.onnx
+          curl -fL "$SHADOW_BASE/hey_shadow.onnx" -o app/src/main/assets/hey_shadow.onnx
+          test -s app/src/main/assets/melspectrogram.onnx
+          test -s app/src/main/assets/embedding_model.onnx
+          test -s app/src/main/assets/hey_shadow.onnx
+          sha256sum app/src/main/assets/*.onnx
+
+      - name: Build release APK
+        run: gradle :app:clean :app:test :app:assembleRelease
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -e
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -f "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-v1.4.2-RAILWAY-ONLINE-apk
+          name: SHADOW-MOD76-ONLINE-ONLY-candidate-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/SHA256SUM.txt
-          if-no-files-found: error
+            app/build/outputs/apk/release/apk.sha256
