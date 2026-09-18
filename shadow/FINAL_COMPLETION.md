@@ -3,7 +3,7 @@
 Implemented in this candidate branch:
 
 - MOD-59: concrete Android execution adapters for settings, Wi-Fi/Bluetooth panels, camera, photos, files, calendar, contacts, clock, maps, browser, music, messaging/share, major social apps, volume and existing Radarbot/calculator/network actions. Unsupported Android direct toggles fail honestly instead of reporting fake success.
-- MOD-60: unified online-first/offline-fallback runtime contract with automatic mode recovery.
+- MOD-60: unified online-first runtime contract with automatic provider recovery.
 - MOD-61: read-only capability Discovery Engine with stable capability IDs.
 - MOD-62: allowlisted Integration Engine with SHA-256 journal and rollback metadata.
 - MOD-63: Companion registry with Discover -> Authenticate -> Trust -> Revoke lifecycle and explicit permissions.
@@ -15,4 +15,4 @@ The Android app still does not claim biometric speaker verification. The current
 
 ## Online AI availability
 
-The app remains online-first, but cloud AI requires a funded/working provider configuration. Offline deterministic execution and local safe chat remain available when cloud access is unavailable.
+The app is online-only for AI and requires a funded/working online provider configuration. Local Android execution adapters remain available only as governed execution components within the master route.
