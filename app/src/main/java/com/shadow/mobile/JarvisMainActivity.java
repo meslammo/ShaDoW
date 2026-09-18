@@ -44,6 +44,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private GradientDrawable bg(int c,float r){GradientDrawable g=new GradientDrawable();g.setColor(c);g.setCornerRadius(dp(r));return g;}
     private void setReasoningTheme(boolean on){reasoningMode=on;if(rootView==null)return;rootView.setBackgroundColor(on?REASON_BLACK:BG);if(composerRef!=null){GradientDrawable g=bg(on?REASON_BLACK:SURFACE,24);if(on)g.setStroke(dp(1),REASON_RED);composerRef.setBackground(g);}if(plusButtonRef!=null)plusButtonRef.setTextColor(on?REASON_RED:TEXT);if(sendButtonRef!=null)sendButtonRef.setTextColor(on?REASON_RED:TEXT);if(micButtonRef!=null)micButtonRef.setTextColor(on?REASON_RED:TEXT);if(menuButtonRef!=null)menuButtonRef.setTextColor(on?REASON_RED:TEXT);if(moreButtonRef!=null)moreButtonRef.setTextColor(on?REASON_RED:TEXT);if(input!=null){input.setTextColor(TEXT);input.setHintTextColor(on?REASON_RED:MUTED);}stage(on?"deep thinking":"online");}
     private void setReasoning(boolean on,String effort){reasoningEffort=on?(effort==null||effort.isEmpty()?"high":effort):"none";setReasoningTheme(on);}
+    private void masterEvent(ShadowMasterEventBus.Type type,String request,String route,String detail,boolean ok){if(orchestrator!=null)orchestrator.events().publish(new ShadowMasterEventBus.Event(type,request,route,detail,ok));}
     private TextView tv(String s,float z){TextView v=new TextView(this);v.setText(s);v.setTextColor(TEXT);v.setTextSize(z);return v;}
     private void stage(String s){if(status!=null){status.setText(ShadowProcessIndicators.render(s));status.setTextColor(reasoningMode?REASON_RED:Color.rgb(112,210,160));}if(liveVoice!=null&&reasoningMode)liveVoice.setTextColor(REASON_RED);}
     @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);orchestrator=new ShadowMasterOrchestrator();identity=new ShadowVoiceIdentityGateway(this);remotes=new ShadowRemoteController(this);developmentAgent=new ShadowDevelopmentAgent(this);pythonBridge=new ShadowPythonRuntimeBridge(this);spatialRadar=new ShadowRadarController(this,orchestrator.events());lifecycleBridge=new ShadowMasterLifecycleBridge(orchestrator.events(),core,developmentAgent,remotes,pythonBridge);
@@ -102,7 +103,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         String request=s;
         String lower=s.toLowerCase(Locale.ROOT);
         if(lower.startsWith("think hard:")||lower.startsWith("thinkhard:")||lower.startsWith("deep think:")||lower.startsWith("deep thinking:")||lower.startsWith("فكر بعمق:")){int colon=s.indexOf(':');if(colon>0){setReasoning(true,lower.startsWith("deep")||lower.startsWith("deep thinking")?"xhigh":"high");request=s.substring(colon+1).trim();}}
-        final ShadowMasterOrchestrator.Plan plan=orchestrator.plan(request,identity.isAuthenticated());
+        final ShadowMasterOrchestrator.Plan plan=orchestrator.plan(request,identity.isAuthenticated());if(identity.isAuthenticated())masterEvent(ShadowMasterEventBus.Type.IDENTITY_VERIFIED,request,plan.routeName(),"master_authenticated",true);
         stage(plan.stageLabel());
         if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج توثيق هوية الـMaster قبل ما نكمل."); return; }
 
@@ -112,7 +113,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             new Thread(()->{
                 final String planText;
                 try{planText=developmentAgent.plan(request);}catch(Throwable e){runOnUiThread(()->assistant("Development Agent تعذر تشغيله الآن."));return;}
-                runOnUiThread(()->{assistant("🧠 Development Plan\n\n"+planText);stage("done");speak(planText);});
+                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.PLAN_READY,request,plan.routeName(),"development_plan_ready",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"plan_only",true);assistant("🧠 Development Plan\n\n"+planText);stage("done");speak(planText);});
             }).start();
             return;
         }
@@ -127,7 +128,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             return;
         }
         if(plan.route==ShadowMasterOrchestrator.Route.COMPANION){
-            core.governance().companionState("companion", "ROUTED");
+            core.governance().companionState("companion", "ROUTED");masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"companion_route_ready",true);
             assistant("Companion route جاهز. الـMaster Bus موصل الـCompanion/Device boundary، والتنفيذ الفعلي لسا مربوط بقدرة companion موثقة.");
             stage("done");
             return;
@@ -139,7 +140,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
                 try{answer=core.handle(request,identity.isAuthenticated(),true,"android-master-orchestrator");}
                 catch(Throwable e){answer="تعذر قراءة حالة النظام."; }
                 final String out=answer==null||answer.trim().isEmpty()?"حالة النظام غير متاحة الآن.":answer;
-                runOnUiThread(()->{assistant(out);stage("done");speak(out);});
+                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"system_status",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"completed",true);assistant(out);stage("done");speak(out);});
             }).start();
             return;
         }
@@ -150,7 +151,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
                 try{local=ShadowPhoneController.execute(this,request);}catch(Throwable ignored){}
                 if(local==null||local.trim().isEmpty())try{local=core.handle(request,identity.isAuthenticated(),true,"android-master-orchestrator");}catch(Throwable ignored){}
                 final String out=(local==null||local.trim().isEmpty())?"ملقتش إجراء محلي مناسب للأمر.":local;
-                runOnUiThread(()->{stage("verifying");assistant(out);stage("done");speak(out);});
+                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.ACTION_EXECUTED,request,plan.routeName(),out,true);masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"local_result",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"completed",true);stage("verifying");assistant(out);stage("done");speak(out);});
             }).start();
             return;
         }
