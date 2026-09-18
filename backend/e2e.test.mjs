@@ -1,12 +1,11 @@
 import test,{before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import {spawn} from 'node:child_process';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-let upstream,app,tempDir;
+let upstream,app,tempDir,stopServer;
 const appPort=18787;
 const upstreamBodies=[];
 
@@ -44,34 +43,30 @@ before(async()=>{
     res.end(JSON.stringify({id:'fixture-chat-1',output_text:'E2E chat response'}));
   });
   const upstreamPort=await listenEphemeral(upstream);
-  app=spawn('/bin/bash',['-lc','exec node server.mjs'],{
-    cwd:join(process.cwd(),'backend'),
-    env:{...process.env,PORT:String(appPort),OPENAI_API_KEY:'e2e-test-key',OPENAI_MODEL:'e2e-fixture-model',
-      SHADOW_OPENAI_RESPONSES_URL:'http://127.0.0.1:'+upstreamPort+'/v1/responses',
-      SHADOW_MEMORY_DIR:join(tempDir,'memory'),SHADOW_WORKSPACE_DIR:join(tempDir,'workspace'),
-      XAI_API_KEY:'',DEEPSEEK_API_KEY:'',DATABASE_URL:''},
-    stdio:['ignore','pipe','pipe']
+  process.env.PORT=String(appPort);
+  process.env.OPENAI_API_KEY='e2e-test-key';
+  process.env.OPENAI_MODEL='e2e-fixture-model';
+  process.env.SHADOW_OPENAI_RESPONSES_URL='http://127.0.0.1:'+upstreamPort+'/v1/responses';
+  process.env.SHADOW_MEMORY_DIR=join(tempDir,'memory');
+  process.env.SHADOW_WORKSPACE_DIR=join(tempDir,'workspace');
+  process.env.XAI_API_KEY='';
+  process.env.DEEPSEEK_API_KEY='';
+  process.env.DATABASE_URL='';
+  process.env.SHADOW_NO_LISTEN='1';
+  const runtime=await import('./server.mjs?e2e='+Date.now());
+  app=runtime.startServer();
+  stopServer=runtime.stopServer;
+  await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('backend_server_listen_timeout')),10000);
+    app.once('listening',()=>{clearTimeout(timer);resolve();});
+    app.once('error',reject);
   });
-  app.stderr.on('data',d=>process.stderr.write(d));
-  const deadline=Date.now()+15000;
-  while(Date.now()<deadline){
-    try{
-      const r=await fetch('http://127.0.0.1:'+appPort+'/health');
-      if(r.ok)break;
-    }catch{}
-    await new Promise(r=>setTimeout(r,150));
-  }
-  try{
-    const r=await fetch('http://127.0.0.1:'+appPort+'/health');
-    if(!r.ok)throw new Error('backend_health_'+r.status);
-  }catch{
-    throw new Error('backend_server_health_timeout');
-  }
 });
 
 after(async()=>{
-  if(app)app.kill('SIGTERM');
+  if(stopServer)await stopServer();
   if(upstream)await new Promise(r=>upstream.close(r));
+  process.env.SHADOW_NO_LISTEN='';
   if(tempDir)await rm(tempDir,{recursive:true,force:true});
 });
 

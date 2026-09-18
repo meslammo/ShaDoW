@@ -229,4 +229,16 @@ app.post('/v1/speech', rateLimit, async (req, res) => {
   } catch { res.status(502).json({ ok: false, error: 'speech_unreachable' }); }
 });
 
-app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
+let httpServer = null;
+export function startServer() {
+  if (httpServer) return httpServer;
+  httpServer = app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
+  return httpServer;
+}
+export async function stopServer() {
+  if (!httpServer) return;
+  await new Promise((resolve) => httpServer.close(() => resolve()));
+  httpServer = null;
+}
+export { app };
+if (process.env.SHADOW_NO_LISTEN !== '1') startServer();
