@@ -200,8 +200,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
                 String answer;
                 try{answer=core.handle(routedRequest,identity.isAuthenticated(),true,"android-master-orchestrator");}
                 catch(Throwable e){answer="تعذر قراءة حالة النظام."; }
-                final String master12;
-                try{master12=pythonBridge.masterStatus();}catch(Throwable ignored){master12="12-Core Master: unavailable";}
+                final String master12=pythonBridge.masterStatus();
                 final String baseAnswer=answer==null||answer.trim().isEmpty()?"حالة النظام غير متاحة الآن.":answer;
                 final String out=baseAnswer+"\\n\\n"+master12;
                 runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,routedRequest,routedPlan.routeName(),"system_status",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"completed",true);assistant(out);stage("done");speak(out);});
