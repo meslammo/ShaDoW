@@ -132,9 +132,13 @@ public class ShadowUnifiedMainActivity extends Activity implements TextToSpeech.
             ShadowCloudClient.CloudReply r=cloud.chat(s); online=true; runOnUiThread(()->{assistant(r.answer);speakNow(r.answer);stage("done");});
         }catch(Throwable e){
             online=false;
-            String fallback=null;
-            try{fallback=core.handle(s,identity.isAuthenticated(),true,"android-unified");}catch(Throwable ignored){}
-            final String answer=(fallback==null||fallback.trim().isEmpty())?core.offlineChat(s):fallback;
+            final String answer;
+            try{
+                String fallback=core.handle(s,identity.isAuthenticated(),true,"android-unified");
+                answer=(fallback==null||fallback.trim().isEmpty())?"الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.":fallback;
+            }catch(Throwable ignored){
+                answer="الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.";
+            }
             runOnUiThread(()->{assistant(answer);speakNow(answer);stage("done");});
         }
     }
