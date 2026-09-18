@@ -1,4 +1,4 @@
-name: Build SHADOW APK — Online Only
+name: Build SHADOW APK — SHADOW Wake / Online Only
 on:
   workflow_dispatch:
   push:
