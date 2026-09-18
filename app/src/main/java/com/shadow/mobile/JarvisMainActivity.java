@@ -154,6 +154,8 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         String lower=s.toLowerCase(Locale.ROOT);
         if(lower.startsWith("think hard:")||lower.startsWith("thinkhard:")||lower.startsWith("deep think:")||lower.startsWith("deep thinking:")||lower.startsWith("فكر بعمق:")){int colon=s.indexOf(':');if(colon>0){setReasoning(true,lower.startsWith("deep")||lower.startsWith("deep thinking")?"xhigh":"high");request=s.substring(colon+1).trim();}}
         masterEvent(ShadowMasterEventBus.Type.INPUT_RECEIVED,request,"master","input_received",true); final ShadowMasterOrchestrator.Plan plan=orchestrator.plan(request,identity.isAuthenticated()); masterEvent(ShadowMasterEventBus.Type.IDENTITY_VERIFIED,request,plan.routeName(),identity.isAuthenticated()?"master_authenticated":"identity_unverified",identity.isAuthenticated());
+        final String routedRequest=request;
+        final ShadowMasterOrchestrator.Plan routedPlan=plan;
         stage(plan.stageLabel());
         if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج توثيق هوية الـMaster قبل ما نكمل."); return; }
 
@@ -161,9 +163,14 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         if(plan.route==ShadowMasterOrchestrator.Route.DEVELOPMENT){
             stage("planning");
             new Thread(()->{
-                final String planText;
-                try{planText=developmentAgent.plan(request);}catch(Throwable e){runOnUiThread(()->assistant("Development Agent تعذر تشغيله الآن."));return;}
-                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.PLAN_READY,request,plan.routeName(),"development_plan_ready",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"plan_only",true);assistant("🧠 Development Plan\n\n"+planText);stage("done");speak(planText);});
+                final String devPlan;
+                try{devPlan=developmentAgent.plan(routedRequest);}
+                catch(Throwable e){runOnUiThread(()->assistant("Development Agent تعذر تشغيله الآن."));return;}
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.PLAN_READY,routedRequest,routedPlan.routeName(),"development_plan_ready",true);
+                    masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"plan_only",true);
+                    assistant("🧠 Development Plan\n\n"+devPlan);stage("done");speak(devPlan);
+                });
             }).start();
             return;
         }
@@ -187,10 +194,10 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         if(plan.route==ShadowMasterOrchestrator.Route.SYSTEM){
             new Thread(()->{
                 String answer;
-                try{answer=core.handle(request,identity.isAuthenticated(),true,"android-master-orchestrator");}
+                try{answer=core.handle(routedRequest,identity.isAuthenticated(),true,"android-master-orchestrator");}
                 catch(Throwable e){answer="تعذر قراءة حالة النظام."; }
                 final String out=answer==null||answer.trim().isEmpty()?"حالة النظام غير متاحة الآن.":answer;
-                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"system_status",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"completed",true);assistant(out);stage("done");speak(out);});
+                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,routedRequest,routedPlan.routeName(),"system_status",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"completed",true);assistant(out);stage("done");speak(out);});
             }).start();
             return;
         }
@@ -198,10 +205,10 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             stage("executing");
             new Thread(()->{
                 String local=null;
-                try{local=ShadowPhoneController.execute(this,request);}catch(Throwable ignored){}
+                try{local=ShadowPhoneController.execute(this,routedRequest);}catch(Throwable ignored){}
                 if(local==null||local.trim().isEmpty())try{local=core.handle(request,identity.isAuthenticated(),true,"android-master-orchestrator");}catch(Throwable ignored){}
                 final String out=(local==null||local.trim().isEmpty())?"ملقتش إجراء محلي مناسب للأمر.":local;
-                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.ACTION_EXECUTED,request,plan.routeName(),out,true);masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"local_result",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"completed",true);stage("verifying");assistant(out);stage("done");speak(out);});
+                runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.ACTION_EXECUTED,routedRequest,routedPlan.routeName(),out,true);masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,routedRequest,routedPlan.routeName(),"local_result",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"completed",true);stage("verifying");assistant(out);stage("done");speak(out);});
             }).start();
             return;
         }
