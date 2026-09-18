@@ -25,7 +25,7 @@ def test_mod75_wake_assets_are_pinned():
     asset_map = Path("app/src/main/assets/SHADOW_ASSET_MAP.md").read_text(encoding="utf-8")
     assert "jakes1345/ShadowCypher/827829b09399d6c02ba108607e70aa05bf7485a5/android/assistant/src/main/assets" in workflow
     assert "hey_shadow.onnx" in workflow
-    assert "EXTRA_WAKE_ASSISTANT" in wake if "EXTRA_WAKE_ASSISTANT" in wake else True
+    assert "EXTRA_WAKE_ASSISTANT" in wake
     assert 'WakeWordModel("jarvis", "jarvis_v1.onnx"' in wake
     assert 'WakeWordModel("shadow", "hey_shadow.onnx"' in wake
     assert "Hey Jarvis" in asset_map
