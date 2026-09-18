@@ -23,6 +23,7 @@ from shadow.spatial.intelligence import SpatialIntelligence
 from shadow.integration.engine import AdapterIntegrationEngine
 from shadow.observability.audit import AuditLog
 from shadow.diagnostics.system import run_diagnostics
+from shadow.tasks.manager import TaskManager
 
 CORE_ORDER = (
     "identity", "conversation", "reasoning", "memory", "personal",
@@ -46,11 +47,14 @@ class TwelveCoreRuntime:
         self.spatial = SpatialIntelligence()
         self.integration = AdapterIntegrationEngine(workspace)
         self.audit = AuditLog(f"{workspace}/.shadow/audit.jsonl")
+        self.tasks = TaskManager()
 
     def plan(self, request: str, *, route: str | None = None, authenticated: bool = False) -> dict[str, Any]:
         plan = self.planner.plan(request, route=route, authenticated=authenticated)
         self.audit.record("master.plan", metadata={"route": plan.route, "steps": len(plan.steps)})
-        return plan.to_dict()
+        task = self.tasks.add(request, steps=[s.action for s in plan.steps])
+        self.tasks.checkpoint(task, step=0)
+        return {**plan.to_dict(), "task": task.task_id or None, "task_steps": len(task.steps)}
 
     def authorize(self, request: str, *, capability: str = "general", confirmed: bool = False) -> dict[str, Any]:
         low = str(request or "").lower()
@@ -98,5 +102,6 @@ class TwelveCoreRuntime:
             "environment": self.environment.snapshot(),
             "spatial": self.spatial.snapshot(),
             "integration": self.integration.snapshot(),
+            "tasks": self.tasks.snapshot(),
             "diagnostics": run_diagnostics(),
         }
