@@ -48,3 +48,11 @@ def test_mod82_online_voiceprint_path_is_explicit():
     assert "verifyVoiceprint" in client
     assert "startVoiceprintVerification" in activity
     assert "voiceprint" in activity
+
+def test_mod85_master_cycle_contract():
+    cycle = Path("app/src/main/java/com/shadow/mobile/ShadowMasterCycle.java").read_text(encoding="utf-8")
+    bridge = Path("app/src/main/java/com/shadow/mobile/ShadowMasterLifecycleBridge.java").read_text(encoding="utf-8")
+    activity = Path("app/src/main/java/com/shadow/mobile/JarvisMainActivity.java").read_text(encoding="utf-8")
+    assert "class ShadowMasterCycle" in cycle
+    assert "cycle.record(event.coreLayer)" in bridge
+    assert "masterCycle=new ShadowMasterCycle()" in activity
