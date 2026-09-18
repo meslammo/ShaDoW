@@ -172,6 +172,29 @@ Examples:
 
 A GitHub intent must never fall through to Chat.
 
+## MOD-75 — Master Route Integration
+
+The Android Voice 2 surface is now the transport/UI boundary for the master route. Typed and spoken input share one routing contract before execution.
+
+Current contract:
+
+`Input → Identity → Understanding → Master Route → Planning → Route Handler → Verification → Response`
+
+Implemented in the Android app:
+- `ShadowMasterOrchestrator` classifies requests into Chat, Local Device, GitHub/Development, Image, or System.
+- GitHub/development requests are isolated from normal Chat routing.
+- Local-device requests stay on the governed local execution path.
+- Voice and text enter the same request route.
+- Android TTS is the default client response path; cloud TTS is not called for every answer by default.
+
+Still required for full 12-Core completion:
+- Universal cross-core event/event-bus state.
+- Secure voice identity/voiceprint verification.
+- Exact Shadow-specific wake-word model validation.
+- Universal verification/evidence adapters.
+- Universal rollback/recovery adapters.
+- Full Companion/Device/Spatial integration under the same bus.
+
 ## 9. Cloud Backend
 
 Repository: `meslammo/ShaDoW`
