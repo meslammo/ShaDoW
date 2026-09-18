@@ -60,7 +60,7 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - name: Build release APK
-        run: gradle :app:clean :app:assembleRelease
+        run: gradle :app:clean :app:test :app:assembleRelease
       - name: Verify APK
         shell: bash
         run: |
