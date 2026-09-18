@@ -29,3 +29,13 @@ def test_mod75_wake_assets_are_pinned():
     assert 'WakeWordModel("shadow", "hey_shadow.onnx"' in wake
     assert "Hey Shadow" in asset_map
     assert "sole wake phrase" in asset_map
+
+def test_mod79_lifecycle_ledgers_are_wired():
+    bridge = Path("app/src/main/java/com/shadow/mobile/ShadowMasterLifecycleBridge.java").read_text(encoding="utf-8")
+    activity = Path("app/src/main/java/com/shadow/mobile/JarvisMainActivity.java").read_text(encoding="utf-8")
+    assert "ShadowCompanionRegistry" in bridge
+    assert "ShadowVerificationLedger" in bridge
+    assert "ShadowRecoveryLedger" in bridge
+    assert "companionRegistry=new ShadowCompanionRegistry(this)" in activity
+    assert "verificationLedger=new ShadowVerificationLedger(this)" in activity
+    assert "recoveryLedger=new ShadowRecoveryLedger(this)" in activity
