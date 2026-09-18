@@ -52,12 +52,21 @@ before(async()=>{
       XAI_API_KEY:'',DEEPSEEK_API_KEY:'',DATABASE_URL:''},
     stdio:['ignore','pipe','pipe']
   });
-  let stdout='';
-  app.stdout.on('data',d=>{stdout+=d.toString();const m=stdout.match(/listening on (\d+)/);if(m)appPort=Number(m[1]);});
   app.stderr.on('data',d=>process.stderr.write(d));
   const deadline=Date.now()+15000;
-  while(!appPort&&Date.now()<deadline)await new Promise(r=>setTimeout(r,100));
-  if(!appPort)throw new Error('backend_server_port_not_detected');
+  while(Date.now()<deadline){
+    try{
+      const r=await fetch('http://127.0.0.1:'+appPort+'/health');
+      if(r.ok)break;
+    }catch{}
+    await new Promise(r=>setTimeout(r,150));
+  }
+  try{
+    const r=await fetch('http://127.0.0.1:'+appPort+'/health');
+    if(!r.ok)throw new Error('backend_health_'+r.status);
+  }catch{
+    throw new Error('backend_server_health_timeout');
+  }
 });
 
 after(async()=>{

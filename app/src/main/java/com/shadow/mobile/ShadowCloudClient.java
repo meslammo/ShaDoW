@@ -22,7 +22,11 @@ public final class ShadowCloudClient {
     private static final String RESPONSE_ID = "previous_response_id";
     private final Context context; private final String baseUrl;
     public ShadowCloudClient(Context context){this.context=context.getApplicationContext();this.baseUrl=BuildConfig.SHADOW_BACKEND_URL.replaceAll("/+$","");}
-    public boolean isConfigured(){return baseUrl.startsWith("https://")&&!baseUrl.contains("REPLACE_WITH");}
+    public boolean isConfigured(){
+        boolean secure=baseUrl.startsWith("https://");
+        boolean debugLocal=BuildConfig.DEBUG && (baseUrl.startsWith("http://10.0.2.2:")||baseUrl.startsWith("http://127.0.0.1:")||baseUrl.startsWith("http://localhost:"));
+        return (secure||debugLocal)&&!baseUrl.contains("REPLACE_WITH");
+    }
     public String getBaseUrl(){return baseUrl;}
     public boolean health(){if(!isConfigured())return false;HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/health").openConnection();c.setRequestMethod("GET");c.setConnectTimeout(5000);c.setReadTimeout(7000);return c.getResponseCode()==200;}catch(Exception ignored){return false;}finally{if(c!=null)c.disconnect();}}
 
