@@ -29,10 +29,9 @@ import kotlinx.coroutines.launch
  * the microphone while the foreground conversation is active and restarts after
  * the conversation returns to idle.
  *
- * Two supported wake phrases are aliases for the same SHADOW master route:
- * "Hey Jarvis" and "Hey Shadow" both activate SHADOW and open the same master interaction surface.
- * The wake classifier assets are pinned in CI; microphone/phrase validation is a later device test,
- * not a build or routing prerequisite.
+ * The supported wake phrase is "Hey Shadow". It activates the SHADOW master route and opens
+ * the same master interaction surface used by the voice conversation UI.
+ * Microphone/phrase validation is a later device test, not a build or routing prerequisite.
  */
 class ShadowWakeWordService : Service() {
 
@@ -77,7 +76,6 @@ class ShadowWakeWordService : Service() {
 
         runCatching {
             val models = listOf(
-                WakeWordModel("jarvis", "jarvis_v1.onnx", MODEL_THRESHOLD),
                 WakeWordModel("shadow", "hey_shadow.onnx", MODEL_THRESHOLD)
             )
             val created = WakeWordEngine(
