@@ -206,7 +206,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             new Thread(()->{
                 String local=null;
                 try{local=ShadowPhoneController.execute(this,routedRequest);}catch(Throwable ignored){}
-                if(local==null||local.trim().isEmpty())try{local=core.handle(request,identity.isAuthenticated(),true,"android-master-orchestrator");}catch(Throwable ignored){}
+                if(local==null||local.trim().isEmpty())try{local=core.handle(routedRequest,identity.isAuthenticated(),true,"android-master-orchestrator");}catch(Throwable ignored){}
                 final String out=(local==null||local.trim().isEmpty())?"ملقتش إجراء محلي مناسب للأمر.":local;
                 runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.ACTION_EXECUTED,routedRequest,routedPlan.routeName(),out,true);masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,routedRequest,routedPlan.routeName(),"local_result",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"completed",true);stage("verifying");assistant(out);stage("done");speak(out);});
             }).start();
