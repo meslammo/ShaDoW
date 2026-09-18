@@ -48,6 +48,71 @@ public final class ShadowCloudClient {
         if(answer.isEmpty()&&pending==null)throw new IllegalStateException("empty_online_response");
         return new CloudReply(answer,responseId,provider,model,usedWeb,pending);
     }
+    public interface StreamListener {
+        void onDelta(String text);
+        void onDone(StreamDone done);
+        void onPending(PendingAction action, String provider, String responseId);
+    }
+    public static final class StreamDone {
+        public final String responseId, provider, model;
+        public final boolean usedWeb;
+        public StreamDone(String r,String p,String m,boolean w){responseId=r;provider=p;model=m;usedWeb=w;}
+    }
+    public void streamChat(String message,String reasoningEffort,StreamListener listener)throws Exception{
+        if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");
+        JSONObject body=new JSONObject();
+        body.put("message",message);
+        String previous=prefs().getString(RESPONSE_ID,"");
+        if(!previous.isEmpty())body.put("previous_response_id",previous);
+        body.put("device",deviceProfile());
+        body.put("reasoning_effort",reasoningEffort==null?"none":reasoningEffort);
+        HttpURLConnection c=null;
+        try{
+            c=(HttpURLConnection)new URL(baseUrl+"/v1/chat/stream").openConnection();
+            c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(125000);
+            c.setRequestProperty("Content-Type","application/json; charset=utf-8");
+            c.setRequestProperty("Accept","text/event-stream");
+            byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);
+            try(OutputStream out=c.getOutputStream()){out.write(bytes);}
+            int code=c.getResponseCode();
+            if(code<200||code>=300)throw new IllegalStateException("stream_http_"+code);
+            try(BufferedReader reader=new BufferedReader(new InputStreamReader(c.getInputStream(),StandardCharsets.UTF_8))){
+                String line;
+                while((line=reader.readLine())!=null){
+                    if(!line.startsWith("data:"))continue;
+                    String data=line.substring(5).trim();
+                    if(data.isEmpty())continue;
+                    JSONObject event=new JSONObject(data);
+                    String type=event.optString("type","");
+                    if("delta".equals(type)){
+                        if(listener!=null)listener.onDelta(event.optString("text",""));
+                    }else if("done".equals(type)){
+                        String rid=event.optString("responseId",event.optString("response_id",""));
+                        String provider=event.optString("provider","");
+                        String model=event.optString("model","");
+                        boolean usedWeb=event.optBoolean("usedWeb",event.optBoolean("used_web_search",false));
+                        if(!rid.isEmpty())prefs().edit().putString(RESPONSE_ID,rid).apply();
+                        if(listener!=null)listener.onDone(new StreamDone(rid,provider,model,usedWeb));
+                    }else if("pending_action".equals(type)){
+                        String rid=event.optString("responseId",event.optString("response_id",""));
+                        String provider=event.optString("provider","");
+                        String action=event.optString("action","");
+                        String argument=event.optString("argument","");
+                        String reason=event.optString("reason","");
+                        boolean confirm=event.optBoolean("requires_confirmation",false);
+                        String toolCallId=event.optString("toolCallId",event.optString("tool_call_id",""));
+                        if(!rid.isEmpty())prefs().edit().putString(RESPONSE_ID,rid).apply();
+                        if(listener!=null)listener.onPending(new PendingAction(action,argument,reason,confirm,toolCallId),provider,rid);
+                    }else if("error".equals(type)){
+                        throw new IllegalStateException(event.optString("error","stream_error"));
+                    }else if("eof".equals(type)){
+                        break;
+                    }
+                }
+            }
+        }finally{if(c!=null)c.disconnect();}
+    }
+
     public VoiceprintReply verifyVoiceprint(byte[] audio,String contentType)throws Exception{
         if(audio==null||audio.length==0)throw new IllegalArgumentException("audio_required");
         JSONObject body=new JSONObject();
