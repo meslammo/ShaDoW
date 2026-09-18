@@ -29,9 +29,10 @@ import kotlinx.coroutines.launch
  * the microphone while the foreground conversation is active and restarts after
  * the conversation returns to idle.
  *
- * Current packaged model recognizes the source project's "Hey Jarvis" wake
- * phrase. A Shadow-specific model can replace the asset later without changing
- * this service contract.
+ * Two wake-word entries are supported by the same service contract:
+ * "Hey Jarvis" via jarvis_v1.onnx and "Hey Shadow" via hey_shadow.onnx.
+ * The Shadow classifier asset is pinned from a public reference project and
+ * still requires physical-device phrase validation before claiming production accuracy.
  */
 class ShadowWakeWordService : Service() {
 
@@ -76,7 +77,8 @@ class ShadowWakeWordService : Service() {
 
         runCatching {
             val models = listOf(
-                WakeWordModel("jarvis", "jarvis_v1.onnx", MODEL_THRESHOLD)
+                WakeWordModel("jarvis", "jarvis_v1.onnx", MODEL_THRESHOLD),
+                WakeWordModel("shadow", "hey_shadow.onnx", MODEL_THRESHOLD)
             )
             val created = WakeWordEngine(
                 this,
