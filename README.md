@@ -32,6 +32,6 @@ Online AI, cloud TTS and GitHub OAuth depend on external provider credentials/pe
 Android API 35, Java 17, Gradle 8.10.2, Android Gradle Plugin 8.6.1, Chaquopy 17.0.0, Python 3.11.
 
 Current Android build: `1.8.3-mod76-online-only`.
-Reasoning UI: Think Hard / Deep Think uses a black background with red controls/effects. Online OpenAI reasoning supports `high` and `xhigh` where available; other providers remain governed fallbacks. `Hey Jarvis` and `Hey Shadow` both activate the same SHADOW master route.
+Reasoning UI: Think Hard / Deep Think uses a black background with red controls/effects. Online OpenAI reasoning supports `high` and `xhigh` where available; other providers remain governed fallbacks. `Hey Shadow` is the sole SHADOW wake phrase.
 
 See `shadow/MASTER_AI_ASSISTANT.md` for the capability and release contract.
