@@ -22,4 +22,4 @@ SHADOW's own source remains under the repository's MIT license.
 - Source commit: 827829b09399d6c02ba108607e70aa05bf7485a5
 - Asset: hey_shadow.onnx
 - Project license: MIT
-- Note: the source project documents the classifier as a "Hey Shadow" detector, but production phrase accuracy is not claimed by SHADOW until physical-device validation.
+- Note: the classifier is wired as a wake alias for the same SHADOW master route. Physical microphone validation is a later device test, not a build prerequisite.
