@@ -32,7 +32,8 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     /** MOD-75: Android TTS is the default voice path; cloud TTS stays opt-in to avoid unnecessary provider cost. */
     private boolean cloudVoice=false;
     private String reasoningEffort="none";
-    private boolean reasoningMode=false;\n    private boolean handsFreeVoice=true;
+    private boolean reasoningMode=false;
+    private boolean handsFreeVoice=true;
     private final int REASON_RED=Color.rgb(235,45,55);
     private final int REASON_BLACK=Color.BLACK;
     private LinearLayout rootView,composerRef; private TextView plusButtonRef,sendButtonRef,micButtonRef,menuButtonRef,moreButtonRef;
