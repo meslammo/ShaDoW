@@ -28,4 +28,4 @@ def test_mod75_wake_assets_are_pinned():
     assert "EXTRA_WAKE_ASSISTANT" in wake
     assert 'WakeWordModel("shadow", "hey_shadow.onnx"' in wake
     assert "Hey Shadow" in asset_map
-    assert "sole SHADOW wake word" in asset_map
+    assert "sole wake phrase" in asset_map
