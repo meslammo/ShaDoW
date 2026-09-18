@@ -156,6 +156,10 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         masterEvent(ShadowMasterEventBus.Type.INPUT_RECEIVED,request,"master","input_received",true); final ShadowMasterOrchestrator.Plan plan=orchestrator.plan(request,identity.isAuthenticated()); masterEvent(ShadowMasterEventBus.Type.IDENTITY_VERIFIED,request,plan.routeName(),identity.isAuthenticated()?"master_authenticated":"identity_unverified",identity.isAuthenticated());
         final String routedRequest=request;
         final ShadowMasterOrchestrator.Plan routedPlan=plan;
+        new Thread(()->{
+            try{core.governance().record("12-CORE MASTER PLAN | "+pythonBridge.masterPlan(routedRequest,identity.isAuthenticated()));}
+            catch(Throwable ignored){}
+        }).start();
         stage(plan.stageLabel());
         if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج توثيق هوية الـMaster قبل ما نكمل."); return; }
 
@@ -196,7 +200,10 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
                 String answer;
                 try{answer=core.handle(routedRequest,identity.isAuthenticated(),true,"android-master-orchestrator");}
                 catch(Throwable e){answer="تعذر قراءة حالة النظام."; }
-                final String out=answer==null||answer.trim().isEmpty()?"حالة النظام غير متاحة الآن.":answer;
+                final String master12;
+                try{master12=pythonBridge.masterStatus();}catch(Throwable ignored){master12="12-Core Master: unavailable";}
+                final String baseAnswer=answer==null||answer.trim().isEmpty()?"حالة النظام غير متاحة الآن.":answer;
+                final String out=baseAnswer+"\\n\\n"+master12;
                 runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,routedRequest,routedPlan.routeName(),"system_status",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"completed",true);assistant(out);stage("done");speak(out);});
             }).start();
             return;
