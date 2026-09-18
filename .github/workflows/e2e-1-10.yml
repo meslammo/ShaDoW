@@ -1,0 +1,83 @@
+name: SHADOW E2E — 1 to 10 completion
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python-12core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install Python runtime
+        run: python -m pip install -e . pytest
+      - name: Compile 12-Core runtime
+        run: python -m compileall -q shadow
+      - name: Run 1-10 E2E suite
+        run: pytest -q tests/test_e2e_1_10.py tests/test_mod90_mod100_12core_integration.py
+  backend-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install --ignore-scripts
+      - name: Run backend online E2E with provider fixture
+        working-directory: backend
+        run: node --test e2e.test.mjs
+  android-e2e:
+    runs-on: ubuntu-latest
+    needs: [backend-e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - name: Prepare Android SDK
+        shell: bash
+        run: |
+          set -e
+          if [ -z "${ANDROID_HOME:-}" ]; then export ANDROID_HOME="$(find "$HOME" /usr/local -maxdepth 5 -type d -name sdk 2>/dev/null | head -n 1)"; fi
+          test -n "$ANDROID_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"; fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64"
+      - name: Fetch wake-word model assets
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/assets
+          BASE="https://raw.githubusercontent.com/Bwarhness/jarvis-assistant/17edf69264ae421d68a103cde1bc2c1dcab2f673/app/src/main/assets"
+          SHADOW_BASE="https://raw.githubusercontent.com/jakes1345/ShadowCypher/827829b09399d6c02ba108607e70aa05bf7485a5/android/assistant/src/main/assets"
+          curl -fL "$BASE/melspectrogram.onnx" -o app/src/main/assets/melspectrogram.onnx
+          curl -fL "$BASE/embedding_model.onnx" -o app/src/main/assets/embedding_model.onnx
+          curl -fL "$SHADOW_BASE/hey_shadow.onnx" -o app/src/main/assets/hey_shadow.onnx
+          test -s app/src/main/assets/melspectrogram.onnx
+          test -s app/src/main/assets/embedding_model.onnx
+          test -s app/src/main/assets/hey_shadow.onnx
+      - name: Start local SHADOW E2E cloud fixture
+        working-directory: backend
+        run: |
+          node e2e-fixture.mjs > /tmp/shadow-e2e-fixture.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8788/health && exit 0; sleep 1; done
+          cat /tmp/shadow-e2e-fixture.log
+          exit 1
+      - name: Run Android emulator E2E
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          script: gradle :app:connectedDebugAndroidTest --no-daemon --stacktrace

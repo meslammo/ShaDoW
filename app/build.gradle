@@ -11,12 +11,24 @@ android {
         applicationId 'com.shadow.mobile.test'
         minSdk 26
         targetSdk 35
-        versionCode 90
-        versionName '1.8.5-mod88-shadow-master-online-only'
+        versionCode 100
+        versionName '1.8.5-mod100-shadow-master-online-only'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        manifestPlaceholders = [shadowCleartextTraffic: 'false']
         buildConfigField 'String', 'SHADOW_BACKEND_URL', '"https://shadow-cloud-api-production.up.railway.app"'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
-    buildTypes { release { minifyEnabled false; shrinkResources false; signingConfig signingConfigs.debug } }
+    buildTypes {
+        debug {
+            manifestPlaceholders.shadowCleartextTraffic = 'true'
+            buildConfigField 'String', 'SHADOW_BACKEND_URL', '"http://10.0.2.2:8788"'
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
+        }
+    }
     afterEvaluate {
         tasks.matching { it.name == 'mergeDebugPythonSources' || it.name == 'mergeReleasePythonSources' }.configureEach {
             dependsOn tasks.matching { it.name == 'javaPreCompileDebug' || it.name == 'javaPreCompileRelease' }
@@ -24,22 +36,17 @@ android {
             dependsOn tasks.matching { it.name == 'installDebugPythonRequirements' || it.name == 'installReleasePythonRequirements' }
         }
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = '17'
-    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = '17' }
 }
-chaquopy { defaultConfig { version = '3.11' }; sourceSets { main { srcDirs = ['../shadow'] } } }
-
+chaquopy { defaultConfig { version = '3.11' }; sourceSets { main { srcDirs = ['../shadow'] } }
 dependencies {
     implementation 'xyz.rementia:openwakeword:0.1.5'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-}
-
-
-dependencies {
     testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:core:1.6.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
 }
