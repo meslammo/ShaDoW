@@ -73,8 +73,8 @@ public final class ShadowMasterOrchestrator {
 
         Route route;
         if (isImage(x)) route = Route.IMAGE;
-        else if (isDevelopment(x)) route = Route.DEVELOPMENT;
         else if (isGithub(x)) route = Route.GITHUB;
+        else if (isDevelopment(x)) route = Route.DEVELOPMENT;
         else if (isSpatial(x)) route = Route.SPATIAL;
         else if (isCompanion(x)) route = Route.COMPANION;
         else if (isSystem(x)) route = Route.SYSTEM;
