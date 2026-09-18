@@ -4,18 +4,20 @@ import pytest
 from shadow.final_runtime import UnifiedRuntime, DiscoveryEngine, IntegrationEngine, CompanionRegistry, VoiceprintAdapter
 
 
-def test_unified_runtime_falls_back_and_recovers():
+def test_unified_runtime_is_online_only():
     r = UnifiedRuntime()
-    assert r.execute(lambda: (_ for _ in ()).throw(RuntimeError("down")), lambda: "offline") == "offline"
-    assert r.mode == "offline" and r.fallback_count == 1
-    assert r.execute(lambda: "online", lambda: "offline") == "online"
-    assert r.mode == "online" and r.recovery_count == 1
+    with pytest.raises(RuntimeError):
+        r.execute(lambda: (_ for _ in ()).throw(RuntimeError("down")))
+    assert r.mode == "online-unavailable" and r.provider_failures == 1
+    assert r.execute(lambda: "online") == "online"
+    assert r.mode == "online"
 
 
 def test_unified_runtime_probe_recovery():
     r = UnifiedRuntime(); r.choose(False)
+    assert r.mode == "online-unavailable"
     assert r.probe(lambda: True) is True
-    assert r.mode == "online" and r.recovery_count == 1
+    assert r.mode == "online"
 
 
 def test_discovery_has_core_capabilities():
