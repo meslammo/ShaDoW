@@ -15,7 +15,7 @@ public final class ShadowMasterOrchestrator {
     public ShadowMasterOrchestrator() { this(new ShadowMasterEventBus()); }
     public ShadowMasterOrchestrator(ShadowMasterEventBus eventBus) { this.eventBus = eventBus == null ? new ShadowMasterEventBus() : eventBus; }
     public ShadowMasterEventBus events() { return eventBus; }
-    public enum Route { CHAT, LOCAL_DEVICE, GITHUB, IMAGE, SYSTEM }
+    public enum Route { CHAT, LOCAL_DEVICE, GITHUB, DEVELOPMENT, COMPANION, SPATIAL, IMAGE, SYSTEM }
     public enum Stage { UNDERSTANDING, AUTHENTICATING, PLANNING, EXECUTING, VERIFYING, LEARNING, DONE, FAILED, PAUSED }
 
     public static final class Plan {
@@ -37,6 +37,9 @@ public final class ShadowMasterOrchestrator {
             switch (route) {
                 case LOCAL_DEVICE: return "local-device";
                 case GITHUB: return "github";
+                case DEVELOPMENT: return "development";
+                case COMPANION: return "companion";
+                case SPATIAL: return "spatial";
                 case IMAGE: return "image";
                 case SYSTEM: return "system";
                 default: return "chat";
@@ -70,7 +73,10 @@ public final class ShadowMasterOrchestrator {
 
         Route route;
         if (isImage(x)) route = Route.IMAGE;
+        else if (isDevelopment(x)) route = Route.DEVELOPMENT;
         else if (isGithub(x)) route = Route.GITHUB;
+        else if (isSpatial(x)) route = Route.SPATIAL;
+        else if (isCompanion(x)) route = Route.COMPANION;
         else if (isSystem(x)) route = Route.SYSTEM;
         else if (isLocalDevice(x)) route = Route.LOCAL_DEVICE;
         else route = Route.CHAT;
@@ -92,6 +98,23 @@ public final class ShadowMasterOrchestrator {
     private static boolean isImage(String x) {
         return containsAny(x, "صمم صورة", "اعمل صورة", "صورة لـ", "generate image",
                 "create an image", "design an image");
+    }
+
+    private static boolean isDevelopment(String x) {
+        return containsAny(x, "طور شادو", "طوّر شادو", "طور نفسك", "طوّر نفسك",
+                "كمل شادو", "كمّل شادو", "development agent", "self development",
+                "analyze project", "حلل المشروع", "حلّل المشروع", "عدل المشروع",
+                "عدّل المشروع", "modify project", "build shadow", "بناء شادو");
+    }
+
+    private static boolean isSpatial(String x) {
+        return containsAny(x, "شغل الرادار", "شغّل الرادار", "رادار شادو", "كاميرات الطريق",
+                "كاميرات السرعة", "الموقع", "موقعى", "موقعي", "location", "gps", "spatial");
+    }
+
+    private static boolean isCompanion(String x) {
+        return containsAny(x, "companion", "companion device", "الساعة الذكية", "الساعة",
+                "watch", "smart home", "البيت الذكي", "السيارة الذكية", "car companion");
     }
 
     private static boolean isGithub(String x) {
