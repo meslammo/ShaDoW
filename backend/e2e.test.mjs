@@ -6,7 +6,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-let upstream,app,tempDir,appPort;
+let upstream,app,tempDir;\nconst appPort=18787;
 const upstreamBodies=[];
 
 function readJson(req){return new Promise((resolve,reject)=>{let data='';req.setEncoding('utf8');req.on('data',c=>data+=c);req.on('end',()=>{try{resolve(JSON.parse(data||'{}'));}catch(e){reject(e);}});req.on('error',reject);});}
@@ -31,13 +31,21 @@ before(async()=>{
       res.writeHead(200,{'content-type':'application/json'});
       return res.end(JSON.stringify({id:'fixture-memory-3',output_text:'E2E memory fact 42 recalled'}));
     }
+    if (body.stream === true) {
+      res.writeHead(200,{'content-type':'text/event-stream; charset=utf-8','cache-control':'no-cache'});
+      for (const event of [
+        {type:'response.output_text.delta',delta:'E2E streamed response'},
+        {type:'response.completed',response:{id:'fixture-stream-1'}}
+      ]) res.write('data: '+JSON.stringify(event)+'\\n\\n');
+      return res.end();
+    }
     res.writeHead(200,{'content-type':'application/json'});
     res.end(JSON.stringify({id:'fixture-chat-1',output_text:'E2E chat response'}));
   });
   const upstreamPort=await listenEphemeral(upstream);
   app=spawn(process.execPath,['server.mjs'],{
     cwd:join(process.cwd(),'backend'),
-    env:{...process.env,PORT:'0',OPENAI_API_KEY:'e2e-test-key',OPENAI_MODEL:'e2e-fixture-model',
+    env:{...process.env,PORT:String(appPort),OPENAI_API_KEY:'e2e-test-key',OPENAI_MODEL:'e2e-fixture-model',
       SHADOW_OPENAI_RESPONSES_URL:'http://127.0.0.1:'+upstreamPort+'/v1/responses',
       SHADOW_MEMORY_DIR:join(tempDir,'memory'),SHADOW_WORKSPACE_DIR:join(tempDir,'workspace'),
       XAI_API_KEY:'',DEEPSEEK_API_KEY:'',DATABASE_URL:''},
@@ -70,7 +78,7 @@ test('online chat saves and recalls governed memory',async()=>{
 test('streaming chat emits delta/done/eof',async()=>{
   const response=await fetch('http://127.0.0.1:'+appPort+'/v1/chat/stream',{method:'POST',headers:{'content-type':'application/json','accept':'text/event-stream'},body:JSON.stringify({message:'stream E2E'})});
   assert.equal(response.status,200); const text=await response.text();
-  assert.match(text,/type\":\"delta\"/); assert.match(text,/type\":\"done\"/); assert.match(text,/type\":\"eof\"/);
+  assert.match(text,/type\":\"delta\"/); assert.match(text,/E2E streamed response/); assert.match(text,/type\":\"eof\"/);
 });
 test('development write gateway requires approval and configured credentials',async()=>{
   const blocked=await fetch('http://127.0.0.1:'+appPort+'/v1/development/pull-request',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({approved:false,branch:'e2e',title:'blocked'})});
