@@ -34,4 +34,7 @@ Online AI, cloud TTS and GitHub OAuth depend on external provider credentials/pe
 ## Build
 Android API 35, Java 17, Gradle 8.10.2, Android Gradle Plugin 8.6.1, Chaquopy 17.0.0, Python 3.11.
 
+Current Android build: `1.8.2-mod75-master-orchestrator`.
+Reasoning UI: Think Hard / Deep Think uses a black background with red controls/effects. Online OpenAI reasoning supports `high` and `xhigh` where available; other providers remain governed fallbacks.
+
 See `shadow/MASTER_AI_ASSISTANT.md` for the capability and release contract.
