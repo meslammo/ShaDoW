@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
-import { runOffline, offlineStatus } from './offline-engine.mjs';
 
 const { Pool } = pg;
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
@@ -41,7 +40,7 @@ const systemPrompt = String(process.env.SHADOW_SYSTEM_PROMPT || [
   'Use file tools only inside the SHADOW workspace and never expose secrets.',
   'Never store or reveal passwords, API keys, access tokens, private keys, or authentication secrets.',
   'For risky or irreversible device/file actions, request explicit confirmation before execution.',
-  'When all online AI providers fail, continue with the internal offline fallback; never expose a separate Local Chat mode.',
+  'When all online AI providers fail, fail clearly and do not synthesize a local/offline AI answer.',
 ].join(' '));
 
 async function ensureDb() {
@@ -276,19 +275,9 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
       attempts.push({ provider, reason: String(e?.message || e), http: e?.http || null });
     }
   }
-  const offline = runOffline(message);
-  return {
-    provider: 'offline',
-    model: 'shadow-offline-engine',
-    answer: offline.answer,
-    responseId: null,
-    usedWeb: false,
-    pendingAction: null,
-    offline: true,
-    offlineCapability: offline.capability,
-    reasoningEffort: normalizedEffort,
-    attempts,
-  };
+  const error = new Error('no_online_ai_provider_available');
+  error.attempts = attempts;
+  throw error;
 }
 
 export async function memoryStatus() {
@@ -300,8 +289,7 @@ export function providerStatus() {
     openai: { configured: Boolean(cfg.openaiKey), model: cfg.openaiModel },
     xai: { configured: Boolean(cfg.xaiKey), model: cfg.xaiModel },
     deepseek: { configured: Boolean(cfg.deepseekKey), model: cfg.deepseekModel },
-    routing: 'openai -> xAI/Grok -> DeepSeek -> offline',
-    offline: offlineStatus(),
+    routing: 'openai -> xAI/Grok -> DeepSeek',
     tools: TOOL_DEFINITIONS.map(x => x.name),
     workspace: cfg.workspaceDir,
     memory: { database_configured: Boolean(cfg.databaseUrl), database_ready: dbReady, fallback_file: cfg.memoryDir },
