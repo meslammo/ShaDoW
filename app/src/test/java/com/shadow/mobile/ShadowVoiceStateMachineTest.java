@@ -32,7 +32,7 @@ public class ShadowVoiceStateMachineTest {
 
         assertEquals(ShadowVoiceStateMachine.State.LISTENING, sm.getState());
         assertEquals(
-                "listening,processing,speaking,listening",
+                "listening,listening,processing,speaking,listening",
                 String.join(",", r.events)
         );
     }
