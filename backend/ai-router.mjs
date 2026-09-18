@@ -4,9 +4,9 @@ import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
 
 const { Pool } = pg;
-const OPENAI_URL = 'https://api.openai.com/v1/responses';
-const XAI_URL = 'https://api.x.ai/v1/responses';
-const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
+const OPENAI_URL = (process.env.SHADOW_OPENAI_RESPONSES_URL || 'https://api.openai.com/v1/responses').trim();
+const XAI_URL = (process.env.SHADOW_XAI_RESPONSES_URL || 'https://api.x.ai/v1/responses').trim();
+const DEEPSEEK_URL = (process.env.SHADOW_DEEPSEEK_CHAT_URL || 'https://api.deepseek.com/chat/completions').trim();
 const cfg = {
   openaiKey: (process.env.OPENAI_API_KEY || '').trim(),
   openaiModel: (process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim(),
