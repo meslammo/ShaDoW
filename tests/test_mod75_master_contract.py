@@ -73,3 +73,9 @@ def test_mod87_github_priority_and_sensitive_pause_events():
     assert github_pos >= 0 and development_pos > github_pos
     assert "sensitive_identity_required" in activity
     assert "user_cancelled_action" in activity
+
+def test_mod88_launcher_is_shadow_named():
+    main = Path("app/src/main/java/com/shadow/mobile/MainActivity.java").read_text(encoding="utf-8")
+    shadow = Path("app/src/main/java/com/shadow/mobile/ShadowMainActivity.java").read_text(encoding="utf-8")
+    assert "extends ShadowMainActivity" in main
+    assert "canonical user-facing SHADOW activity" in shadow
