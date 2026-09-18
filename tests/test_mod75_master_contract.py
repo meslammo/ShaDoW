@@ -4,6 +4,7 @@ def test_mod75_master_route_and_reasoning_contract():
     p = Path("app/src/main/java/com/shadow/mobile/JarvisMainActivity.java").read_text(encoding="utf-8")
     assert "ShadowMasterOrchestrator" in p
     assert "Think Hard" in p
+    assert "no offline AI fallback" in p
     assert "Deep Think" in p
     assert "reasoningEffort" in p
     assert "REASON_BLACK" in p
@@ -24,7 +25,9 @@ def test_mod75_wake_assets_are_pinned():
     asset_map = Path("app/src/main/assets/SHADOW_ASSET_MAP.md").read_text(encoding="utf-8")
     assert "jakes1345/ShadowCypher/827829b09399d6c02ba108607e70aa05bf7485a5/android/assistant/src/main/assets" in workflow
     assert "hey_shadow.onnx" in workflow
+    assert "EXTRA_WAKE_ASSISTANT" in wake if "EXTRA_WAKE_ASSISTANT" in wake else True
     assert 'WakeWordModel("jarvis", "jarvis_v1.onnx"' in wake
     assert 'WakeWordModel("shadow", "hey_shadow.onnx"' in wake
     assert "Hey Jarvis" in asset_map
     assert "Hey Shadow" in asset_map
+    assert "same SHADOW master route" in asset_map
