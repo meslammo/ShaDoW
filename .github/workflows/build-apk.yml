@@ -14,7 +14,6 @@ on:
       - 'settings.gradle*'
       - 'build.gradle*'
       - 'gradle.properties'
-
 jobs:
   verify-backend:
     runs-on: ubuntu-latest
@@ -23,14 +22,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify backend syntax
+      - name: Verify backend syntax and E2E
         working-directory: backend
         run: |
           npm install --ignore-scripts
           node --check server.mjs
           node --check ai-router.mjs
           node --check tool-registry.mjs
-
+          node --test e2e.test.mjs
   build:
     needs: verify-backend
     runs-on: ubuntu-latest
@@ -68,7 +67,6 @@ jobs:
           test -s app/src/main/assets/embedding_model.onnx
           test -s app/src/main/assets/hey_shadow.onnx
           sha256sum app/src/main/assets/*.onnx
-
       - name: Build release APK
         run: gradle :app:clean :app:test :app:assembleRelease
       - name: Verify APK
@@ -79,9 +77,15 @@ jobs:
           test -f "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
+          {
+            echo "MOD=100"
+            echo "COMMIT=${GITHUB_SHA}"
+            echo "APK_SHA256=$(cut -d' ' -f1 app/build/outputs/apk/release/apk.sha256)"
+          } | tee app/build/outputs/apk/release/build-info.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-MOD76-ONLINE-ONLY-candidate-apk
+          name: SHADOW-MOD100-ONLINE-ONLY-${{ github.sha }}
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
+            app/build/outputs/apk/release/build-info.txt
