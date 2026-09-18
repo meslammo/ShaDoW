@@ -10,6 +10,11 @@ import java.util.Locale;
  * system. This keeps the UI from becoming a second orchestration engine.
  */
 public final class ShadowMasterOrchestrator {
+    private final ShadowMasterEventBus eventBus;
+
+    public ShadowMasterOrchestrator() { this(new ShadowMasterEventBus()); }
+    public ShadowMasterOrchestrator(ShadowMasterEventBus eventBus) { this.eventBus = eventBus == null ? new ShadowMasterEventBus() : eventBus; }
+    public ShadowMasterEventBus events() { return eventBus; }
     public enum Route { CHAT, LOCAL_DEVICE, GITHUB, IMAGE, SYSTEM }
     public enum Stage { UNDERSTANDING, AUTHENTICATING, PLANNING, EXECUTING, VERIFYING, LEARNING, DONE, FAILED, PAUSED }
 
@@ -58,7 +63,9 @@ public final class ShadowMasterOrchestrator {
         String x = request.toLowerCase(Locale.ROOT);
 
         if (request.isEmpty()) {
-            return new Plan("", Route.CHAT, Stage.UNDERSTANDING, false, false);
+            Plan empty = new Plan("", Route.CHAT, Stage.UNDERSTANDING, false, false);
+            eventBus.publish(new ShadowMasterEventBus.Event(ShadowMasterEventBus.Type.PLAN_READY, "", "chat", "empty_input", true));
+            return empty;
         }
 
         Route route;
@@ -73,7 +80,13 @@ public final class ShadowMasterOrchestrator {
         Stage first = confirmation ? Stage.AUTHENTICATING
                 : (route == Route.CHAT ? Stage.UNDERSTANDING : Stage.PLANNING);
 
-        return new Plan(request, route, first, sensitive, confirmation);
+        Plan plan = new Plan(request, route, first, sensitive, confirmation);
+        eventBus.publish(new ShadowMasterEventBus.Event(
+                ShadowMasterEventBus.Type.ROUTE_SELECTED, request, plan.routeName(), "route_selected", true));
+        eventBus.publish(new ShadowMasterEventBus.Event(
+                confirmation ? ShadowMasterEventBus.Type.APPROVAL_REQUIRED : ShadowMasterEventBus.Type.PLAN_READY,
+                request, plan.routeName(), plan.stageLabel(), !confirmation));
+        return plan;
     }
 
     private static boolean isImage(String x) {
