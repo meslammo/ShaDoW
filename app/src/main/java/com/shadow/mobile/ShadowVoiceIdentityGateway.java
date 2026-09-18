@@ -18,6 +18,7 @@ public final class ShadowVoiceIdentityGateway {
     private static final String PREFS = "shadow_voice_identity_v1";
     private static final String KEY_HASH = "owner_passphrase_sha256";
     private static final String KEY_AUTH_UNTIL = "owner_authenticated_until";
+    private static final String KEY_VOICE_VERIFIED_UNTIL = "owner_voice_verified_until";
     private static final long SESSION_MS = 10 * 60 * 1000L;
     private final SharedPreferences prefs;
 
@@ -32,6 +33,15 @@ public final class ShadowVoiceIdentityGateway {
 
     public boolean isAuthenticated() {
         return System.currentTimeMillis() < prefs.getLong(KEY_AUTH_UNTIL, 0L);
+    }
+
+    public boolean isVoiceVerified() {
+        return System.currentTimeMillis() < prefs.getLong(KEY_VOICE_VERIFIED_UNTIL, 0L);
+    }
+
+    public void markVoiceVerified(long durationMs) {
+        long until = System.currentTimeMillis() + Math.max(60_000L, Math.min(durationMs, SESSION_MS));
+        prefs.edit().putLong(KEY_VOICE_VERIFIED_UNTIL, until).apply();
     }
 
     public boolean enroll(String passphrase) {
@@ -51,12 +61,13 @@ public final class ShadowVoiceIdentityGateway {
     }
 
     public void lock() {
-        prefs.edit().putLong(KEY_AUTH_UNTIL, 0L).apply();
+        prefs.edit().putLong(KEY_AUTH_UNTIL, 0L).putLong(KEY_VOICE_VERIFIED_UNTIL, 0L).apply();
     }
 
     public String status() {
-        if (!isEnrolled()) return "Master voice identity: passphrase not enrolled; biometric voiceprint is not enrolled.";
+        if (isVoiceVerified()) return "Master voiceprint verified for the current session.";
         if (isAuthenticated()) return "Master identity authenticated for the current session.";
+        if (!isEnrolled()) return "Master passphrase not enrolled; voiceprint verification requires a configured online provider.";
         return "Master passphrase enrolled; authentication required for sensitive actions.";
     }
 
