@@ -9,8 +9,7 @@ SHADOW is a personal AI assistant / orchestration layer for Mohamed. It is not o
 
 Primary operating rule:
 - **Online = primary path.**
-- **Offline = automatic fallback only.**
-- When connectivity returns, SHADOW automatically returns to Online.
+- **Online-only AI:** SHADOW requires a reachable cloud AI provider for conversational intelligence; no offline AI mode or fallback is exposed.
 - Phone is the first host; Watch, Car, Smart Home, PC, TV, IoT and future companions are extensions.
 
 ## 2. Authority and Identity
@@ -79,7 +78,7 @@ Uses checkpoints, journal entries, transactions and rollback plans.
 - Gap: universal rollback adapters are **PARTIALLY IMPLEMENTED**.
 
 ### Core 10 — Communication
-Handles text, voice, status, errors, notifications and Online/Offline transitions.
+Handles text, voice, status, errors, notifications and online provider transitions.
 - Current: text default, optional voice response, cloud TTS and local TTS fallback exist.
 - Custom uploaded voice: **NEEDS VERIFICATION / NOT YET PROVEN INTEGRATED**.
 
@@ -120,22 +119,7 @@ Coordinates all cores and maintains a single lifecycle state.
 
 Interrupts pause the active operation at a checkpoint. Resume reloads the checkpoint. Failure selects a bounded recovery path. High-risk requests stop at the governance gate until explicit confirmation is present.
 
-## 6. Online / Offline Architecture
-
-```text
-ONLINE PRIMARY
-Phone → Cloud Backend → AI/Web → Response / Action → Verification
-
-NETWORK FAILURE
-Phone → Local Runtime → Safe Offline Capability → Verification
-
-NETWORK RECOVERY
-Local Runtime → Connectivity Check → Online Cloud Path
-```
-
-Offline must not be a user-selected operating mode.
-
-## 7. Voice
+## 6. Online-Only Architecture\n\n```text\nPHONE\n  ↓\nMASTER ROUTE\n  ↓\nCLOUD AI / WEB / TOOLS\n  ↓\nEXECUTION\n  ↓\nVERIFICATION\n  ↓\nMEMORY / AUDIT\n```\n\nWhen all configured online AI providers fail, SHADOW reports the online failure and does not switch to a local AI/offline conversation engine. Local Android adapters remain execution components only; they are not a user-facing offline AI mode.\n\n## 7. Voice
 
 Supported user controls:
 - `رد كتابة` / `من غير صوت` → text only.
@@ -152,7 +136,7 @@ Custom uploaded voice / biometric voice identity remains **NOT PROVEN COMPLETE**
 
 Primary components:
 - `JarvisMainActivity` — UI, state indicators, command routing, voice controls.
-- `ShadowCore` — local runtime, governance and offline behavior.
+- `ShadowCore` — governed local execution/runtime adapters used by the online master route.
 - `ShadowPhoneController` — deterministic phone actions.
 - `ShadowCloudClient` — Cloud API gateway.
 - `ShadowGithubAuth` — encrypted GitHub token storage through Android Keystore.
@@ -190,7 +174,7 @@ Implemented in the Android app:
 Still required for full 12-Core completion:
 - Universal cross-core event/event-bus state.
 - Secure voice identity/voiceprint verification.
-- Exact Shadow-specific wake-word model validation.
+- Wake-word device accuracy validation can be performed later; it is not a build/routing prerequisite.
 - Universal verification/evidence adapters.
 - Universal rollback/recovery adapters.
 - Full Companion/Device/Spatial integration under the same bus.
@@ -392,7 +376,7 @@ Infinite loops are prohibited by retry budgets and progress checks.
 
 ## 18. Version Timeline
 
-- MOD-48.6 / v1.5.0 — Online-first behavior, automatic offline fallback, text/voice response preference.
+- MOD-48.6 / v1.5.0 — Online-first behavior, text/voice response preference. Offline fallback was later removed by MOD-76.
 - MOD-48.7 / v1.5.1 — Cloud error hardening and TTS input limits.
 - MOD-48.8.2 / v1.5.2 — Local phone execution bridge.
 - MOD-50.9 / v1.5.4 — GitHub OAuth module and scope/status hardening.
@@ -407,7 +391,7 @@ Infinite loops are prohibited by retry budgets and progress checks.
 |---|---|---|---|
 | Android UI | IMPLEMENTED | CI + device test | continue device validation |
 | Online primary path | IMPLEMENTED | backend health + device test | monitor |
-| Offline fallback | IMPLEMENTED | device network-off test | expand coverage |
+| Offline AI | REMOVED | N/A | online-only provider path |
 | Local phone actions | PARTIALLY IMPLEMENTED | device E2E | add governed adapters |
 | Governance | IMPLEMENTED | runtime/CI tests | expand evidence adapters |
 | Cloud Chat | IMPLEMENTED | Railway + API response | billing/credits must remain valid |
@@ -554,4 +538,4 @@ The Android master route now publishes lifecycle events to a bounded event bus. 
 - `Hey Shadow` → `hey_shadow.onnx`.
 - Shared assets: `melspectrogram.onnx` + `embedding_model.onnx`.
 - The build fetches all wake assets at pinned commits and prints SHA-256 hashes.
-- Physical microphone validation remains required before claiming production wake-word accuracy.
+- Physical microphone validation is a later device test and does not block build, routing, or integration.
