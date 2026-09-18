@@ -70,26 +70,6 @@ public final class ShadowCore {
         return null;
     }
 
-    /** Deprecated: SHADOW no longer provides an offline AI chat path. */
-    @Deprecated
-    public String offlineChat(String raw) {
-        String request = raw == null ? "" : raw.trim();
-        String x = request.toLowerCase(Locale.ROOT);
-        if (x.isEmpty()) return "SHADOW\n\nأنا معاك. قول اللي عايز تقوله.";
-        if (isAny(x, "عامل ايه", "أخبارك", "اخبارك", "كويس", "تمام", "how are you", "how's it going")) return "SHADOW\n\nتمام يا محمد، أنا شغال معاك. قولّي عايز نعمل إيه دلوقتي.";
-        if (isAny(x, "بتعمل ايه", "بتعمل إيه", "موجود", "سامعني", "بتسمعني", "are you there", "can you hear me")) return "SHADOW\n\nأيوه، سامعك وجاهز. اكتب أو اضغط MIC واتكلم.";
-        if (isAny(x, "شكرا", "شكرًا", "thanks", "thank you")) return "SHADOW\n\nالعفو يا محمد. نكمل.";
-        if (isAny(x, "صباح الخير", "مساء الخير", "good morning", "good evening")) return "SHADOW\n\nصباح/مساء النور يا محمد. أنا موجود معاك.";
-        if (isAny(x, "بحبك", "love you")) return "SHADOW\n\nوأنا مقدّر كلامك يا محمد. يلا نكمل شغلنا.";
-        if (isAny(x, "اتكلم", "كلمني", "نتكلم", "عايز اتكلم", "talk to me", "let's talk")) return "SHADOW\n\nأنا معاك. اتكلم براحتك.";
-        if (x.contains("مضايق") || x.contains("زهقان") || x.contains("خنقت") || x.contains("تعبان")) return "SHADOW\n\nفاهم إنك مضغوط. أنا موجود معاك. قولّي إيه اللي مضايقك ونمشي فيه خطوة خطوة.";
-        if (x.contains("مبسوط") || x.contains("فرحان")) return "SHADOW\n\nجميل. خلينا نستغل المزاج ده وننجز حاجة مفيدة.";
-        if (x.contains("اسمك")) return "SHADOW\n\nأنا SHADOW. وإنت محمد.";
-        if (x.contains("الساعة") || x.contains("الوقت")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
-        if (x.contains("النهارده") || x.contains("التاريخ") || x.contains("اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        return "SHADOW\n\nأنا ما عنديش اتصال بالخدمة الخارجية دلوقتي، ومش هألف لك إجابة من عندي. الأوامر المدعومة محليًا تفضل شغالة، ولما الاتصال يرجع المسار الذكي الخارجي يشتغل تلقائيًا.";
-    }
-
     private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE\nExecution   GOVERNED NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nIdentity    PASSphrase + 12-CORE GATE\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     ONLINE REQUIRED\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
     private String home() { return "HOME CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Home موجودة داخل التطبيق. عند إضافة Smart Home endpoint فعلي، يتم توصيله عبر نفس الـdomain."; }
     private String car() { return "CAR CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Car موجودة داخل التطبيق. عند إضافة Car/Vespa API أو tracker فعلي، يتم توصيله عبر نفس الـdomain."; }
