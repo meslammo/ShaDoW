@@ -21,6 +21,7 @@ public final class ShadowCore {
         this.pythonCore = new ShadowPythonRuntimeBridge(activity);
     }
 
+    public ShadowGovernanceRuntime governance() { return governance; }
     public String handle(String raw) { return handle(raw, false, false, "android"); }
 
     public String handle(String raw, boolean masterAuthenticated, boolean authorized, String source) {
