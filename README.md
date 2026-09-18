@@ -10,8 +10,8 @@ SHADOW is a personal, unified Android AI assistant with one command surface. The
 - Android-native device execution with confirmation gates for sensitive actions.
 - Embedded Python 12-Core governance runtime via Chaquopy.
 - Durable non-secret memory with PostgreSQL preferred and file fallback.
-- ChatGPT-style voice interaction: voice and live text share the same conversation surface; Android TTS is the default response path to avoid unnecessary cloud TTS calls.
-- Cloud TTS remains available in the backend but is not the default client voice path.
+- ChatGPT-style voice interaction: voice and live text share the same conversation surface; Android TTS is the default client response path to avoid unnecessary cloud TTS calls.
+- Cloud TTS remains available in the backend as an optional path.
 - GitHub development gateway with explicit authorization and allowlisted repository paths.
 - Companion lifecycle and integration boundaries are retained for future watch/car/smart-home adapters.
 
