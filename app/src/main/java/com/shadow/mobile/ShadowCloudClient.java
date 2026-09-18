@@ -26,17 +26,19 @@ public final class ShadowCloudClient {
     public String getBaseUrl(){return baseUrl;}
     public boolean health(){if(!isConfigured())return false;HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/health").openConnection();c.setRequestMethod("GET");c.setConnectTimeout(5000);c.setReadTimeout(7000);return c.getResponseCode()==200;}catch(Exception ignored){return false;}finally{if(c!=null)c.disconnect();}}
 
-    public CloudReply chat(String message)throws Exception{
+    public CloudReply chat(String message)throws Exception{return chat(message,"none");}
+    public CloudReply chat(String message,String reasoningEffort)throws Exception{
         if(ShadowOnlineExecutionRouter.requiresLocalExecution(message)) throw new LocalExecutionRequiredException();
-        return runChat(message, null, null);
+        return runChat(message, null, null, reasoningEffort);
     }
-    public CloudReply continueAgent(String provider,String responseId,String toolCallId,String originalMessage,String output)throws Exception{
-        JSONObject body=new JSONObject(); body.put("provider",provider==null?"":provider); body.put("response_id",responseId==null?"":responseId); body.put("tool_call_id",toolCallId==null?"":toolCallId); body.put("original_message",originalMessage==null?"":originalMessage); body.put("output",output==null?"":output);
+    public CloudReply continueAgent(String provider,String responseId,String toolCallId,String originalMessage,String output)throws Exception{return continueAgent(provider,responseId,toolCallId,originalMessage,output,"none");}
+    public CloudReply continueAgent(String provider,String responseId,String toolCallId,String originalMessage,String output,String reasoningEffort)throws Exception{
+        JSONObject body=new JSONObject(); body.put("provider",provider==null?"":provider); body.put("response_id",responseId==null?"":responseId); body.put("tool_call_id",toolCallId==null?"":toolCallId); body.put("original_message",originalMessage==null?"":originalMessage); body.put("output",output==null?"":output); body.put("reasoning_effort",reasoningEffort==null?"none":reasoningEffort);
         JSONObject result=postJson("/v1/agent/continue",body,70000); return parseReply(result);
     }
-    private CloudReply runChat(String message,String provider,String responseId)throws Exception{
+    private CloudReply runChat(String message,String provider,String responseId,String reasoningEffort)throws Exception{
         if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");
-        JSONObject body=new JSONObject();body.put("message",message);String previous=responseId!=null?responseId:prefs().getString(RESPONSE_ID,"");if(!previous.isEmpty())body.put("previous_response_id",previous);body.put("device",deviceProfile());if(provider!=null&&!provider.isEmpty())body.put("provider",provider);
+        JSONObject body=new JSONObject();body.put("message",message);String previous=responseId!=null?responseId:prefs().getString(RESPONSE_ID,"");if(!previous.isEmpty())body.put("previous_response_id",previous);body.put("device",deviceProfile());if(provider!=null&&!provider.isEmpty())body.put("provider",provider);body.put("reasoning_effort",reasoningEffort==null?"none":reasoningEffort);
         JSONObject result=postJson("/v1/chat",body,65000); CloudReply reply=parseReply(result); if(!reply.responseId.isEmpty())prefs().edit().putString(RESPONSE_ID,reply.responseId).apply(); return reply;
     }
     private CloudReply parseReply(JSONObject result)throws Exception{
