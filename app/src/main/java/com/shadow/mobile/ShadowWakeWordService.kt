@@ -246,6 +246,7 @@ class ShadowWakeWordService : Service() {
 
         @Volatile private var instance: ShadowWakeWordService? = null
 
+        @JvmStatic
         fun start(context: Context) {
             val intent = Intent(context, ShadowWakeWordService::class.java)
             if (Build.VERSION.SDK_INT >= 26) {
@@ -255,14 +256,17 @@ class ShadowWakeWordService : Service() {
             }
         }
 
+        @JvmStatic
         fun stop(context: Context) {
             context.stopService(Intent(context, ShadowWakeWordService::class.java))
         }
 
+        @JvmStatic
         fun pauseListening() {
             instance?.pauseEngine()
         }
 
+        @JvmStatic
         fun resumeListening() {
             instance?.resumeEngine()
         }
