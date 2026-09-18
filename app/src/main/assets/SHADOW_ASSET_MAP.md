@@ -5,7 +5,7 @@ This file maps runtime functions to the assets they require. The build pipeline 
 | Function | Asset | Where packaged | Status |
 |---|---|---|---|
 | Android UI branding | `res/drawable/shadow_logo.*` | APK resources | Existing |
-| Wake — Hey Jarvis | `jarvis_v1.onnx` | `app/src/main/assets/` | CI-fetched |
+
 | Wake — Hey Shadow | `hey_shadow.onnx` | `app/src/main/assets/` | CI-fetched; device phrase test is separate and not a build blocker |
 | Wake shared frontend | `melspectrogram.onnx` | `app/src/main/assets/` | CI-fetched |
 | Wake shared embedding | `embedding_model.onnx` | `app/src/main/assets/` | CI-fetched |
@@ -20,10 +20,10 @@ This file maps runtime functions to the assets they require. The build pipeline 
 
 ## Wake-word sources
 
-- `jarvis_v1.onnx`, `melspectrogram.onnx`, `embedding_model.onnx`: pinned from `Bwarhness/jarvis-assistant`.
+- `melspectrogram.onnx`, `embedding_model.onnx`: shared wake frontend/embedding assets pinned from `Bwarhness/jarvis-assistant`.
 - `hey_shadow.onnx`: pinned from `jakes1345/ShadowCypher`.
 - Every binary is fetched at a pinned commit in CI and its SHA-256 is printed during the build.
 
 ## Wake-word test note
 
-`Hey Jarvis` and `Hey Shadow` are both mapped to the same SHADOW master route. Microphone/phrase testing will be performed later on the target phone and is not required to build or wire the route.
+`Hey Shadow` is the sole wake phrase and is mapped directly to the SHADOW master route. Microphone/phrase testing will be performed later on the target phone and is not required to build or wire the route.
