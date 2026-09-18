@@ -25,3 +25,8 @@ android {
     }
 }
 chaquopy { defaultConfig { version = '3.11' }; sourceSets { main { srcDirs = ['../shadow'] } } }
+
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
