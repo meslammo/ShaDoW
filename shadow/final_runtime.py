@@ -21,41 +21,48 @@ class Capability:
     risk: str = "low"
 
 class UnifiedRuntime:
+    """Online connectivity state for SHADOW's AI runtime.
+ 
+    Local Android/device adapters may still operate under governance, but this
+    runtime never substitutes local AI for an unavailable cloud provider.
+    """
     def __init__(self):
-        self.mode = "online"
+        self.mode = "online-required"
         self.last_error: Optional[str] = None
         self.last_success = 0.0
         self.last_online_probe = 0.0
-        self.fallback_count = 0
-        self.recovery_count = 0
+        self.provider_failures = 0
     def choose(self, online_available: bool) -> str:
-        self.mode = "online" if online_available else "offline"
+        self.mode = "online" if online_available else "online-unavailable"
         self.last_online_probe = time.time()
         return self.mode
-    def execute(self, online_fn, offline_fn):
-        was_offline = self.mode == "offline"
+    def execute(self, online_fn, unavailable_fn=None):
+        self.last_online_probe = time.time()
         try:
-            value = online_fn(); self.mode, self.last_error = "online", None
-            self.last_success = time.time(); self.last_online_probe = self.last_success
-            if was_offline: self.recovery_count += 1
+            value = online_fn()
+            self.mode, self.last_error = "online", None
+            self.last_success = time.time()
             return value
         except Exception as exc:
+            self.mode = "online-unavailable"
             self.last_error = f"{type(exc).__name__}: {exc}"[:512]
-            self.mode = "offline"; self.fallback_count += 1; self.last_online_probe = time.time()
-            value = offline_fn(); self.last_success = time.time(); return value
+            self.provider_failures += 1
+            raise
     def probe(self, online_fn) -> bool:
         self.last_online_probe = time.time()
         try:
-            online_fn(); was_offline = self.mode == "offline"
+            online_fn()
             self.mode, self.last_error = "online", None
-            if was_offline: self.recovery_count += 1
+            self.last_success = time.time()
             return True
         except Exception as exc:
-            self.mode = "offline"; self.last_error = f"{type(exc).__name__}: {exc}"[:512]; return False
+            self.mode = "online-unavailable"
+            self.last_error = f"{type(exc).__name__}: {exc}"[:512]
+            self.provider_failures += 1
+            return False
     def status(self) -> Dict[str, Any]:
         return {"mode": self.mode, "last_error": self.last_error, "last_success": self.last_success,
-                "last_online_probe": self.last_online_probe, "fallback_count": self.fallback_count,
-                "recovery_count": self.recovery_count}
+                "last_online_probe": self.last_online_probe, "provider_failures": self.provider_failures}
 
 class DiscoveryEngine:
     def __init__(self, root: str = ""): self.root = Path(root or ".")
