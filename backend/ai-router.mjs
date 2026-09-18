@@ -210,7 +210,7 @@ async function callResponses(provider, payload) {
   }
   return body;
 }
-async function responsesAgent(provider, message, previousResponseId, device) {
+async function responsesAgent(provider, message, previousResponseId, device, reasoningEffort = 'none') {
   let previous = previousResponseId || undefined;
   let input = device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message;
   let usedWeb = false;
@@ -218,6 +218,7 @@ async function responsesAgent(provider, message, previousResponseId, device) {
   for (let i = 0; i < 8; i++) {
     const builtInWeb = provider === 'xai' ? [{ type: 'web_search' }, { type: 'x_search' }] : [{ type: 'web_search_preview' }];
     const payload = { model, instructions: systemPrompt, input, tools: [...builtInWeb, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')], store: true };
+    if (provider === 'openai' && reasoningEffort !== 'none') payload.reasoning = { effort: reasoningEffort };
     if (previous) payload.previous_response_id = previous;
     const body = await callResponses(provider, payload);
     usedWeb ||= webUsed(body);
@@ -237,11 +238,12 @@ async function responsesAgent(provider, message, previousResponseId, device) {
   }
   throw new Error('agent_loop_limit');
 }
-async function deepseekAgent(message, device) {
+async function deepseekAgent(message, device, reasoningEffort = 'none') {
   const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message }];
   const tools = TOOL_DEFINITIONS.map(x => ({ type: 'function', function: { name: x.name, description: x.description, parameters: x.parameters } }));
   for (let i = 0; i < 8; i++) {
-    const response = await fetch(DEEPSEEK_URL, { method: 'POST', headers: { Authorization: `Bearer ${cfg.deepseekKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2 }), signal: AbortSignal.timeout(65000) });
+    const deepBody = { model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2 };
+    const response = await fetch(DEEPSEEK_URL, { method: 'POST', headers: { Authorization: `Bearer ${cfg.deepseekKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(deepBody), signal: AbortSignal.timeout(65000) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { const e = new Error(body?.error?.message || `upstream_${response.status}`); e.http = response.status; throw e; }
     const messageOut = body?.choices?.[0]?.message;
@@ -258,16 +260,18 @@ async function deepseekAgent(message, device) {
   throw new Error('agent_loop_limit');
 }
 
-export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto' }) {
-  const order = preferredProvider === 'openai' ? ['openai'] : preferredProvider === 'xai' ? ['xai'] : preferredProvider === 'deepseek' ? ['deepseek'] : ['openai', 'xai', 'deepseek'];
+export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none' }) {
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
+  const normalOrder = preferredProvider === 'openai' ? ['openai'] : preferredProvider === 'xai' ? ['xai'] : preferredProvider === 'deepseek' ? ['deepseek'] : ['openai', 'xai', 'deepseek'];
+  const order = normalizedEffort !== 'none' && !preferredProvider && cfg.openaiKey ? ['openai', 'xai', 'deepseek'] : normalOrder;
   const attempts = [];
   for (const provider of order) {
     const key = provider === 'openai' ? cfg.openaiKey : provider === 'xai' ? cfg.xaiKey : cfg.deepseekKey;
     if (!key) { attempts.push({ provider, reason: 'not_configured' }); continue; }
     try {
-      const output = provider === 'deepseek' ? await deepseekAgent(message, device) : await responsesAgent(provider, message, previousResponseId, device);
+      const output = provider === 'deepseek' ? await deepseekAgent(message, device, normalizedEffort) : await responsesAgent(provider, message, previousResponseId, device, normalizedEffort);
       if (!output.answer) throw new Error('empty_ai_response');
-      return { ...output, attempts };
+      return { ...output, reasoningEffort: normalizedEffort, attempts };
     } catch (e) {
       attempts.push({ provider, reason: String(e?.message || e), http: e?.http || null });
     }
@@ -282,6 +286,7 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
     pendingAction: null,
     offline: true,
     offlineCapability: offline.capability,
+    reasoningEffort: normalizedEffort,
     attempts,
   };
 }
