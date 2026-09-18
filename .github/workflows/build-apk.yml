@@ -67,11 +67,9 @@ jobs:
           SHADOW_BASE="https://raw.githubusercontent.com/jakes1345/ShadowCypher/827829b09399d6c02ba108607e70aa05bf7485a5/android/assistant/src/main/assets"
           curl -fL "$BASE/melspectrogram.onnx" -o app/src/main/assets/melspectrogram.onnx
           curl -fL "$BASE/embedding_model.onnx" -o app/src/main/assets/embedding_model.onnx
-          curl -fL "$BASE/jarvis_v1.onnx" -o app/src/main/assets/jarvis_v1.onnx
           curl -fL "$SHADOW_BASE/hey_shadow.onnx" -o app/src/main/assets/hey_shadow.onnx
           test -s app/src/main/assets/melspectrogram.onnx
           test -s app/src/main/assets/embedding_model.onnx
-          test -s app/src/main/assets/jarvis_v1.onnx
           test -s app/src/main/assets/hey_shadow.onnx
           sha256sum app/src/main/assets/*.onnx
 
