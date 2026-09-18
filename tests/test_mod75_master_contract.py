@@ -64,3 +64,12 @@ def test_mod86_route_mapping_covers_core_layers():
         assert '"' + route + '"'.replace("\\", "") in bus
         assert '"' + core + '"' in bus
     assert "verification" in cycle
+
+def test_mod87_github_priority_and_sensitive_pause_events():
+    orchestrator = Path("app/src/main/java/com/shadow/mobile/ShadowMasterOrchestrator.java").read_text(encoding="utf-8")
+    activity = Path("app/src/main/java/com/shadow/mobile/JarvisMainActivity.java").read_text(encoding="utf-8")
+    github_pos = orchestrator.find("else if (isGithub(x))")
+    development_pos = orchestrator.find("else if (isDevelopment(x))")
+    assert github_pos >= 0 and development_pos > github_pos
+    assert "sensitive_identity_required" in activity
+    assert "user_cancelled_action" in activity
