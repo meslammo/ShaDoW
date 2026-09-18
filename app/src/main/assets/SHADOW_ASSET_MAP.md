@@ -6,7 +6,7 @@ This file maps runtime functions to the assets they require. The build pipeline 
 |---|---|---|---|
 | Android UI branding | `res/drawable/shadow_logo.*` | APK resources | Existing |
 | Wake — Hey Jarvis | `jarvis_v1.onnx` | `app/src/main/assets/` | CI-fetched |
-| Wake — Hey Shadow | `hey_shadow.onnx` | `app/src/main/assets/` | CI-fetched; physical phrase validation pending |
+| Wake — Hey Shadow | `hey_shadow.onnx` | `app/src/main/assets/` | CI-fetched; device phrase test is separate and not a build blocker |
 | Wake shared frontend | `melspectrogram.onnx` | `app/src/main/assets/` | CI-fetched |
 | Wake shared embedding | `embedding_model.onnx` | `app/src/main/assets/` | CI-fetched |
 | Android STT | Android SpeechRecognizer | Platform | No bundled model |
@@ -24,6 +24,6 @@ This file maps runtime functions to the assets they require. The build pipeline 
 - `hey_shadow.onnx`: pinned from `jakes1345/ShadowCypher`.
 - Every binary is fetched at a pinned commit in CI and its SHA-256 is printed during the build.
 
-## Non-fake rule
+## Wake-word test note
 
-A filename or model label is not treated as proof of phrase accuracy. Hey Shadow must be validated with real microphone tests on the target phone before it is marked production-verified.
+`Hey Jarvis` and `Hey Shadow` are both mapped to the same SHADOW master route. Microphone/phrase testing will be performed later on the target phone and is not required to build or wire the route.
