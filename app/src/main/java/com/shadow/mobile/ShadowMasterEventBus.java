@@ -52,7 +52,6 @@ public final class ShadowMasterEventBus {
             case ROUTE_SELECTED:
             case PLAN_READY: return "reasoning";
             case MEMORY_WRITE: return "memory";
-            case DEVELOPMENT: return "development";
             case APPROVAL_REQUIRED:
             case ACTION_REQUESTED: return "action-security";
             case ACTION_EXECUTED: return route != null && route.equals("local-device") ? "device" : "integration";
