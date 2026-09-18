@@ -4,7 +4,7 @@ import cors from 'cors';
 import { applyFiles, createPullRequest, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
-import { runAgent, providerStatus, memoryStatus } from './ai-router.mjs';
+import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router.mjs';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -78,6 +78,46 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
     return res.status(503).json({ ok: false, error: 'agent_failed' });
+  }
+});
+
+app.post('/v1/chat/stream', rateLimit, async (req, res) => {
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
+  if (message.length > 12000) return res.status(413).json({ ok: false, error: 'message_too_large' });
+  const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
+  const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
+  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
+  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
+  res.statusCode = 200;
+  res.set({
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+  const send = (payload) => { if (!res.writableEnded) res.write('data: ' + JSON.stringify(payload) + '\n\n'); };
+  try {
+    const result = await streamAgent({
+      message,
+      previousResponseId: previous,
+      device,
+      reasoningEffort,
+      onDelta: (text) => send({ type: 'delta', text }),
+      onPending: (data) => send({ type: 'pending_action', ...data }),
+      onDone: (data) => send({ type: 'done', ...data }),
+    });
+    if (!res.writableEnded) {
+      if (!result.pendingAction && result.responseId && !result.provider) send({ type: 'done', ...result });
+      send({ type: 'eof' });
+      res.end();
+    }
+  } catch (error) {
+    console.error('Streaming agent failed', String(error?.message || error));
+    send({ type: 'error', error: String(error?.message || 'agent_failed') });
+    send({ type: 'eof' });
+    if (!res.writableEnded) res.end();
   }
 });
 
