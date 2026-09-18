@@ -46,6 +46,13 @@ public final class ShadowMasterEventBus {
     }
 
     public static String inferCore(Type type, String route) {
+        String r = route == null ? "" : route;
+        if ("companion".equals(r)) return "companion";
+        if ("spatial".equals(r)) return "spatial";
+        if ("development".equals(r) || "github".equals(r)) return "development";
+        if ("local-device".equals(r)) return "device";
+        if ("image".equals(r)) return "integration";
+        if ("chat".equals(r)) return "web/personal";
         switch (type) {
             case IDENTITY_VERIFIED: return "identity";
             case INPUT_RECEIVED: return "understanding";
@@ -54,21 +61,14 @@ public final class ShadowMasterEventBus {
             case MEMORY_WRITE: return "memory";
             case APPROVAL_REQUIRED:
             case ACTION_REQUESTED: return "action-security";
-            case ACTION_EXECUTED: return route != null && route.equals("local-device") ? "device" : "integration";
+            case ACTION_EXECUTED: return "execution";
             case VERIFICATION_RESULT: return "verification";
             case FAILED:
             case PAUSED: return "recovery";
             case COMPLETED: return "communication";
-            default:
-                if ("spatial".equals(route)) return "spatial";
-                if ("companion".equals(route)) return "companion";
-                if ("chat".equals(route)) return "web/personal";
-                if ("github".equals(route)) return "development";
-                if ("image".equals(route)) return "integration";
-                return "orchestration";
+            default: return "orchestration";
         }
     }
-
     public interface Listener {
         void onEvent(Event event);
     }
