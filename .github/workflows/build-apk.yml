@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
     paths:
       - 'app/**'
       - 'shadow/**'
@@ -67,7 +71,7 @@ jobs:
           sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-MOD73-FINAL-candidate-apk
+          name: SHADOW-MOD74-VOICE2-candidate-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
