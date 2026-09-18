@@ -263,7 +263,7 @@ async function deepseekAgent(message, device, reasoningEffort = 'none') {
 export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none' }) {
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const normalOrder = preferredProvider === 'openai' ? ['openai'] : preferredProvider === 'xai' ? ['xai'] : preferredProvider === 'deepseek' ? ['deepseek'] : ['openai', 'xai', 'deepseek'];
-  const order = normalizedEffort !== 'none' && !preferredProvider && cfg.openaiKey ? ['openai', 'xai', 'deepseek'] : normalOrder;
+  const order = normalizedEffort !== 'none' && (preferredProvider === 'auto' || !preferredProvider) && cfg.openaiKey ? ['openai', 'xai', 'deepseek'] : normalOrder;
   const attempts = [];
   for (const provider of order) {
     const key = provider === 'openai' ? cfg.openaiKey : provider === 'xai' ? cfg.xaiKey : cfg.deepseekKey;
