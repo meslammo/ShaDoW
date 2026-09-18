@@ -70,10 +70,12 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
   const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
   const providerInput = String(req.body?.provider || '').toLowerCase();
+  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
+  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   const preferred = ['openai', 'xai', 'grok', 'deepseek'].includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
-    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline), offline_capability: result.offlineCapability || null, attempts: result.attempts || [] });
+    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline), offline_capability: result.offlineCapability || null, attempts: result.attempts || [] });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
     return res.status(503).json({ ok: false, error: 'agent_failed' });
@@ -85,11 +87,13 @@ app.post('/v1/agent/continue', rateLimit, async (req, res) => {
   const responseId = String(req.body?.response_id || '').trim();
   const toolCallId = String(req.body?.tool_call_id || '').trim();
   const output = typeof req.body?.output === 'string' ? req.body.output.slice(0, 20000) : JSON.stringify(req.body?.output ?? '');
+  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
+  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   if (!provider || !toolCallId) return res.status(400).json({ ok: false, error: 'tool_context_required' });
   const original = String(req.body?.original_message || 'نفّذ الإجراء المطلوب واستكمل.');
   try {
-    const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline) });
+    const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider, reasoningEffort });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, offline: Boolean(result.offline) });
   } catch { return res.status(503).json({ ok: false, error: 'agent_continue_failed' }); }
 });
 
