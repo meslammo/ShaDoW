@@ -512,9 +512,9 @@ Definition of Done: all critical flows pass device and cloud E2E tests with evid
 
 ## 22. What SHADOW Is Today vs What SHADOW Must Become
 
-**Today:** a real Android + Cloud foundation with Online-first behavior, local fallback, governance primitives, phone execution, GitHub OAuth code, and a guarded Development Agent.
+**Today:** a real Android + Cloud foundation with online-only AI, governance primitives, phone execution, GitHub OAuth code, and a guarded Development Agent.
 
-**Must become:** a unified personal AI operating/orchestration layer with proven identity, universal intent routing, verified execution, governed memory, dynamic tools/companions, complete GitHub self-development, web discovery, recovery, and multi-device control.
+**Must become:** a unified personal AI operating/orchestration layer with proven identity, universal intent routing, verified execution, governed memory, dynamic tools/companions, complete GitHub self-development, web discovery, recovery, and multi-device control. The user-facing assistant identity is SHADOW; legacy Jarvis-named implementation classes are internal compatibility code only.
 
 ## 23. Next Immediate Action
 
@@ -533,9 +533,8 @@ The Android master route now publishes lifecycle events to a bounded event bus. 
 - **Deep Think:** black background + red interactive controls/effects; OpenAI reasoning effort `xhigh` when supported.
 - **Stop Deep Think:** returns the UI to the normal surface and reasoning effort to `none`.
 
-### Wake words
-- `Hey Jarvis` → `jarvis_v1.onnx`.
-- `Hey Shadow` → `hey_shadow.onnx`.
+### Wake word
+- `Hey Shadow` → `hey_shadow.onnx` is the sole wake phrase.
 - Shared assets: `melspectrogram.onnx` + `embedding_model.onnx`.
-- The build fetches all wake assets at pinned commits and prints SHA-256 hashes.
+- The build fetches the wake assets at pinned commits and prints SHA-256 hashes.
 - Physical microphone validation is a later device test and does not block build, routing, or integration.
