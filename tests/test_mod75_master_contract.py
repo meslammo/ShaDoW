@@ -39,3 +39,12 @@ def test_mod79_lifecycle_ledgers_are_wired():
     assert "companionRegistry=new ShadowCompanionRegistry(this)" in activity
     assert "verificationLedger=new ShadowVerificationLedger(this)" in activity
     assert "recoveryLedger=new ShadowRecoveryLedger(this)" in activity
+
+def test_mod82_online_voiceprint_path_is_explicit():
+    identity = Path("app/src/main/java/com/shadow/mobile/ShadowVoiceIdentityGateway.java").read_text(encoding="utf-8")
+    client = Path("app/src/main/java/com/shadow/mobile/ShadowCloudClient.java").read_text(encoding="utf-8")
+    activity = Path("app/src/main/java/com/shadow/mobile/JarvisMainActivity.java").read_text(encoding="utf-8")
+    assert "isVoiceVerified" in identity
+    assert "verifyVoiceprint" in client
+    assert "startVoiceprintVerification" in activity
+    assert "online voiceprint" in activity
