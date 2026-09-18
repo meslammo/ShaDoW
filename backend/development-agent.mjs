@@ -54,3 +54,31 @@ export async function applyFiles({branch='shadow-agent-work',message='MOD-51: De
 }
 
 export function status(){return {configured:configured(),server_token_configured:configured(),repo:REPO,allowed_prefixes:ALLOWED_PREFIXES,branch_creation:true};}
+
+
+export async function createPullRequest({branch, title, body = '', token = '', draft = true}) {
+  const authToken = String(token || TOKEN).trim();
+  if (!configured(authToken)) throw new Error('github_write_not_configured');
+  const safeBranch = String(branch || '').trim();
+  if (!/^[A-Za-z0-9._/-]{1,80}$/.test(safeBranch)) throw new Error('invalid_branch');
+  const safeTitle = String(title || '').trim().slice(0, 200);
+  if (!safeTitle) throw new Error('pull_request_title_required');
+  const result = await gh(`/repos/${REPO}/pulls`, {
+    method: 'POST',
+    body: JSON.stringify({
+      title: safeTitle,
+      head: safeBranch,
+      base: 'main',
+      body: String(body || '').slice(0, 10000),
+      draft: Boolean(draft),
+    }),
+  }, authToken);
+  return {
+    number: result?.number || null,
+    url: result?.html_url || null,
+    state: result?.state || null,
+    draft: Boolean(result?.draft),
+    head: result?.head?.sha || null,
+    base: result?.base?.sha || null,
+  };
+}
