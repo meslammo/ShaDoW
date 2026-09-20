@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
+import { anthropicAgent, externalProviderStatus, geminiAgent, mistralAgent } from './external-providers.mjs';
 
 const { Pool } = pg;
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
@@ -13,7 +14,13 @@ const cfg = {
   xaiKey: (process.env.XAI_API_KEY || '').trim(),
   xaiModel: (process.env.XAI_MODEL || 'grok-4.6').trim(),
   deepseekKey: (process.env.DEEPSEEK_API_KEY || '').trim(),
-  deepseekModel: (process.env.DEEPSEEK_MODEL || 'deepseek-chat').trim(),
+  deepseekModel: (process.env.DEEPSEEK_MODEL || 'deepseek-flash').trim(),
+  mistralKey: (process.env.MISTRAL_API_KEY || '').trim(),
+  mistralModel: (process.env.MISTRAL_MODEL || 'mistral-large-latest').trim(),
+  anthropicKey: (process.env.ANTHROPIC_API_KEY || '').trim(),
+  anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim(),
+  geminiKey: (process.env.GEMINI_API_KEY || '').trim(),
+  geminiModel: (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
   memoryDir: (process.env.SHADOW_MEMORY_DIR || '/data/shadow-memory').trim(),
   databaseUrl: (process.env.DATABASE_URL || '').trim(),
   workspaceDir: (process.env.SHADOW_WORKSPACE_DIR || '/data/shadow-workspace').trim(),
@@ -382,14 +389,39 @@ export async function streamAgent({ message, previousResponseId = '', device = '
 
 export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none' }) {
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
-  const normalOrder = preferredProvider === 'openai' ? ['openai'] : preferredProvider === 'xai' ? ['xai'] : preferredProvider === 'deepseek' ? ['deepseek'] : ['openai', 'xai', 'deepseek'];
-  const order = normalizedEffort !== 'none' && (preferredProvider === 'auto' || !preferredProvider) && cfg.openaiKey ? ['openai', 'xai', 'deepseek'] : normalOrder;
+  const providerNames = ['openai','xai','deepseek','mistral','anthropic','gemini'];
+  let normalOrder;
+  if (providerNames.includes(preferredProvider)) {
+    normalOrder = [preferredProvider];
+  } else {
+    const freeFirst = String(process.env.SHADOW_FREE_FIRST ?? 'true').toLowerCase() !== 'false';
+    const free = ['mistral', 'gemini', 'deepseek'];
+    const paid = ['openai', 'xai', 'anthropic'];
+    normalOrder = freeFirst ? [...free, ...paid] : [...paid, ...free];
+  }
+  const order = normalOrder;
   const attempts = [];
   for (const provider of order) {
-    const key = provider === 'openai' ? cfg.openaiKey : provider === 'xai' ? cfg.xaiKey : cfg.deepseekKey;
+    const key = provider === 'openai' ? cfg.openaiKey
+      : provider === 'xai' ? cfg.xaiKey
+      : provider === 'deepseek' ? cfg.deepseekKey
+      : provider === 'mistral' ? cfg.mistralKey
+      : provider === 'anthropic' ? cfg.anthropicKey
+      : cfg.geminiKey;
     if (!key) { attempts.push({ provider, reason: 'not_configured' }); continue; }
     try {
-      const output = provider === 'deepseek' ? await deepseekAgent(message, device, normalizedEffort) : await responsesAgent(provider, message, previousResponseId, device, normalizedEffort);
+      let output;
+      if (provider === 'deepseek') {
+        output = await deepseekAgent(message, device, normalizedEffort);
+      } else if (provider === 'mistral') {
+        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.mistralModel, apiKey: cfg.mistralKey });
+      } else if (provider === 'anthropic') {
+        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.anthropicModel, apiKey: cfg.anthropicKey });
+      } else if (provider === 'gemini') {
+        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.geminiModel, apiKey: cfg.geminiKey });
+      } else {
+        output = await responsesAgent(provider, message, previousResponseId, device, normalizedEffort);
+      }
       if (!output.answer) throw new Error('empty_ai_response');
       return { ...output, reasoningEffort: normalizedEffort, attempts };
     } catch (e) {
@@ -410,7 +442,10 @@ export function providerStatus() {
     openai: { configured: Boolean(cfg.openaiKey), model: cfg.openaiModel },
     xai: { configured: Boolean(cfg.xaiKey), model: cfg.xaiModel },
     deepseek: { configured: Boolean(cfg.deepseekKey), model: cfg.deepseekModel },
-    routing: 'openai -> xAI/Grok -> DeepSeek',
+    ...externalProviderStatus(),
+    routing: String(process.env.SHADOW_FREE_FIRST ?? 'true').toLowerCase() === 'false'
+      ? 'openAI -> xAI -> Anthropic -> DeepSeek -> Mistral -> Gemini'
+      : 'free-first: Mistral -> Gemini -> DeepSeek -> OpenAI -> xAI -> Anthropic',
     tools: TOOL_DEFINITIONS.map(x => x.name),
     workspace: cfg.workspaceDir,
     memory: { database_configured: Boolean(cfg.databaseUrl), database_ready: dbReady, fallback_file: cfg.memoryDir },
