@@ -7,28 +7,29 @@ from typing import Any, Mapping
 from .catalog import CORE_BY_ID
 from .contracts import CoreRequest, CoreResult, Handler
 from .providers import ProviderRouter
-from .builtins import build_default_handlers
+from .live import build_live_handlers
 from .optional import OPTIONAL_DEVICE_CORE_IDS, device_integrations_enabled
 
 
 class CoreRuntime:
-    """Runs every registered core through a safe builtin or a supplied adapter.
+    """Execute the full 150-Core surface with concrete local handlers.
 
-    Builtins never claim external I/O. Specialized integrations can replace a
-    builtin handler explicitly. Optional hardware/companion cores are disabled
-    by default and never block startup.
+    External services and hardware are adapters. Missing adapters are explicit
+    and never become startup blockers.
     """
 
     def __init__(
         self,
         *,
+        workspace: str = ".",
         handler_map: Mapping[str, Handler] | None = None,
         free_first: bool = True,
-        include_builtins: bool = True,
+        include_live: bool = True,
     ):
+        self.workspace = workspace
         self.providers = ProviderRouter()
         self.free_first = free_first
-        self.handlers = build_default_handlers(tuple(CORE_BY_ID.values())) if include_builtins else {}
+        self.handlers = build_live_handlers(tuple(CORE_BY_ID.values()), workspace) if include_live else {}
         if handler_map:
             self.handlers.update(dict(handler_map))
 
@@ -40,12 +41,29 @@ class CoreRuntime:
         if spec is None:
             return CoreResult(request.core_id, False, "unknown_core")
 
+        # Optional hardware/companion cores are disabled before auth checks:
+        # they cannot block startup or normal operation when no adapter exists.
+        if spec.id in OPTIONAL_DEVICE_CORE_IDS and not device_integrations_enabled():
+            return CoreResult(
+                spec.id,
+                True,
+                "disabled_optional",
+                result={
+                    "core": spec.id,
+                    "name": spec.name,
+                    "enabled": False,
+                    "reason": "optional hardware/companion integration disabled",
+                },
+                evidence=[{"external_io": False, "device_io": False}],
+                metadata={"startup_blocking": False, "optional": True},
+            )
+
         if spec.requires_confirmation and not request.confirmed:
             return CoreResult(
                 spec.id,
                 False,
                 "confirmation_required",
-                metadata={"risk": spec.risk.value, "core": spec.name},
+                metadata={"risk": spec.risk.value, "core": spec.name, "startup_blocking": False},
             )
 
         handler = self.handlers.get(spec.id)
@@ -54,11 +72,7 @@ class CoreRuntime:
                 spec.id,
                 False,
                 "internal_handler_missing",
-                metadata={
-                    "core": spec.name,
-                    "domain": spec.domain,
-                    "startup_blocking": False,
-                },
+                metadata={"core": spec.name, "domain": spec.domain, "startup_blocking": False},
             )
 
         try:
@@ -76,12 +90,31 @@ class CoreRuntime:
                 },
             )
 
+    def self_test(self) -> dict[str, Any]:
+        passed = 0
+        failures = []
+        for core_id in sorted(CORE_BY_ID):
+            result = self.execute(
+                CoreRequest(
+                    core_id,
+                    "SHADOW Super Nice core self-test",
+                    context={"source": "self_test", "capability": "chat"},
+                    confirmed=True,
+                )
+            )
+            if result.ok:
+                passed += 1
+            else:
+                failures.append({"core": core_id, "status": result.status, "metadata": result.metadata})
+        return {
+            "core_count": len(CORE_BY_ID),
+            "passed": passed,
+            "failed": len(failures),
+            "failures": failures,
+            "all_passed": not failures,
+        }
+
     def health(self) -> dict[str, Any]:
-        disabled_optional = sorted(
-            core_id
-            for core_id in OPTIONAL_DEVICE_CORE_IDS
-            if not device_integrations_enabled()
-        )
         return {
             "architecture": "SHADOW Super Nice 150-Core",
             "core_count": len(CORE_BY_ID),
@@ -91,7 +124,9 @@ class CoreRuntime:
             "credit_meter": False,
             "online_ai_mode": True,
             "provider_count": len(self.providers.providers),
-            "optional_device_cores_disabled": disabled_optional,
+            "optional_device_cores_disabled": sorted(
+                OPTIONAL_DEVICE_CORE_IDS if not device_integrations_enabled() else ()
+            ),
             "optional_device_cores_enabled": device_integrations_enabled(),
             "startup_blocking_integrations": [],
         }
