@@ -44,6 +44,6 @@ def test_supernice_facade_keeps_twelve_core_root_and_exposes_150(tmp_path):
     assert status["legacy_root"] == "TwelveCoreRuntime"
     assert status["startup_blocking_integrations"] == []
 
-    result = runtime.execute("CORE-150", "legacy continuity check")
+    result = runtime.execute("CORE-150", "legacy continuity check", confirmed=True)
     assert result.ok is True
     assert result.status == "contract_ready"
