@@ -46,4 +46,13 @@ def test_supernice_facade_keeps_twelve_core_root_and_exposes_150(tmp_path):
 
     result = runtime.execute("CORE-150", "legacy continuity check", confirmed=True)
     assert result.ok is True
-    assert result.status == "contract_ready"
+    assert result.status == "executed"
+
+
+def test_live_self_test_runs_all_150(tmp_path):
+    runtime = CoreRuntime(workspace=str(tmp_path))
+    report = runtime.self_test()
+    assert report["core_count"] == 150
+    assert report["passed"] == 150
+    assert report["failed"] == 0
+    assert report["all_passed"] is True
