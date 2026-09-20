@@ -46,6 +46,16 @@ public final class ShadowPythonRuntimeBridge {
         }
     }
 
+    /** MOD-168: run the complete 150-Core self-test from Android. */
+    public String superniceSelfTest(){
+        try{
+            PyObject result=androidRuntime().callAttr("supernice_self_test",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
+            return result.toString();
+        }catch(Throwable e){
+            return "{\"core_count\":150,\"passed\":0,\"failed\":150,\"all_passed\":false,\"runtime\":\"unavailable\"}";
+        }
+    }
+
     /** MOD-100: unified master composition root status. */
     public String masterStatus(){
         try{

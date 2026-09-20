@@ -16,9 +16,10 @@ class SuperNiceRuntime:
     def __init__(self, workspace: str = ".") -> None:
         self.master = TwelveCoreRuntime(workspace)
         self.cores = CoreRuntime(
+            workspace=workspace,
             handler_map=self._root_handlers(),
             free_first=True,
-            include_builtins=True,
+            include_live=True,
         )
 
     @staticmethod
