@@ -73,7 +73,8 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const providerInput = String(req.body?.provider || '').toLowerCase();
   const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
   const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
-  const preferred = ['openai', 'xai', 'grok', 'deepseek'].includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
+  const allowedProviders = ['openai', 'xai', 'grok', 'deepseek', 'mistral', 'anthropic', 'gemini'];
+  const preferred = allowedProviders.includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
     const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort });
     return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
