@@ -174,6 +174,10 @@ def supernice_status(home: Optional[str] = None) -> Dict[str, Any]:
     return _get_supernice(home).status()
 
 
+def supernice_self_test(home: Optional[str] = None) -> Dict[str, Any]:
+    return _get_supernice(home).cores.self_test()
+
+
 def supernice_execute(
     core_id: str,
     request: str,
