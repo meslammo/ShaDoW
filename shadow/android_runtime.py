@@ -6,6 +6,7 @@ integrations a startup dependency.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import types
@@ -180,10 +181,17 @@ def supernice_execute(
     context: Optional[Dict[str, Any]] = None,
     confirmed: bool = False,
 ) -> Dict[str, Any]:
+    if isinstance(context, str):
+        try:
+            parsed_context = json.loads(context)
+        except Exception:
+            parsed_context = {}
+    else:
+        parsed_context = context or {}
     result = _get_supernice(home).execute(
         str(core_id or "").strip(),
         str(request or ""),
-        context=context or {},
+        context=parsed_context if isinstance(parsed_context, dict) else {},
         confirmed=bool(confirmed),
     )
     return {
