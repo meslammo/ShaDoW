@@ -39,7 +39,7 @@ export const externalProviderConfig = {
     keyEnv: 'GEMINI_API_KEY',
     modelEnv: 'GEMINI_MODEL',
     defaultModel: 'gemini-3.8-flash',
-    capabilities: ['chat', 'reasoning', 'vision', 'audio', 'video', 'pdf', 'tools'],
+    capabilities: ['chat', 'reasoning', 'vision', 'audio', 'video', 'pdf', 'image-generation', 'video-generation', 'tools'],
   },
 };
 
