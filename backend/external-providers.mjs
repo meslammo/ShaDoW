@@ -43,6 +43,73 @@ export const externalProviderConfig = {
   },
 };
 
+
+
+export function localProviderStatus(env = process.env) {
+  const baseUrl = String(env.SHADOW_LOCAL_AI_BASE_URL || '').trim();
+  return {
+    configured: Boolean(baseUrl),
+    base_url: baseUrl || null,
+    model: String(env.SHADOW_LOCAL_AI_MODEL || 'local-model').trim(),
+    capabilities: ['chat', 'reasoning', 'tools', 'vision-when-model-supports-it'],
+  };
+}
+
+export async function localOpenAICompatAgent({ message, systemPrompt, toolDefinitions, runTool, model, baseUrl }) {
+  if (!baseUrl) throw new Error('local_provider_not_configured');
+  const url = baseUrl.replace(/\/+$/, '') + '/chat/completions';
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: message },
+  ];
+  const tools = toolDefinitions.map(x => ({
+    type: 'function',
+    function: { name: x.name, description: x.description, parameters: x.parameters },
+  }));
+
+  for (let round = 0; round < 8; round += 1) {
+    const out = await postJson(url, {}, {
+      model,
+      messages,
+      tools,
+      tool_choice: 'auto',
+      temperature: 0.2,
+    });
+    const assistant = out?.choices?.[0]?.message;
+    if (!assistant) throw new Error('local_provider_empty_response');
+    const calls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls : [];
+    if (!calls.length) {
+      return {
+        provider: 'local',
+        model,
+        answer: String(assistant.content || '').trim(),
+        responseId: out.id || null,
+        usedWeb: false,
+        pendingAction: null,
+      };
+    }
+    messages.push(assistant);
+    for (const call of calls) {
+      let args = {};
+      try { args = JSON.parse(call?.function?.arguments || '{}'); }
+      catch { throw new Error('local_provider_invalid_tool_arguments'); }
+      const result = await runTool(call.function?.name, args);
+      if (result.kind === 'client_action') {
+        return {
+          provider: 'local',
+          model,
+          answer: 'هحتاج أنفذ الإجراء ده على الجهاز.',
+          responseId: out.id || null,
+          usedWeb: false,
+          pendingAction: { ...result, toolCallId: call.id || '' },
+        };
+      }
+      messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result.value) });
+    }
+  }
+  throw new Error('local_provider_agent_loop_limit');
+}
+
 export function externalProviderStatus(env = process.env) {
   return Object.fromEntries(Object.entries(externalProviderConfig).map(([name, cfg]) => [
     name,
