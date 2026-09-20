@@ -205,7 +205,7 @@ export async function anthropicAgent({ message, systemPrompt, toolDefinitions, r
     });
 
     const blocks = Array.isArray(out?.content) ? out.content : [];
-    const answer = blocks.filter(x => x?.type === 'text').map(x => x.text).join('\\n').trim();
+    const answer = blocks.filter(x => x?.type === 'text').map(x => x.text).join('\n').trim();
     const calls = blocks.filter(x => x?.type === 'tool_use');
     if (!calls.length) {
       return {
@@ -265,7 +265,7 @@ export async function geminiAgent({ message, systemPrompt, toolDefinitions, runT
     });
 
     const parts = out?.candidates?.[0]?.content?.parts || [];
-    const answer = parts.filter(x => typeof x?.text === 'string').map(x => x.text).join('\\n').trim();
+    const answer = parts.filter(x => typeof x?.text === 'string').map(x => x.text).join('\n').trim();
     const calls = parts.filter(x => x?.functionCall);
     if (!calls.length) {
       return {
