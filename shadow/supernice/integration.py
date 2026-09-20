@@ -29,7 +29,7 @@ class SuperNiceRuntime:
             "executed",
             result=payload,
             evidence=[{"source": "TwelveCoreRuntime", "external_io": False}],
-            metadata={"startup_blocking": False},
+            metadata={"startup_blocking": False, "source": "TwelveCoreRuntime"},
         )
 
     def _root_handlers(self):
