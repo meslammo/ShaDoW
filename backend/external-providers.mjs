@@ -14,7 +14,7 @@ async function postJson(url, headers, body, timeout = 65000) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = payload?.error?.message || payload?.error?.code || \`upstream_\${response.status}\`;
+    const message = payload?.error?.message || payload?.error?.code || `upstream_${response.status}`;
     const error = new Error(message);
     error.http = response.status;
     throw error;
@@ -141,7 +141,7 @@ export async function mistralAgent({ message, systemPrompt, toolDefinitions, run
       temperature: 0.2,
     };
     const out = await postJson('https://api.mistral.ai/v1/chat/completions', {
-      Authorization: \`Bearer \${apiKey}\`,
+      Authorization: `Bearer ${apiKey}`,
     }, body);
     const assistant = out?.choices?.[0]?.message;
     if (!assistant) throw new Error('mistral_empty_response');
@@ -245,7 +245,7 @@ export async function anthropicAgent({ message, systemPrompt, toolDefinitions, r
 
 export async function geminiAgent({ message, systemPrompt, toolDefinitions, runTool, model, apiKey }) {
   if (!apiKey) throw new Error('gemini_not_configured');
-  const url = \`https://generativelanguage.googleapis.com/v1beta/models/\${encodeURIComponent(model)}:generateContent\`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   let contents = [{ role: 'user', parts: [{ text: message }] }];
   const tools = [{
     functionDeclarations: toolDefinitions.map(x => ({
