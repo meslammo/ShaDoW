@@ -1,37 +1,29 @@
-# SHADOW — Unified Personal AI Agent
+# SHADOW — Super Nice 150-Core
 
-SHADOW is a personal, unified Android AI assistant with one command surface. There is no visible Local Chat or Offline Chat mode.
+SHADOW extends the existing 12-Core master architecture to an exact **150-Core governed capability layer**.
+
+## Contract
+- The first 12 cores are preserved as the original foundation.
+- 138 additional cores cover intelligence, memory, personal context, research, software creation, multimodal systems, devices/spatial reasoning, physics, governance, self-evolution and legacy.
+- SHADOW has **no in-app points, credits, subscription gate or usage meter**.
+- Self-hostable/open backends are routed first where they satisfy a capability.
+- External AI providers remain optional adapters and may impose their own access restrictions or charges; SHADOW never bypasses those systems.
+- Self-evolution is staged, tested, rollback-aware and requires explicit master approval for permanent activation.
 
 ## Runtime
-- Online-only multi-provider AI routing: OpenAI -> xAI/Grok -> DeepSeek.
-- One Android master-routing contract (MOD-75): understand -> classify -> route -> execute -> verify.
-- Agent loop: understand -> plan -> route -> execute -> observe -> verify -> continue.
-- Tool registry for calculator, public web search/fetch, public GitHub reading, durable memory, workspace files, and Android actions.
-- Android-native device execution with confirmation gates for sensitive actions.
-- Embedded Python 12-Core governance runtime via Chaquopy.
-- Durable non-secret memory with PostgreSQL preferred and file fallback.
-- ChatGPT-style voice interaction: voice and live text share the same conversation surface; Android TTS is the default client response path to avoid unnecessary cloud TTS calls.
-- Cloud TTS remains available in the backend as an optional path.
-- GitHub development gateway with explicit authorization and allowlisted repository paths.
-- Companion lifecycle and integration boundaries are retained for future watch/car/smart-home adapters.
+`Observe -> Understand -> Route -> Plan -> Permission -> Execute -> Verify -> Learn`
 
-## Single interaction path
-All user input — typed or spoken — enters the same master route. Voice is a transport, not a separate AI mode:
+## Files
+- `shadow/supernice/catalog.py` — exact 150-Core registry.
+- `shadow/supernice/contracts.py` — contracts and result envelopes.
+- `shadow/supernice/providers.py` — free-first provider policy.
+- `shadow/supernice/runtime.py` — governed execution facade.
+- `shadow/supernice/evolution.py` — bounded self-evolution.
+- `shadow/supernice/manifest.json` — machine-readable registry.
+- `tests/test_supernice_150_core.py` — automated registry/policy verification.
+- `docs/SUPER_NICE_150_CORE.md` — architecture contract and full core list.
 
-`Input -> Identity -> Understanding -> Master Route -> Planning -> Execution/Chat -> Verification -> Response`
+## Important release truth
+A Core contract is real code and a governed capability boundary. It is **not** a claim that every third-party service/device has a live connection. Real image/video, smart-home, car and external-provider adapters are only live after their actual endpoint/device is connected and verified.
 
-Sensitive actions remain governed by explicit identity/approval rules. There is no offline AI mode or offline AI fallback.
-
-## Security
-Secrets are not embedded in the APK. Durable memory rejects credential-like content. Web fetch blocks obvious private/local hosts. Mutating development actions require explicit approval and remain constrained by an allowlist.
-
-## External dependencies
-Online AI, cloud TTS and GitHub OAuth depend on external provider credentials/permissions. Their absence does not disable the internal Android command surface.
-
-## Build
-Android API 35, Java 17, Gradle 8.10.2, Android Gradle Plugin 8.6.1, Chaquopy 17.0.0, Python 3.11.
-
-Current Android build: `1.8.3-mod76-online-only`.
-Reasoning UI: Think Hard / Deep Think uses a black background with red controls/effects. Online OpenAI reasoning supports `high` and `xhigh` where available; other providers remain governed fallbacks. `Hey Shadow` is the sole SHADOW wake phrase.
-
-See `shadow/MASTER_AI_ASSISTANT.md` for the capability and release contract.
+No proprietary model weights, vendor secrets, protected commercial source or hidden reasoning traces are copied into SHADOW.

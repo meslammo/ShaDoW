@@ -1,0 +1,1209 @@
+{
+  "architecture": "SHADOW Super Nice 150-Core",
+  "version": "150.0.0-foundation",
+  "online_ai_required": true,
+  "subscription_gate": false,
+  "credit_meter": false,
+  "cores": [
+    {
+      "id": "CORE-001",
+      "name": "Identity",
+      "domain": "identity",
+      "purpose": "Master identity, speaker/credential boundary and authority context.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-002",
+      "name": "Conversation",
+      "domain": "conversation",
+      "purpose": "Unified text/voice conversation state and context.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-003",
+      "name": "Reasoning",
+      "domain": "reasoning",
+      "purpose": "Goal-aware reasoning, decomposition and controlled inference.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-004",
+      "name": "Memory",
+      "domain": "memory",
+      "purpose": "Governed durable memory, recall, write and forget.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-005",
+      "name": "Personal Understanding",
+      "domain": "personal",
+      "purpose": "Personal context, preferences and life-state signals.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-006",
+      "name": "Web Discovery",
+      "domain": "web",
+      "purpose": "Web search/fetch, source discovery and research routing.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-007",
+      "name": "GitHub / Development",
+      "domain": "github",
+      "purpose": "Repository reading, planning, patching and governed development.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-008",
+      "name": "Integration Engine",
+      "domain": "integration",
+      "purpose": "Adapter discovery, integration receipts, health and rollback.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-009",
+      "name": "Companion",
+      "domain": "companion",
+      "purpose": "Companion lifecycle, trust, delegation and revocation.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-010",
+      "name": "Device / Environment",
+      "domain": "device",
+      "purpose": "Device and environment semantic discovery.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-011",
+      "name": "Spatial",
+      "domain": "spatial",
+      "purpose": "Semantic spatial model using privacy-preserving location abstractions.",
+      "risk": "medium",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-012",
+      "name": "Action / Security / Approval",
+      "domain": "security",
+      "purpose": "Governed execution, permissions, safety and confirmation.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-013",
+      "name": "Multi-Model Router",
+      "domain": "intelligence",
+      "purpose": "Provide multi-model router as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-014",
+      "name": "Model Capability Resolver",
+      "domain": "intelligence",
+      "purpose": "Provide model capability resolver as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-015",
+      "name": "Provider Health",
+      "domain": "intelligence",
+      "purpose": "Provide provider health as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-016",
+      "name": "Free-First Cost Policy",
+      "domain": "intelligence",
+      "purpose": "Provide free-first cost policy as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-017",
+      "name": "Ensemble Reasoning",
+      "domain": "intelligence",
+      "purpose": "Provide ensemble reasoning as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-018",
+      "name": "Debate & Consensus",
+      "domain": "intelligence",
+      "purpose": "Provide debate & consensus as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-019",
+      "name": "Context Compression",
+      "domain": "intelligence",
+      "purpose": "Provide context compression as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-020",
+      "name": "Long-Context Manager",
+      "domain": "intelligence",
+      "purpose": "Provide long-context manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-021",
+      "name": "Structured Reasoning",
+      "domain": "intelligence",
+      "purpose": "Provide structured reasoning as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-022",
+      "name": "Hypothesis Manager",
+      "domain": "intelligence",
+      "purpose": "Provide hypothesis manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-023",
+      "name": "Uncertainty Calibration",
+      "domain": "intelligence",
+      "purpose": "Provide uncertainty calibration as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-024",
+      "name": "Answer Composer",
+      "domain": "intelligence",
+      "purpose": "Provide answer composer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-025",
+      "name": "Semantic Memory",
+      "domain": "intelligence",
+      "purpose": "Provide semantic memory as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-026",
+      "name": "Episodic Memory",
+      "domain": "memory",
+      "purpose": "Provide episodic memory as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-027",
+      "name": "Event Memory",
+      "domain": "memory",
+      "purpose": "Provide event memory as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-028",
+      "name": "Personal Knowledge Graph",
+      "domain": "memory",
+      "purpose": "Provide personal knowledge graph as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-029",
+      "name": "Temporal Memory",
+      "domain": "memory",
+      "purpose": "Provide temporal memory as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-030",
+      "name": "Memory Consolidation",
+      "domain": "memory",
+      "purpose": "Provide memory consolidation as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-031",
+      "name": "Memory Retention",
+      "domain": "memory",
+      "purpose": "Provide memory retention as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-032",
+      "name": "Forget & Deletion",
+      "domain": "memory",
+      "purpose": "Provide forget & deletion as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-033",
+      "name": "Memory Permissions",
+      "domain": "memory",
+      "purpose": "Provide memory permissions as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-034",
+      "name": "Memory Provenance",
+      "domain": "memory",
+      "purpose": "Provide memory provenance as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-035",
+      "name": "Conversation Recall",
+      "domain": "memory",
+      "purpose": "Provide conversation recall as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-036",
+      "name": "Preference Learning",
+      "domain": "memory",
+      "purpose": "Provide preference learning as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-037",
+      "name": "Correction Learning",
+      "domain": "memory",
+      "purpose": "Provide correction learning as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-038",
+      "name": "Legacy Memory",
+      "domain": "memory",
+      "purpose": "Provide legacy memory as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-039",
+      "name": "Memory Integrity",
+      "domain": "memory",
+      "purpose": "Provide memory integrity as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-040",
+      "name": "Personal Context Engine",
+      "domain": "memory",
+      "purpose": "Provide personal context engine as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-041",
+      "name": "Reminder Intelligence",
+      "domain": "personal_execution",
+      "purpose": "Provide reminder intelligence as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-042",
+      "name": "Habit Context",
+      "domain": "personal_execution",
+      "purpose": "Provide habit context as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-043",
+      "name": "Life Timeline",
+      "domain": "personal_execution",
+      "purpose": "Provide life timeline as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-044",
+      "name": "Relationship Context",
+      "domain": "personal_execution",
+      "purpose": "Provide relationship context as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-045",
+      "name": "Emotional Signal Context",
+      "domain": "personal_execution",
+      "purpose": "Provide emotional signal context as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-046",
+      "name": "Conversation State",
+      "domain": "personal_execution",
+      "purpose": "Provide conversation state as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-047",
+      "name": "Attention Prioritizer",
+      "domain": "personal_execution",
+      "purpose": "Provide attention prioritizer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-048",
+      "name": "Task Manager",
+      "domain": "personal_execution",
+      "purpose": "Provide task manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-049",
+      "name": "Goal Decomposer",
+      "domain": "personal_execution",
+      "purpose": "Provide goal decomposer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-050",
+      "name": "Master Planner",
+      "domain": "personal_execution",
+      "purpose": "Provide master planner as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-051",
+      "name": "Dependency Planner",
+      "domain": "personal_execution",
+      "purpose": "Provide dependency planner as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-052",
+      "name": "Schedule Planner",
+      "domain": "personal_execution",
+      "purpose": "Provide schedule planner as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-053",
+      "name": "Deadline Monitor",
+      "domain": "personal_execution",
+      "purpose": "Provide deadline monitor as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-054",
+      "name": "Retry & Recovery",
+      "domain": "personal_execution",
+      "purpose": "Provide retry & recovery as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-055",
+      "name": "Checkpoint Manager",
+      "domain": "personal_execution",
+      "purpose": "Provide checkpoint manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-056",
+      "name": "Rollback Manager",
+      "domain": "personal_execution",
+      "purpose": "Provide rollback manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-057",
+      "name": "Execution Verifier",
+      "domain": "personal_execution",
+      "purpose": "Provide execution verifier as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-058",
+      "name": "Evidence Verifier",
+      "domain": "personal_execution",
+      "purpose": "Provide evidence verifier as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-059",
+      "name": "Source Trust",
+      "domain": "personal_execution",
+      "purpose": "Provide source trust as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-060",
+      "name": "Freshness Resolver",
+      "domain": "personal_execution",
+      "purpose": "Provide freshness resolver as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-061",
+      "name": "Contradiction Resolver",
+      "domain": "personal_execution",
+      "purpose": "Provide contradiction resolver as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-062",
+      "name": "Fact vs Inference",
+      "domain": "personal_execution",
+      "purpose": "Provide fact vs inference as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-063",
+      "name": "Citation Manager",
+      "domain": "personal_execution",
+      "purpose": "Provide citation manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-064",
+      "name": "Research Planner",
+      "domain": "personal_execution",
+      "purpose": "Provide research planner as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-065",
+      "name": "Web Search",
+      "domain": "personal_execution",
+      "purpose": "Provide web search as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-066",
+      "name": "Web Fetch",
+      "domain": "personal_execution",
+      "purpose": "Provide web fetch as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-067",
+      "name": "Document Analyzer",
+      "domain": "personal_execution",
+      "purpose": "Provide document analyzer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-068",
+      "name": "PDF Analyzer",
+      "domain": "personal_execution",
+      "purpose": "Provide pdf analyzer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-069",
+      "name": "Spreadsheet Analyzer",
+      "domain": "personal_execution",
+      "purpose": "Provide spreadsheet analyzer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-070",
+      "name": "Workspace Files",
+      "domain": "personal_execution",
+      "purpose": "Provide workspace files as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-071",
+      "name": "Archive & ZIP Analyzer",
+      "domain": "personal_execution",
+      "purpose": "Provide archive & zip analyzer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-072",
+      "name": "OCR",
+      "domain": "personal_execution",
+      "purpose": "Provide ocr as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-073",
+      "name": "Translation",
+      "domain": "personal_execution",
+      "purpose": "Provide translation as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-074",
+      "name": "Language Detection",
+      "domain": "personal_execution",
+      "purpose": "Provide language detection as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-075",
+      "name": "Code Understanding",
+      "domain": "personal_execution",
+      "purpose": "Provide code understanding as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-076",
+      "name": "Code Generation",
+      "domain": "personal_execution",
+      "purpose": "Provide code generation as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-077",
+      "name": "Code Refactor",
+      "domain": "personal_execution",
+      "purpose": "Provide code refactor as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-078",
+      "name": "Test Generator",
+      "domain": "research",
+      "purpose": "Provide test generator as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-079",
+      "name": "Build Orchestrator",
+      "domain": "research",
+      "purpose": "Provide build orchestrator as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-080",
+      "name": "CI Diagnoser",
+      "domain": "research",
+      "purpose": "Provide ci diagnoser as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-081",
+      "name": "GitHub Adapter",
+      "domain": "research",
+      "purpose": "Provide github adapter as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-082",
+      "name": "Git Branch Manager",
+      "domain": "research",
+      "purpose": "Provide git branch manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-083",
+      "name": "Patch Planner",
+      "domain": "research",
+      "purpose": "Provide patch planner as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-084",
+      "name": "Diff Reviewer",
+      "domain": "research",
+      "purpose": "Provide diff reviewer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-085",
+      "name": "Dependency Auditor",
+      "domain": "research",
+      "purpose": "Provide dependency auditor as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-086",
+      "name": "Security Scanner",
+      "domain": "research",
+      "purpose": "Provide security scanner as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-087",
+      "name": "Secret Detector",
+      "domain": "research",
+      "purpose": "Provide secret detector as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-088",
+      "name": "License & Attribution Auditor",
+      "domain": "research",
+      "purpose": "Provide license & attribution auditor as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-089",
+      "name": "Package Manager",
+      "domain": "research",
+      "purpose": "Provide package manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-090",
+      "name": "App Generator",
+      "domain": "research",
+      "purpose": "Provide app generator as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-091",
+      "name": "Web App Builder",
+      "domain": "software",
+      "purpose": "Provide web app builder as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-092",
+      "name": "Desktop App Builder",
+      "domain": "software",
+      "purpose": "Provide desktop app builder as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-093",
+      "name": "Mobile App Builder",
+      "domain": "software",
+      "purpose": "Provide mobile app builder as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-094",
+      "name": "Game Systems Builder",
+      "domain": "software",
+      "purpose": "Provide game systems builder as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-095",
+      "name": "2D Asset Builder",
+      "domain": "software",
+      "purpose": "Provide 2d asset builder as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-096",
+      "name": "3D Asset Pipeline",
+      "domain": "software",
+      "purpose": "Provide 3d asset pipeline as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-097",
+      "name": "Scene & Level Planner",
+      "domain": "software",
+      "purpose": "Provide scene & level planner as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-098",
+      "name": "Game Balance Analyzer",
+      "domain": "software",
+      "purpose": "Provide game balance analyzer as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-099",
+      "name": "Image Understanding",
+      "domain": "software",
+      "purpose": "Provide image understanding as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-100",
+      "name": "Image Generation Adapter",
+      "domain": "software",
+      "purpose": "Provide image generation adapter as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-101",
+      "name": "Image Edit Adapter",
+      "domain": "software",
+      "purpose": "Provide image edit adapter as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-102",
+      "name": "Video Understanding",
+      "domain": "software",
+      "purpose": "Provide video understanding as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-103",
+      "name": "Video Generation Adapter",
+      "domain": "software",
+      "purpose": "Provide video generation adapter as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-104",
+      "name": "Audio Understanding",
+      "domain": "software",
+      "purpose": "Provide audio understanding as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-105",
+      "name": "Speech-to-Text",
+      "domain": "multimodal",
+      "purpose": "Provide speech-to-text as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-106",
+      "name": "Text-to-Speech",
+      "domain": "multimodal",
+      "purpose": "Provide text-to-speech as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-107",
+      "name": "Voice Identity",
+      "domain": "multimodal",
+      "purpose": "Provide voice identity as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-108",
+      "name": "Wake Word",
+      "domain": "multimodal",
+      "purpose": "Provide wake word as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-109",
+      "name": "Live Conversation",
+      "domain": "multimodal",
+      "purpose": "Provide live conversation as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-110",
+      "name": "Streaming Conversation",
+      "domain": "multimodal",
+      "purpose": "Provide streaming conversation as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-111",
+      "name": "Multimodal Fusion",
+      "domain": "multimodal",
+      "purpose": "Provide multimodal fusion as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-112",
+      "name": "Screen Understanding",
+      "domain": "multimodal",
+      "purpose": "Provide screen understanding as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-113",
+      "name": "Device Registry",
+      "domain": "multimodal",
+      "purpose": "Provide device registry as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-114",
+      "name": "Device Capability Discovery",
+      "domain": "multimodal",
+      "purpose": "Provide device capability discovery as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-115",
+      "name": "Bluetooth & BLE",
+      "domain": "multimodal",
+      "purpose": "Provide bluetooth & ble as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-116",
+      "name": "Wi-Fi Discovery",
+      "domain": "multimodal",
+      "purpose": "Provide wi-fi discovery as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-117",
+      "name": "NFC",
+      "domain": "multimodal",
+      "purpose": "Provide nfc as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-118",
+      "name": "Camera & Sensor Semantics",
+      "domain": "multimodal",
+      "purpose": "Provide camera & sensor semantics as a bounded Shadow capability behind the common core contract.",
+      "risk": "low",
+      "requires_confirmation": false
+    },
+    {
+      "id": "CORE-119",
+      "name": "Semantic Location",
+      "domain": "devices_spatial",
+      "purpose": "Provide semantic location as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-120",
+      "name": "Proximity & Direction",
+      "domain": "devices_spatial",
+      "purpose": "Provide proximity & direction as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-121",
+      "name": "Environment State",
+      "domain": "devices_spatial",
+      "purpose": "Provide environment state as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-122",
+      "name": "Physics & Simulation",
+      "domain": "devices_spatial",
+      "purpose": "Provide physics & simulation as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-123",
+      "name": "Math & Quant",
+      "domain": "devices_spatial",
+      "purpose": "Provide math & quant as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-124",
+      "name": "Measurement & Units",
+      "domain": "devices_spatial",
+      "purpose": "Provide measurement & units as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-125",
+      "name": "Smart Home Adapter",
+      "domain": "devices_spatial",
+      "purpose": "Provide smart home adapter as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-126",
+      "name": "Car Adapter",
+      "domain": "devices_spatial",
+      "purpose": "Provide car adapter as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-127",
+      "name": "Wearable Adapter",
+      "domain": "devices_spatial",
+      "purpose": "Provide wearable adapter as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-128",
+      "name": "Companion Registry",
+      "domain": "devices_spatial",
+      "purpose": "Provide companion registry as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-129",
+      "name": "Companion Trust",
+      "domain": "devices_spatial",
+      "purpose": "Provide companion trust as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-130",
+      "name": "Companion Task Delegation",
+      "domain": "devices_spatial",
+      "purpose": "Provide companion task delegation as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-131",
+      "name": "Companion Audit",
+      "domain": "devices_spatial",
+      "purpose": "Provide companion audit as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-132",
+      "name": "Cross-Core Event Bus",
+      "domain": "governance_integration",
+      "purpose": "Provide cross-core event bus as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-133",
+      "name": "Workflow Engine",
+      "domain": "governance_integration",
+      "purpose": "Provide workflow engine as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-134",
+      "name": "Rule Engine",
+      "domain": "governance_integration",
+      "purpose": "Provide rule engine as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-135",
+      "name": "Policy Engine",
+      "domain": "governance_integration",
+      "purpose": "Provide policy engine as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-136",
+      "name": "Permission Manager",
+      "domain": "governance_integration",
+      "purpose": "Provide permission manager as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-137",
+      "name": "Safety Guardrails",
+      "domain": "governance_integration",
+      "purpose": "Provide safety guardrails as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-138",
+      "name": "Sandboxing",
+      "domain": "governance_integration",
+      "purpose": "Provide sandboxing as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-139",
+      "name": "Secrets Vault Interface",
+      "domain": "governance_integration",
+      "purpose": "Provide secrets vault interface as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-140",
+      "name": "Audit Log",
+      "domain": "governance_integration",
+      "purpose": "Provide audit log as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-141",
+      "name": "Threat Detection",
+      "domain": "governance_integration",
+      "purpose": "Provide threat detection as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-142",
+      "name": "Rate Limiter",
+      "domain": "governance_integration",
+      "purpose": "Provide rate limiter as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-143",
+      "name": "Data Minimization",
+      "domain": "governance_integration",
+      "purpose": "Provide data minimization as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-144",
+      "name": "Privacy Controls",
+      "domain": "governance_integration",
+      "purpose": "Provide privacy controls as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-145",
+      "name": "Emergency Shutdown",
+      "domain": "governance_integration",
+      "purpose": "Provide emergency shutdown as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-146",
+      "name": "Self-Diagnostics",
+      "domain": "governance_integration",
+      "purpose": "Provide self-diagnostics as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-147",
+      "name": "Self-Evolution Planner",
+      "domain": "governance_integration",
+      "purpose": "Provide self-evolution planner as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-148",
+      "name": "Self-Evolution Sandbox",
+      "domain": "governance_integration",
+      "purpose": "Provide self-evolution sandbox as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-149",
+      "name": "Capability & Plugin Installer",
+      "domain": "governance_integration",
+      "purpose": "Provide capability & plugin installer as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    },
+    {
+      "id": "CORE-150",
+      "name": "Legacy Continuity & Delivery",
+      "domain": "governance_integration",
+      "purpose": "Provide legacy continuity & delivery as a bounded Shadow capability behind the common core contract.",
+      "risk": "high",
+      "requires_confirmation": true
+    }
+  ]
+}
