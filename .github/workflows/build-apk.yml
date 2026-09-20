@@ -29,7 +29,9 @@ jobs:
           npm install --ignore-scripts
           node --check server.mjs
           node --check ai-router.mjs
+          node --check external-providers.mjs
           node --check tool-registry.mjs
+          node --test test-external-providers.mjs
 
   build:
     needs: verify-backend

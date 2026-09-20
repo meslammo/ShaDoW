@@ -35,3 +35,12 @@ Current Android build: `1.8.3-mod76-online-only`.
 Reasoning UI: Think Hard / Deep Think uses a black background with red controls/effects. Online OpenAI reasoning supports `high` and `xhigh` where available; other providers remain governed fallbacks. `Hey Shadow` is the sole SHADOW wake phrase.
 
 See `shadow/MASTER_AI_ASSISTANT.md` for the capability and release contract.
+
+
+## Super Nice 150-Core expansion
+- Existing 12-Core master architecture remains the foundation.
+- Super Nice adds an exact 150-Core governed capability registry and free-first provider policy.
+- SHADOW itself has no points, credits, usage meter or subscription gate.
+- External providers/devices remain optional adapters and retain their own access and pricing terms.
+- Self-evolution is staged, tested, rollback-aware and approval-gated for permanent activation.
+- Machine-readable registry: `shadow/supernice/manifest.json`.

@@ -14,6 +14,9 @@ const ttsModel = String(process.env.SHADOW_TTS_MODEL || 'gpt-4o-mini-tts').trim(
 const ttsVoice = String(process.env.SHADOW_TTS_VOICE || 'onyx').trim();
 const ttsVoiceId = String(process.env.SHADOW_TTS_VOICE_ID || '').trim();
 const ttsInstructions = String(process.env.SHADOW_TTS_INSTRUCTIONS || 'Speak with a refined, cinematic, futuristic British AI-assistant character: deep adult male voice, calm authority, precise diction, restrained emotion, intelligent and composed, slightly warm, measured pacing, subtle dry confidence. This is an original Jarvis-inspired delivery, not an imitation of any actor or copyrighted character performance. When speaking Egyptian Arabic (ar-EG), keep the same deep, polished, controlled delivery while using natural Egyptian pronunciation and vocabulary.').trim();
+const geminiKey = String(process.env.GEMINI_API_KEY || '').trim();
+const geminiImageModel = String(process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image').trim();
+const geminiVideoModel = String(process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview').trim();
 
 app.disable('x-powered-by');
 app.use(helmet());
@@ -73,7 +76,8 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const providerInput = String(req.body?.provider || '').toLowerCase();
   const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
   const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
-  const preferred = ['openai', 'xai', 'grok', 'deepseek'].includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
+  const allowedProviders = ['openai', 'xai', 'grok', 'deepseek', 'mistral', 'anthropic', 'gemini'];
+  const preferred = allowedProviders.includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
     const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort });
     return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
@@ -202,18 +206,77 @@ app.post('/v1/development/apply', rateLimit, async (req, res) => {
 });
 
 app.post('/v1/images', rateLimit, async (req, res) => {
-  if (!apiKey) return res.status(503).json({ ok: false, error: 'image_provider_not_configured' });
+  const provider = String(req.body?.provider || 'auto').toLowerCase();
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
   if (!prompt) return res.status(400).json({ ok: false, error: 'prompt_required' });
   if (prompt.length > 8000) return res.status(413).json({ ok: false, error: 'prompt_too_large' });
   try {
-    const response = await fetch('https://api.openai.com/v1/images/generations', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: imageModel, prompt, size: '1024x1024' }), signal: AbortSignal.timeout(120000) });
+    const useGemini = provider === 'gemini' || (provider === 'auto' && !apiKey && geminiKey);
+    if (useGemini) {
+      if (!geminiKey) return res.status(503).json({ ok: false, error: 'gemini_image_provider_not_configured' });
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+        method: 'POST',
+        headers: { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: geminiImageModel,
+          input: prompt,
+          response_format: { type: 'image', mime_type: 'image/png', aspect_ratio: '1:1', image_size: '1K' },
+        }),
+        signal: AbortSignal.timeout(120000),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return res.status(502).json({ ok: false, error: 'gemini_image_upstream_error' });
+      const data = body?.output_image?.data;
+      if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_gemini_image' });
+      return res.json({ ok: true, image_base64: data, model: geminiImageModel, provider: 'gemini' });
+    }
+    if (!apiKey) return res.status(503).json({ ok: false, error: 'image_provider_not_configured' });
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: imageModel, prompt, size: '1024x1024' }),
+      signal: AbortSignal.timeout(120000),
+    });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) return res.status(502).json({ ok: false, error: 'image_upstream_error' });
     const data = body?.data?.[0]?.b64_json;
     if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_image' });
-    res.json({ ok: true, image_base64: data, model: imageModel });
-  } catch { res.status(502).json({ ok: false, error: 'image_unreachable' }); }
+    return res.json({ ok: true, image_base64: data, model: imageModel, provider: 'openai' });
+  } catch { return res.status(502).json({ ok: false, error: 'image_unreachable' }); }
+});
+
+app.post('/v1/videos', rateLimit, async (req, res) => {
+  if (!geminiKey) return res.status(503).json({ ok: false, error: 'gemini_video_provider_not_configured' });
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+  if (!prompt) return res.status(400).json({ ok: false, error: 'prompt_required' });
+  if (prompt.length > 12000) return res.status(413).json({ ok: false, error: 'prompt_too_large' });
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiVideoModel)}:predictLongRunning`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instances: [{ prompt }] }),
+      signal: AbortSignal.timeout(60000),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || typeof body?.name !== 'string') return res.status(502).json({ ok: false, error: 'gemini_video_start_failed' });
+    return res.json({ ok: true, provider: 'gemini', model: geminiVideoModel, operation: body.name, done: Boolean(body.done) });
+  } catch { return res.status(502).json({ ok: false, error: 'gemini_video_unreachable' }); }
+});
+
+app.post('/v1/videos/status', rateLimit, async (req, res) => {
+  if (!geminiKey) return res.status(503).json({ ok: false, error: 'gemini_video_provider_not_configured' });
+  const operation = typeof req.body?.operation === 'string' ? req.body.operation.trim().replace(/^\/+/, '') : '';
+  if (!operation || !operation.startsWith('operations/')) return res.status(400).json({ ok: false, error: 'operation_required' });
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operation}`, {
+      headers: { 'x-goog-api-key': geminiKey },
+      signal: AbortSignal.timeout(30000),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return res.status(502).json({ ok: false, error: 'gemini_video_status_failed' });
+    const videoUri = body?.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri || null;
+    return res.json({ ok: true, provider: 'gemini', operation, done: Boolean(body.done), video_uri: videoUri });
+  } catch { return res.status(502).json({ ok: false, error: 'gemini_video_status_unreachable' }); }
 });
 
 app.post('/v1/speech', rateLimit, async (req, res) => {
