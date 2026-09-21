@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { applyFiles, createPullRequest, status as developmentStatus } from './development-agent.mjs';
+import { applyFiles, createPullRequest, runDevelopmentPipeline, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
 import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router.mjs';
@@ -19,6 +19,8 @@ const geminiKey = String(process.env.GEMINI_API_KEY || '').trim();
 const geminiImageModel = String(process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image').trim();
 const geminiVideoModel = String(process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview').trim();
 const transcriptionModel = String(process.env.SHADOW_STT_MODEL || 'gpt-4o-mini-transcribe').trim();
+const geminiTranscriptionModel = String(process.env.GEMINI_STT_MODEL || 'gemini-3.5-transcribe').trim();
+const geminiTtsModel = String(process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview').trim();
 const visionModel = String(process.env.SHADOW_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
 
 app.disable('x-powered-by');
@@ -41,6 +43,7 @@ app.get('/health', async (_req, res) => res.json({
   ok: true,
   service: 'shadow-cloud',
   agent: 'unified-multi-ai',
+  online: true,
   providers: providerStatus(),
   memory: await memoryStatus(),
   capabilities: {
@@ -58,7 +61,7 @@ app.get('/health', async (_req, res) => res.json({
     vision: Boolean(apiKey),
     full_12_step_master: true,
   },
-  image_generation: Boolean(apiKey),
+  image_generation: Boolean(apiKey || geminiKey),
   tts: {
     model: ttsModel,
     voice: ttsVoice,
@@ -206,19 +209,39 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
 });
 
 app.post('/v1/transcribe', rateLimit, async (req, res) => {
-  if (!apiKey) return res.status(503).json({ ok: false, error: 'speech_provider_not_configured' });
   const data = typeof req.body?.audio_base64 === 'string' ? req.body.audio_base64.trim() : '';
   const contentType = typeof req.body?.content_type === 'string' ? req.body.content_type.slice(0, 80) : 'audio/wav';
   if (!data) return res.status(400).json({ ok: false, error: 'audio_required' });
   if (data.length > 25 * 1024 * 1024) return res.status(413).json({ ok: false, error: 'audio_too_large' });
   try {
-    const form = new FormData();
-    form.append('model', transcriptionModel);
-    form.append('file', new Blob([Buffer.from(data, 'base64')], { type: contentType }), 'shadow-audio');
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + apiKey }, body: form, signal: AbortSignal.timeout(90000) });
+    if (apiKey) {
+      const form = new FormData();
+      form.append('model', transcriptionModel);
+      form.append('file', new Blob([Buffer.from(data, 'base64')], { type: contentType }), 'shadow-audio');
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + apiKey }, body: form, signal: AbortSignal.timeout(90000) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return res.status(502).json({ ok: false, error: body?.error?.code || 'transcription_upstream_error' });
+      return res.json({ ok: true, text: String(body?.text || '').trim(), provider: 'openai', model: transcriptionModel });
+    }
+    if (!geminiKey) return res.status(503).json({ ok: false, error: 'speech_provider_not_configured' });
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiTranscriptionModel)}:generateContent`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [
+          { text: 'Transcribe this audio exactly. Return only the transcript. Preserve Arabic/Egyptian wording when spoken.' },
+          { inline_data: { mime_type: contentType, data } },
+        ] }],
+      }),
+      signal: AbortSignal.timeout(90000),
+    });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) return res.status(502).json({ ok: false, error: body?.error?.code || 'transcription_upstream_error' });
-    return res.json({ ok: true, text: String(body?.text || '').trim(), provider: 'openai', model: transcriptionModel });
+    if (!response.ok) return res.status(502).json({ ok: false, error: 'gemini_transcription_upstream_error' });
+    const text = Array.isArray(body?.candidates?.[0]?.content?.parts)
+      ? body.candidates[0].content.parts.filter(x => typeof x?.text === 'string').map(x => x.text).join('').trim()
+      : '';
+    return text ? res.json({ ok: true, text, provider: 'gemini', model: geminiTranscriptionModel })
+      : res.status(502).json({ ok: false, error: 'empty_transcription' });
   } catch (e) {
     return res.status(502).json({ ok: false, error: String(e?.message || 'transcription_unreachable').slice(0, 180) });
   }
@@ -312,6 +335,30 @@ app.post('/v1/development/pull-request', rateLimit, async (req, res) => {
     res.status(message === 'github_write_not_configured' ? 503 : 400).json({ ok: false, error: message });
   }
 });
+app.post('/v1/development/run', rateLimit, async (req, res) => {
+  if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
+  const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : 'shadow-agent-work';
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 200) : 'SHADOW Development Agent change';
+  const body = typeof req.body?.body === 'string' ? req.body.body.slice(0, 10000) : '';
+  const message = typeof req.body?.commit_message === 'string' && req.body.commit_message.trim() ? req.body.commit_message.trim().slice(0, 160) : 'SHADOW Development Agent change';
+  try {
+    const result = await runDevelopmentPipeline({
+      branch,
+      title,
+      body,
+      message,
+      files: req.body?.files,
+      token: typeof req.body?.github_token === 'string' ? req.body.github_token.trim() : '',
+      draft: req.body?.draft !== false,
+      waitSeconds: Number(req.body?.wait_seconds || 240),
+    });
+    return res.json({ ok: true, executed: true, result });
+  } catch (e) {
+    const messageOut = String(e?.message || 'development_pipeline_failed');
+    return res.status(messageOut === 'github_write_not_configured' ? 503 : 400).json({ ok: false, error: messageOut });
+  }
+});
+
 app.post('/v1/development/apply', rateLimit, async (req, res) => {
   if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
   const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : 'shadow-agent-work';
@@ -400,16 +447,40 @@ app.post('/v1/videos/status', rateLimit, async (req, res) => {
 });
 
 app.post('/v1/speech', rateLimit, async (req, res) => {
-  if (!apiKey) return res.status(503).json({ ok: false, error: 'speech_provider_not_configured' });
   const input = typeof req.body?.input === 'string' ? req.body.input.trim() : '';
   if (!input) return res.status(400).json({ ok: false, error: 'input_required' });
   if (input.length > 4096) return res.status(413).json({ ok: false, error: 'input_too_large' });
   try {
-    const response = await fetch('https://api.openai.com/v1/audio/speech', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: ttsModel, voice: ttsVoiceId ? { id: ttsVoiceId } : ttsVoice, input, instructions: ttsInstructions, response_format: 'mp3' }), signal: AbortSignal.timeout(60000) });
-    if (!response.ok) return res.status(502).json({ ok: false, error: 'speech_upstream_error' });
-    res.set('Content-Type', 'audio/mpeg').set('Cache-Control', 'no-store').set('X-SHADOW-TTS-Mode', ttsVoiceId ? 'custom' : 'built-in').set('X-SHADOW-TTS-Style', 'jarvis-inspired-original');
-    res.send(Buffer.from(await response.arrayBuffer()));
-  } catch { res.status(502).json({ ok: false, error: 'speech_unreachable' }); }
+    if (apiKey) {
+      const response = await fetch('https://api.openai.com/v1/audio/speech', { method: 'POST', headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: ttsModel, voice: ttsVoiceId ? { id: ttsVoiceId } : ttsVoice, input, instructions: ttsInstructions, response_format: 'mp3' }), signal: AbortSignal.timeout(60000) });
+      if (!response.ok) return res.status(502).json({ ok: false, error: 'speech_upstream_error' });
+      res.set('Content-Type', 'audio/mpeg').set('Cache-Control', 'no-store').set('X-SHADOW-TTS-Mode', ttsVoiceId ? 'custom' : 'built_in').set('X-SHADOW-TTS-Style', 'jarvis-inspired-original');
+      return res.send(Buffer.from(await response.arrayBuffer()));
+    }
+    if (!geminiKey) return res.status(503).json({ ok: false, error: 'speech_provider_not_configured' });
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiTtsModel)}:generateContent`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: input }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+        },
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return res.status(502).json({ ok: false, error: 'gemini_tts_upstream_error' });
+    const part = body?.candidates?.[0]?.content?.parts?.find(x => x?.inlineData?.data || x?.inline_data?.data);
+    const b64 = part?.inlineData?.data || part?.inline_data?.data;
+    const mime = part?.inlineData?.mimeType || part?.inline_data?.mime_type || 'audio/wav';
+    if (typeof b64 !== 'string') return res.status(502).json({ ok: false, error: 'empty_gemini_tts_result' });
+    res.set('Content-Type', mime).set('Cache-Control', 'no-store').set('X-SHADOW-TTS-Mode', 'gemini');
+    return res.send(Buffer.from(b64, 'base64'));
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: String(e?.message || 'speech_unreachable').slice(0, 180) });
+  }
 });
 
 app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
