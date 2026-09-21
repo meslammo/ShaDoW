@@ -42,25 +42,32 @@ public final class ShadowPermissionManager {
             activity.requestPermissions(new String[]{Manifest.permission.CAMERA}, 803);
             return;
         }
-        if (activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                && activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (!isLocationGranted()) {
             activity.requestPermissions(new String[]{
                     Manifest.permission.ACCESS_COARSE_LOCATION,
                     Manifest.permission.ACCESS_FINE_LOCATION
             }, 904);
-            return;
         }
     }
 
     public String status() {
         return "MIC=" + granted(Manifest.permission.RECORD_AUDIO)
                 + " CAMERA=" + granted(Manifest.permission.CAMERA)
-                + " LOCATION=" + (granted(Manifest.permission.ACCESS_COARSE_LOCATION) || granted(Manifest.permission.ACCESS_FINE_LOCATION))
-                + " NOTIFICATIONS=" + (Build.VERSION.SDK_INT < 33 || granted(Manifest.permission.POST_NOTIFICATIONS))
+                + " LOCATION=" + (isLocationGranted() ? "ON" : "OFF")
+                + " NOTIFICATIONS=" + ((Build.VERSION.SDK_INT < 33 || isGranted(Manifest.permission.POST_NOTIFICATIONS)) ? "ON" : "OFF")
                 + " ACCESSIBILITY=" + (ShadowAccessibilityService.enabled() ? "ON" : "OFF");
     }
 
+    private boolean isLocationGranted() {
+        return isGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+                || isGranted(Manifest.permission.ACCESS_FINE_LOCATION);
+    }
+
+    private boolean isGranted(String p) {
+        return activity.checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED;
+    }
+
     private String granted(String p) {
-        return activity.checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED ? "ON" : "OFF";
+        return isGranted(p) ? "ON" : "OFF";
     }
 }
