@@ -3,6 +3,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
 import { anthropicAgent, externalProviderStatus, geminiAgent, localOpenAICompatAgent, localProviderStatus, mistralAgent } from './external-providers.mjs';
+import { normalizeEffortForProvider, providerOrderFor } from './task-router.mjs';
 
 const { Pool } = pg;
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
@@ -10,15 +11,15 @@ const XAI_URL = 'https://api.x.ai/v1/responses';
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const cfg = {
   openaiKey: (process.env.OPENAI_API_KEY || '').trim(),
-  openaiModel: (process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim(),
+  openaiModel: (process.env.OPENAI_MODEL || 'gpt-5.6').trim(),
   xaiKey: (process.env.XAI_API_KEY || '').trim(),
   xaiModel: (process.env.XAI_MODEL || 'grok-4.6').trim(),
   deepseekKey: (process.env.DEEPSEEK_API_KEY || '').trim(),
-  deepseekModel: (process.env.DEEPSEEK_MODEL || 'deepseek-flash').trim(),
+  deepseekModel: (process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro').trim(),
   mistralKey: (process.env.MISTRAL_API_KEY || '').trim(),
-  mistralModel: (process.env.MISTRAL_MODEL || 'mistral-large-latest').trim(),
+  mistralModel: (process.env.MISTRAL_MODEL || 'mistral-medium-latest').trim(),
   anthropicKey: (process.env.ANTHROPIC_API_KEY || '').trim(),
-  anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim(),
+  anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5').trim(),
   geminiKey: (process.env.GEMINI_API_KEY || '').trim(),
   geminiModel: (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
   localBaseUrl: (process.env.SHADOW_LOCAL_AI_BASE_URL || '').trim(),
@@ -57,8 +58,11 @@ async function ensureDb() {
   if (!pool) return false;
   if (dbReady) return true;
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS shadow_memory (id BIGSERIAL PRIMARY KEY,fact TEXT NOT NULL,reason TEXT NOT NULL DEFAULT '',saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),owner TEXT NOT NULL DEFAULT 'master')`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS shadow_memory (id BIGSERIAL PRIMARY KEY,fact TEXT NOT NULL,reason TEXT NOT NULL DEFAULT '',saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),owner TEXT NOT NULL DEFAULT 'master',evidence_level TEXT NOT NULL DEFAULT 'fact',source TEXT NOT NULL DEFAULT 'user')`);
+    await pool.query(`ALTER TABLE shadow_memory ADD COLUMN IF NOT EXISTS evidence_level TEXT NOT NULL DEFAULT 'fact'`);
+    await pool.query(`ALTER TABLE shadow_memory ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'user'`);
     await pool.query('CREATE INDEX IF NOT EXISTS shadow_memory_saved_at_idx ON shadow_memory(saved_at DESC)');
+    await pool.query('CREATE INDEX IF NOT EXISTS shadow_memory_evidence_idx ON shadow_memory(evidence_level)');
     dbReady = true;
     lastDbError = '';
     return true;
@@ -89,7 +93,7 @@ async function saveFileMemory(items) {
 async function loadMemory() {
   if (await ensureDb()) {
     try {
-      const result = await pool.query('SELECT id, fact, reason, saved_at FROM shadow_memory ORDER BY saved_at DESC LIMIT 500');
+      const result = await pool.query('SELECT id, fact, reason, saved_at, evidence_level, source FROM shadow_memory ORDER BY saved_at DESC LIMIT 500');
       return result.rows;
     } catch (e) {
       dbReady = false;
@@ -101,15 +105,17 @@ async function loadMemory() {
 function secretLike(text) {
   return /(password|passphrase|api[_ -]?key|access[_ -]?token|secret|private key|كلمة السر|باسورد|توكن|مفتاح سري)/i.test(String(text || ''));
 }
-async function saveMemory(fact, reason) {
+async function saveMemory(fact, reason, evidenceLevel = 'fact', source = 'user') {
   const value = String(fact || '').trim();
+  const level = ['fact','evidence','interpretation','conclusion'].includes(String(evidenceLevel || '').toLowerCase()) ? String(evidenceLevel).toLowerCase() : 'fact';
+  const sourceName = String(source || 'user').slice(0, 80);
   if (!value) return { saved: false, reason: 'empty' };
   if (secretLike(value) || secretLike(reason)) return { saved: false, reason: 'secret_or_credential_blocked' };
   if (await ensureDb()) {
     try {
       const existing = await pool.query('SELECT id FROM shadow_memory WHERE lower(fact)=lower($1) LIMIT 1', [value]);
       if (existing.rows.length) return { saved: false, reason: 'duplicate', storage: 'postgres' };
-      await pool.query('INSERT INTO shadow_memory(fact,reason) VALUES($1,$2)', [value, String(reason || '')]);
+      await pool.query('INSERT INTO shadow_memory(fact,reason,evidence_level,source) VALUES($1,$2,$3,$4)', [value, String(reason || ''), level, sourceName]);
       return { saved: true, storage: 'postgres' };
     } catch (e) {
       dbReady = false;
@@ -118,7 +124,7 @@ async function saveMemory(fact, reason) {
   }
   const all = await loadFileMemory();
   if (all.some(x => String(x.fact || '').toLowerCase() === value.toLowerCase())) return { saved: false, reason: 'duplicate', storage: 'file-fallback' };
-  all.push({ fact: value, reason: String(reason || ''), saved_at: new Date().toISOString() });
+  all.push({ fact: value, reason: String(reason || ''), evidence_level: level, source: sourceName, saved_at: new Date().toISOString() });
   await saveFileMemory(all);
   return { saved: true, storage: 'file-fallback' };
 }
@@ -127,15 +133,20 @@ async function searchMemory(query) {
   if (!q) return [];
   const rows = await loadMemory();
   const terms = q.split(/\s+/).filter(Boolean);
-  return rows.filter(x => {
+  return rows.map(x => {
     const hay = `${String(x.fact || '')} ${String(x.reason || '')}`.toLowerCase();
-    return terms.every(t => hay.includes(t));
-  }).slice(0, 20);
+    const hits = terms.filter(t => hay.includes(t)).length;
+    const levelWeight = {fact:4,evidence:3,interpretation:2,conclusion:1}[String(x.evidence_level || 'fact')] || 1;
+    return {...x, _score: hits * 10 + levelWeight};
+  }).filter(x => terms.every(t => `${String(x.fact || '')} ${String(x.reason || '')}`.toLowerCase().includes(t)))
+    .sort((a,b) => b._score - a._score || new Date(b.saved_at || 0) - new Date(a.saved_at || 0))
+    .slice(0,20)
+    .map(({_score, ...x}) => x);
 }
 async function memoryPrompt(query) {
   const matches = await searchMemory(query);
   if (!matches.length) return '';
-  return matches.slice(0, 8).map((item, index) => '[' + (index + 1) + '] ' + String(item.fact || '') + (item.reason ? ' — ' + String(item.reason) : '')).join('\n').slice(0, 6000);
+  return matches.slice(0, 8).map((item, index) => '[' + (index + 1) + '] ' + String(item.fact || '') + (item.reason ? ' — ' + String(item.reason) : '') + ' [' + String(item.evidence_level || 'fact') + '] [' + String(item.source || 'user') + ']').join('\n').slice(0, 6000);
 }
 
 async function forgetMemory(query) {
@@ -259,7 +270,7 @@ async function deepseekAgent(message, device, reasoningEffort = 'none') {
   const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message }];
   const tools = TOOL_DEFINITIONS.map(x => ({ type: 'function', function: { name: x.name, description: x.description, parameters: x.parameters } }));
   for (let i = 0; i < 8; i++) {
-    const deepBody = { model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2 };
+    const deepBody = { model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2, reasoning_effort: normalizeEffortForProvider('deepseek', reasoningEffort) };
     const response = await fetch(DEEPSEEK_URL, { method: 'POST', headers: { Authorization: `Bearer ${cfg.deepseekKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(deepBody), signal: AbortSignal.timeout(65000) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { const e = new Error(body?.error?.message || `upstream_${response.status}`); e.http = response.status; throw e; }
@@ -321,7 +332,7 @@ async function streamResponses(requestPayload, onEvent) {
 
 export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', onDelta, onDone, onPending }) {
   if (!cfg.openaiKey) throw new Error('no_online_ai_provider_available');
-  const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const remembered = await memoryPrompt(message);
   const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
   const model = cfg.openaiModel;
@@ -397,9 +408,7 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
     normalOrder = [preferredProvider];
   } else {
     const freeFirst = String(process.env.SHADOW_FREE_FIRST ?? 'true').toLowerCase() !== 'false';
-    const free = ['local', 'mistral', 'gemini', 'deepseek'];
-    const paid = ['openai', 'xai', 'anthropic'];
-    normalOrder = freeFirst ? [...free, ...paid] : [...paid, ...free];
+    normalOrder = providerOrderFor(message, freeFirst);
   }
   const order = normalOrder;
   const attempts = [];
@@ -419,11 +428,11 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
       } else if (provider === 'deepseek') {
         output = await deepseekAgent(message, device, normalizedEffort);
       } else if (provider === 'mistral') {
-        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.mistralModel, apiKey: cfg.mistralKey });
+        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.mistralModel, apiKey: cfg.mistralKey, reasoningEffort: normalizeEffortForProvider('mistral', normalizedEffort) });
       } else if (provider === 'anthropic') {
-        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.anthropicModel, apiKey: cfg.anthropicKey });
+        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.anthropicModel, apiKey: cfg.anthropicKey, reasoningEffort: normalizeEffortForProvider('anthropic', normalizedEffort) });
       } else if (provider === 'gemini') {
-        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.geminiModel, apiKey: cfg.geminiKey });
+        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.geminiModel, apiKey: cfg.geminiKey, reasoningEffort: normalizeEffortForProvider('gemini', normalizedEffort) });
       } else {
         output = await responsesAgent(provider, message, previousResponseId, device, normalizedEffort);
       }
@@ -449,9 +458,16 @@ export function providerStatus() {
     deepseek: { configured: Boolean(cfg.deepseekKey), model: cfg.deepseekModel },
     local: localProviderStatus(),
     ...externalProviderStatus(),
-    routing: String(process.env.SHADOW_FREE_FIRST ?? 'true').toLowerCase() === 'false'
-      ? 'OpenAI -> xAI -> Anthropic -> DeepSeek -> Mistral -> Gemini -> Local'
-      : 'free-first: Local -> Mistral -> Gemini -> DeepSeek -> OpenAI -> xAI -> Anthropic',
+    routing: 'task-aware provider routing',
+    default_models: {
+      openai: cfg.openaiModel,
+      xai: cfg.xaiModel,
+      deepseek: cfg.deepseekModel,
+      mistral: cfg.mistralModel,
+      anthropic: cfg.anthropicModel,
+      gemini: cfg.geminiModel,
+      local: cfg.localModel,
+    },
     tools: TOOL_DEFINITIONS.map(x => x.name),
     workspace: cfg.workspaceDir,
     memory: { database_configured: Boolean(cfg.databaseUrl), database_ready: dbReady, fallback_file: cfg.memoryDir },

@@ -5,6 +5,17 @@
  * They do not bypass authentication, billing, rate limits, or provider policy.
  */
 
+function normalizeReasoningEffort(value) {
+  const x = String(value || 'none').toLowerCase();
+  if (['none','minimal','low','medium','high','xhigh','max'].includes(x)) return x;
+  return 'none';
+}
+
+function modelEnvironment(name, env = process.env) {
+  const config = externalProviderConfig[name];
+  return String((config && env[config.modelEnv]) || (config && config.defaultModel) || '').trim();
+}
+
 async function postJson(url, headers, body, timeout = 65000) {
   const response = await fetch(url, {
     method: 'POST',
@@ -26,13 +37,13 @@ export const externalProviderConfig = {
   mistral: {
     keyEnv: 'MISTRAL_API_KEY',
     modelEnv: 'MISTRAL_MODEL',
-    defaultModel: 'mistral-large-latest',
+    defaultModel: 'mistral-medium-latest',
     capabilities: ['chat', 'reasoning', 'vision', 'tools'],
   },
   anthropic: {
     keyEnv: 'ANTHROPIC_API_KEY',
     modelEnv: 'ANTHROPIC_MODEL',
-    defaultModel: 'claude-sonnet-4-5',
+    defaultModel: 'claude-sonnet-5',
     capabilities: ['chat', 'reasoning', 'vision', 'tools'],
   },
   gemini: {
@@ -121,7 +132,7 @@ export function externalProviderStatus(env = process.env) {
   ]));
 }
 
-export async function mistralAgent({ message, systemPrompt, toolDefinitions, runTool, model, apiKey }) {
+export async function mistralAgent({ message, systemPrompt, toolDefinitions, runTool, model, apiKey, reasoningEffort = 'none' }) {
   if (!apiKey) throw new Error('mistral_not_configured');
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -139,6 +150,7 @@ export async function mistralAgent({ message, systemPrompt, toolDefinitions, run
       tools,
       tool_choice: 'auto',
       temperature: 0.2,
+      reasoning_effort: normalizeReasoningEffort(reasoningEffort),
     };
     const out = await postJson('https://api.mistral.ai/v1/chat/completions', {
       Authorization: `Bearer ${apiKey}`,
@@ -182,7 +194,7 @@ export async function mistralAgent({ message, systemPrompt, toolDefinitions, run
   throw new Error('mistral_agent_loop_limit');
 }
 
-export async function anthropicAgent({ message, systemPrompt, toolDefinitions, runTool, model, apiKey }) {
+export async function anthropicAgent({ message, systemPrompt, toolDefinitions, runTool, model, apiKey, reasoningEffort = 'none' }) {
   if (!apiKey) throw new Error('anthropic_not_configured');
   let messages = [{ role: 'user', content: message }];
   const tools = toolDefinitions.map(x => ({
@@ -202,6 +214,7 @@ export async function anthropicAgent({ message, systemPrompt, toolDefinitions, r
       messages,
       tools,
       tool_choice: { type: 'auto' },
+      ...(String(model).includes('sonnet-5') ? { output_config: { effort: ['low','medium','high','max'].includes(normalizeReasoningEffort(reasoningEffort)) ? normalizeReasoningEffort(reasoningEffort) : 'medium' } } : {}),
     });
 
     const blocks = Array.isArray(out?.content) ? out.content : [];
@@ -243,7 +256,7 @@ export async function anthropicAgent({ message, systemPrompt, toolDefinitions, r
   throw new Error('anthropic_agent_loop_limit');
 }
 
-export async function geminiAgent({ message, systemPrompt, toolDefinitions, runTool, model, apiKey }) {
+export async function geminiAgent({ message, systemPrompt, toolDefinitions, runTool, model, apiKey, reasoningEffort = 'medium' }) {
   if (!apiKey) throw new Error('gemini_not_configured');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   let contents = [{ role: 'user', parts: [{ text: message }] }];
@@ -262,6 +275,7 @@ export async function geminiAgent({ message, systemPrompt, toolDefinitions, runT
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents,
       tools,
+      generationConfig: { thinkingConfig: { thinkingLevel: ['low','medium','high'].includes(normalizeReasoningEffort(reasoningEffort)) ? normalizeReasoningEffort(reasoningEffort) : 'medium' } },
     });
 
     const parts = out?.candidates?.[0]?.content?.parts || [];
