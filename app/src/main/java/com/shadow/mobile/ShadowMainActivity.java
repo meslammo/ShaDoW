@@ -8,6 +8,14 @@ public class ShadowMainActivity extends JarvisMainActivity {
     private ShadowPermissionManager shadowPermissions;
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (shadowPermissions != null) {
+            shadowPermissions.onPermissionResult(requestCode, grantResults);
+        }
+    }
+
+    @Override
     protected void onPostResume() {
         super.onPostResume();
         if (shadowPermissions == null) {
