@@ -208,6 +208,23 @@ def supernice_execute(
     }
 
 
+def supernice_run(
+    request: str,
+    home: Optional[str] = None,
+    authenticated: bool = False,
+    confirmed: bool = False,
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    from shadow.supernice.master import run_master_pipeline
+    return run_master_pipeline(
+        str(request or ""),
+        home or os.getcwd(),
+        authenticated=bool(authenticated),
+        confirmed=bool(confirmed),
+        context=context if isinstance(context, dict) else {},
+    )
+
+
 def final_status(home: Optional[str] = None) -> Dict[str, Any]:
     return _get_final(home).status()
 

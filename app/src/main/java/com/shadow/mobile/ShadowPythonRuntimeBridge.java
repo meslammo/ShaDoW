@@ -93,6 +93,23 @@ public final class ShadowPythonRuntimeBridge {
         }
     }
 
+    /** MOD-78: execute the complete twelve-stage master pipeline. */
+    public String superniceRun(String request, boolean authenticated, boolean confirmed){
+        try{
+            PyObject result=androidRuntime().callAttr(
+                "supernice_run",
+                request,
+                context.getFilesDir().getAbsolutePath()+"/shadow_workspace",
+                authenticated,
+                confirmed,
+                new org.json.JSONObject().toString()
+            );
+            return result.toString();
+        }catch(Throwable e){
+            return "{\"ok\":false,\"status\":\"runtime_unavailable\",\"startup_blocking\":false}";
+        }
+    }
+
     /** MOD-58: identity-aware governance gate. */
     public String authorize(String request, boolean authenticated, boolean authorized, String source){
         try{
