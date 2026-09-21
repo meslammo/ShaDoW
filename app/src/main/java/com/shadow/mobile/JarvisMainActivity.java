@@ -353,7 +353,42 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void stopBargeInMonitor(){if(bargeInMonitor!=null)bargeInMonitor.stop();}
 
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==904&&grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED&&spatialRadar!=null){spatialRadar.start();assistant("Spatial Radar اتفعل.");}}
-    @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(result==RESULT_OK&&data!=null)system("Attached: "+(data.getData()!=null?String.valueOf(data.getData().getLastPathSegment()):"camera capture"));}
+    @Override protected void onActivityResult(int req,int result,Intent data){
+        super.onActivityResult(req,result,data);
+        if(result!=RESULT_OK||data==null)return;
+        if(req==FILE){
+            Uri uri=data.getData();
+            if(uri==null){system("الملف المرفق مش متاح.");return;}
+            system("SHADOW • بيحلل الصورة أونلاين…");
+            new Thread(()->{
+                try{
+                    byte[] bytes=readUriBytes(uri);
+                    String mime=getContentResolver().getType(uri);
+                    String answer=cloud.analyzeImage(bytes,mime,"حلل الصورة، استخرج ما يمكن التحقق منه، واذكر أي عدم يقين. لو فيها واجهة تطبيق أو شاشة، صف العناصر المهمة.");
+                    runOnUiThread(()->{assistant(answer);masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,uri.toString(),"vision","vision_analyzed",!answer.isEmpty());stage("done");});
+                }catch(Throwable e){runOnUiThread(()->{assistant("تعذر تحليل الصورة أونلاين: "+String.valueOf(e.getMessage()));stage("reconnecting");});}
+            }).start();
+        }else if(req==CAMERA){
+            android.graphics.Bitmap bmp=data.getParcelableExtra("data");
+            if(bmp==null){system("التقاط الكاميرا ما رجعش صورة قابلة للتحليل.");return;}
+            system("SHADOW • بيحلل لقطة الكاميرا أونلاين…");
+            new Thread(()->{
+                try{
+                    ByteArrayOutputStream out=new ByteArrayOutputStream();
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG,88,out);
+                    String answer=cloud.analyzeImage(out.toByteArray(),"image/jpeg","حلل لقطة الكاميرا بدقة، اذكر فقط ما يظهر بالفعل، ووضح عدم اليقين.");
+                    runOnUiThread(()->{assistant(answer);masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,"camera","vision","camera_analyzed",!answer.isEmpty());stage("done");});
+                }catch(Throwable e){runOnUiThread(()->{assistant("تعذر تحليل لقطة الكاميرا: "+String.valueOf(e.getMessage()));stage("reconnecting");});}
+            }).start();
+        }else system("Attached: "+(data.getData()!=null?String.valueOf(data.getData().getLastPathSegment()):"camera capture"));
+    }
+    private byte[] readUriBytes(Uri uri)throws Exception{
+        try(java.io.InputStream in=getContentResolver().openInputStream(uri);java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+            if(in==null)throw new java.io.IOException("stream_unavailable");
+            byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){if(out.size()>18*1024*1024)throw new java.io.IOException("image_too_large");out.write(buf,0,n);}
+            return out.toByteArray();
+        }
+    }
     private boolean arabic(String s){for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c>=0x0600&&c<=0x06FF)return true;}return false;}
     private void speak(String s){if(s==null||s.trim().isEmpty())return;if(!voiceOutput){if(voiceTurnActive&&voiceState!=null)voiceState.responseFinishedWithoutTts();return;}if(voiceState!=null)voiceState.ttsStarted();if(cloudOnline&&cloudVoice)new Thread(()->{try{byte[] audio=cloud.synthesizeSpeech(s);File f=new File(getCacheDir(),"shadow_voice.mp3");try(FileOutputStream o=new FileOutputStream(f)){o.write(audio);}runOnUiThread(()->play(f));}catch(Exception e){runOnUiThread(()->localSpeak(s));}}).start();else localSpeak(s);}
     private void play(File f){try{if(player!=null)player.release();player=new MediaPlayer();player.setDataSource(f.getAbsolutePath());player.setOnCompletionListener(m->{m.release();player=null;stopBargeInMonitor();if(voiceState!=null)voiceState.ttsFinished();});player.setOnErrorListener((m,what,extra)->{try{m.release();}catch(Exception ignored){}player=null;stopBargeInMonitor();if(voiceState!=null)voiceState.ttsFinished();return true;});player.setOnPreparedListener(m->{m.start();startBargeInMonitor();});player.prepare();}catch(Exception e){localSpeak("حصلت مشكلة في الصوت.");}}
