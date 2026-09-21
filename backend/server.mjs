@@ -21,7 +21,7 @@ const geminiVideoModel = String(process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-gener
 const transcriptionModel = String(process.env.SHADOW_STT_MODEL || 'gpt-4o-mini-transcribe').trim();
 const geminiTranscriptionModel = String(process.env.GEMINI_STT_MODEL || 'gemini-3.5-transcribe').trim();
 const geminiTtsModel = String(process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview').trim();
-const visionModel = String(process.env.SHADOW_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
+const visionModel = String(process.env.SHADOW_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6').trim();
 
 app.disable('x-powered-by');
 app.use(helmet());
