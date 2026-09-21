@@ -12,8 +12,11 @@ assert.equal(providerOrderFor('ازيك', true)[0], 'local');
 assert.equal(normalizeEffortForProvider('gemini', 'xhigh'), 'medium');
 assert.equal(normalizeEffortForProvider('xai', 'low'), 'low');
 assert.equal(normalizeEffortForProvider('openai', 'max'), 'max');
-const caps=providerCapabilitySnapshot();
-assert.ok(Array.isArray(caps.gemini));
-assert.ok(caps.gemini.includes('vision'));
+
+const caps=providerCapabilitySnapshot({
+  gemini:{configured:true,model:'gemini-3.8-flash',capabilities:['chat','vision']},
+});
+assert.ok(Array.isArray(caps));
+assert.ok(caps.some(x=>x.provider==='gemini' && x.capabilities.includes('vision')));
 
 console.log('task-router: ok');
