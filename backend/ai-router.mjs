@@ -58,8 +58,11 @@ async function ensureDb() {
   if (!pool) return false;
   if (dbReady) return true;
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS shadow_memory (id BIGSERIAL PRIMARY KEY,fact TEXT NOT NULL,reason TEXT NOT NULL DEFAULT '',saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),owner TEXT NOT NULL DEFAULT 'master')`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS shadow_memory (id BIGSERIAL PRIMARY KEY,fact TEXT NOT NULL,reason TEXT NOT NULL DEFAULT '',saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),owner TEXT NOT NULL DEFAULT 'master',evidence_level TEXT NOT NULL DEFAULT 'fact',source TEXT NOT NULL DEFAULT 'user')`);
+    await pool.query(`ALTER TABLE shadow_memory ADD COLUMN IF NOT EXISTS evidence_level TEXT NOT NULL DEFAULT 'fact'`);
+    await pool.query(`ALTER TABLE shadow_memory ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'user'`);
     await pool.query('CREATE INDEX IF NOT EXISTS shadow_memory_saved_at_idx ON shadow_memory(saved_at DESC)');
+    await pool.query('CREATE INDEX IF NOT EXISTS shadow_memory_evidence_idx ON shadow_memory(evidence_level)');
     dbReady = true;
     lastDbError = '';
     return true;
@@ -90,7 +93,7 @@ async function saveFileMemory(items) {
 async function loadMemory() {
   if (await ensureDb()) {
     try {
-      const result = await pool.query('SELECT id, fact, reason, saved_at FROM shadow_memory ORDER BY saved_at DESC LIMIT 500');
+      const result = await pool.query('SELECT id, fact, reason, saved_at, evidence_level, source FROM shadow_memory ORDER BY saved_at DESC LIMIT 500');
       return result.rows;
     } catch (e) {
       dbReady = false;
@@ -102,15 +105,17 @@ async function loadMemory() {
 function secretLike(text) {
   return /(password|passphrase|api[_ -]?key|access[_ -]?token|secret|private key|كلمة السر|باسورد|توكن|مفتاح سري)/i.test(String(text || ''));
 }
-async function saveMemory(fact, reason) {
+async function saveMemory(fact, reason, evidenceLevel = 'fact', source = 'user') {
   const value = String(fact || '').trim();
+  const level = ['fact','evidence','interpretation','conclusion'].includes(String(evidenceLevel || '').toLowerCase()) ? String(evidenceLevel).toLowerCase() : 'fact';
+  const sourceName = String(source || 'user').slice(0, 80);
   if (!value) return { saved: false, reason: 'empty' };
   if (secretLike(value) || secretLike(reason)) return { saved: false, reason: 'secret_or_credential_blocked' };
   if (await ensureDb()) {
     try {
       const existing = await pool.query('SELECT id FROM shadow_memory WHERE lower(fact)=lower($1) LIMIT 1', [value]);
       if (existing.rows.length) return { saved: false, reason: 'duplicate', storage: 'postgres' };
-      await pool.query('INSERT INTO shadow_memory(fact,reason) VALUES($1,$2)', [value, String(reason || '')]);
+      await pool.query('INSERT INTO shadow_memory(fact,reason,evidence_level,source) VALUES($1,$2,$3,$4)', [value, String(reason || ''), level, sourceName]);
       return { saved: true, storage: 'postgres' };
     } catch (e) {
       dbReady = false;
@@ -119,7 +124,7 @@ async function saveMemory(fact, reason) {
   }
   const all = await loadFileMemory();
   if (all.some(x => String(x.fact || '').toLowerCase() === value.toLowerCase())) return { saved: false, reason: 'duplicate', storage: 'file-fallback' };
-  all.push({ fact: value, reason: String(reason || ''), saved_at: new Date().toISOString() });
+  all.push({ fact: value, reason: String(reason || ''), evidence_level: level, source: sourceName, saved_at: new Date().toISOString() });
   await saveFileMemory(all);
   return { saved: true, storage: 'file-fallback' };
 }
@@ -128,15 +133,20 @@ async function searchMemory(query) {
   if (!q) return [];
   const rows = await loadMemory();
   const terms = q.split(/\s+/).filter(Boolean);
-  return rows.filter(x => {
+  return rows.map(x => {
     const hay = `${String(x.fact || '')} ${String(x.reason || '')}`.toLowerCase();
-    return terms.every(t => hay.includes(t));
-  }).slice(0, 20);
+    const hits = terms.filter(t => hay.includes(t)).length;
+    const levelWeight = {fact:4,evidence:3,interpretation:2,conclusion:1}[String(x.evidence_level || 'fact')] || 1;
+    return {...x, _score: hits * 10 + levelWeight};
+  }).filter(x => terms.every(t => `${String(x.fact || '')} ${String(x.reason || '')}`.toLowerCase().includes(t)))
+    .sort((a,b) => b._score - a._score || new Date(b.saved_at || 0) - new Date(a.saved_at || 0))
+    .slice(0,20)
+    .map(({_score, ...x}) => x);
 }
 async function memoryPrompt(query) {
   const matches = await searchMemory(query);
   if (!matches.length) return '';
-  return matches.slice(0, 8).map((item, index) => '[' + (index + 1) + '] ' + String(item.fact || '') + (item.reason ? ' — ' + String(item.reason) : '')).join('\n').slice(0, 6000);
+  return matches.slice(0, 8).map((item, index) => '[' + (index + 1) + '] ' + String(item.fact || '') + (item.reason ? ' — ' + String(item.reason) : '') + ' [' + String(item.evidence_level || 'fact') + '] [' + String(item.source || 'user') + ']').join('\n').slice(0, 6000);
 }
 
 async function forgetMemory(query) {
