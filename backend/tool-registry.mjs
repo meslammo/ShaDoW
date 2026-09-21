@@ -72,7 +72,7 @@ export const TOOL_DEFINITIONS = [
   { type: 'function', name: 'web_fetch', description: 'Fetch a public HTTP(S) web page without accessing private hosts.', parameters: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'], additionalProperties: false } },
   { type: 'function', name: 'github_read', description: 'Read public GitHub repository metadata or a file.', parameters: { type: 'object', properties: { repo: { type: 'string' }, path: { type: 'string' } }, required: ['repo'], additionalProperties: false } },
   { type: 'function', name: 'memory_search', description: 'Search durable non-secret memory.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
-  { type: 'function', name: 'memory_save', description: 'Save a useful non-secret fact or preference.', parameters: { type: 'object', properties: { fact: { type: 'string' }, reason: { type: 'string' } }, required: ['fact'], additionalProperties: false } },
+  { type: 'function', name: 'memory_save', description: 'Save a useful non-secret fact or preference with provenance.', parameters: { type: 'object', properties: { fact: { type: 'string' }, reason: { type: 'string' }, evidence_level: { type: 'string', enum: ['fact','evidence','interpretation','conclusion'] }, source: { type: 'string' } }, required: ['fact'], additionalProperties: false } },
   { type: 'function', name: 'memory_forget', description: 'Forget a matching durable memory fact.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { type: 'function', name: 'file_read', description: 'Read a file from the SHADOW workspace only.', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
   { type: 'function', name: 'file_write', description: 'Write a file into the SHADOW workspace. Use only after explicit authorization for mutations.', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'], additionalProperties: false } },
@@ -85,7 +85,7 @@ export async function executeTool(name, args, helpers = {}) {
   if (name === 'web_fetch') return { kind: 'result', value: await webFetch(args.url) };
   if (name === 'github_read') return { kind: 'result', value: await helpers.githubRead(args.repo, args.path) };
   if (name === 'memory_search') return { kind: 'result', value: await helpers.memorySearch(args.query) };
-  if (name === 'memory_save') return { kind: 'result', value: await helpers.memorySave(args.fact, args.reason || '') };
+  if (name === 'memory_save') return { kind: 'result', value: await helpers.memorySave(args.fact, args.reason || '', args.evidence_level || 'fact', args.source || 'user') };
   if (name === 'memory_forget') return { kind: 'result', value: await helpers.memoryForget(args.query) };
   if (name === 'file_read') return { kind: 'result', value: await fileRead(args.path) };
   if (name === 'file_write') {
