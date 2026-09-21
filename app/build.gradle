@@ -11,8 +11,8 @@ android {
         applicationId 'com.shadow.mobile.test'
         minSdk 26
         targetSdk 35
-        versionCode 90
-        versionName '1.8.5-mod88-shadow-master-online-only'
+        versionCode 91
+        versionName '1.8.6-mod91-shadow-final-e2e-online-only'
         buildConfigField 'String', 'SHADOW_BACKEND_URL', '"https://shadow-cloud-api-production.up.railway.app"'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
