@@ -31,7 +31,10 @@ jobs:
           node --check ai-router.mjs
           node --check external-providers.mjs
           node --check tool-registry.mjs
+          node --check task-router.mjs
+          node --check development-agent.mjs
           node --test test-external-providers.mjs
+          node --test test-task-router.mjs
 
   build:
     needs: verify-backend
