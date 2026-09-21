@@ -10,8 +10,8 @@ test('task classifier separates code, vision, research and chat', () => {
 });
 
 test('provider order is task aware', () => {
-  assert.equal(providerOrderFor('راجع كود GitHub')[0], 'xai');
-  assert.equal(providerOrderFor('حلل الصورة')[0], 'gemini');
+  assert.equal(providerOrderFor('راجع كود GitHub', false)[0], 'xai');
+  assert.equal(providerOrderFor('حلل الصورة', false)[0], 'gemini');
 });
 
 test('reasoning effort is normalized per provider', () => {
