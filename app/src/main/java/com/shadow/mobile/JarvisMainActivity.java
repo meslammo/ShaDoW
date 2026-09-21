@@ -195,6 +195,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             return;
         }
         if(plan.route==ShadowMasterOrchestrator.Route.IMAGE){stage("designing");generateImage(request);return;}
+        if(plan.route==ShadowMasterOrchestrator.Route.VISION){assistant("تمام — ابعت الصورة أو افتح الكاميرا، وSHADOW هيحللها أونلاين ويربط النتيجة بنفس مسار المحادثة.");attach();stage("done");return;}
         if(plan.route==ShadowMasterOrchestrator.Route.SYSTEM){
             new Thread(()->{
                 String answer;
