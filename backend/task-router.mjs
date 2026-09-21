@@ -1,4 +1,15 @@
-const TASKS = Object.freeze({
+// MOD-79: task-aware provider selection for the unified SHADOW agent.
+export function classifyTask(message = '') {
+  const x = String(message || '').toLowerCase();
+  if (/(فيديو|video|movie|clip)/i.test(x)) return 'video';
+  if (/(صورة|image|photo|vision|screenshot|كاميرا|لقطة|حلل الصورة|شوف)/i.test(x)) return 'vision';
+  if (/(كود|code|coding|github|git\b|repo|repository|build|apk|test|debug|compile|برمجة|تطبيق|project|تطوير|جيت هب)/i.test(x)) return 'code';
+  if (/(ترجمة|ترجم|translate|translation|لغة|language)/i.test(x)) return 'language';
+  if (/(بحث|ابحث|مصادر|research|آخر|اخر|today|latest|news|current|update|النهارده|دلوقتي)/i.test(x)) return 'research';
+  return 'chat';
+}
+
+export const TASK_PROVIDER_ORDER = Object.freeze({
   chat: ['local','gemini','mistral','deepseek','openai','xai','anthropic'],
   research: ['gemini','xai','openai','deepseek','mistral','anthropic','local'],
   code: ['xai','openai','anthropic','mistral','gemini','deepseek','local'],
@@ -7,48 +18,46 @@ const TASKS = Object.freeze({
   video: ['gemini','xai','openai','local'],
 });
 
-const CAPABILITIES = Object.freeze({
-  local: ['chat','reasoning','tools'],
-  gemini: ['chat','reasoning','vision','audio','video','pdf','image-generation','video-generation','tools'],
-  mistral: ['chat','reasoning','vision','tools'],
-  deepseek: ['chat','reasoning','tools'],
-  openai: ['chat','reasoning','vision','audio','tools','image-generation'],
-  xai: ['chat','reasoning','vision','tools','web-search'],
-  anthropic: ['chat','reasoning','vision','tools'],
-});
-
-export function classifyTask(message='') {
-  const s=String(message||'').toLowerCase();
-  if (/(صورة|صور|image|vision|كاميرا|لقطة|مقطع فيديو|فيديو|video)/i.test(s)) return /(فيديو|video)/i.test(s) ? 'video' : 'vision';
-  if (/(github|git\b|كود|برمج|code|debug|compile|build|apk|pull request|repo|repository)/i.test(s)) return 'code';
-  if (/(ابحث|بحث|مصادر|source|sources|research|آخر|اليوم|دلوقتي|news|خبر)/i.test(s)) return 'research';
-  if (/(ترجم|ترجمة|translate|translation|لغة|language)/i.test(s)) return 'language';
-  return 'chat';
+export function providerOrderFor(message, freeFirst = true) {
+  const task = classifyTask(message);
+  const order = [...(TASK_PROVIDER_ORDER[task] || TASK_PROVIDER_ORDER.chat)];
+  if (freeFirst) {
+    return order.includes('local') ? ['local', ...order.filter(x => x !== 'local')] : order;
+  }
+  return order.filter(x => x !== 'local');
 }
 
-export function providerOrderFor(message='', freeFirst=true) {
-  const task=classifyTask(message);
-  const base=[...(TASKS[task]||TASKS.chat)];
-  if (!freeFirst) return base;
-  return [...base].sort((a,b)=>{
-    const freeA=a==='local'?0:1, freeB=b==='local'?0:1;
-    return freeA-freeB;
-  });
-}
-
-export function normalizeEffortForProvider(provider, effort='none') {
-  const e=String(effort||'none').toLowerCase();
-  if (provider==='gemini') return ['minimal','low','medium','high'].includes(e)?e:'medium';
-  if (provider==='mistral') return ['none','minimal','low','medium','high','xhigh'].includes(e)?e:'none';
-  if (provider==='xai') return ['low','medium','high','xhigh'].includes(e)?e:'high';
-  if (provider==='openai') return ['none','minimal','low','medium','high','xhigh','max'].includes(e)?e:'none';
-  if (provider==='deepseek') return ['none','low','medium','high'].includes(e)?e:'medium';
-  if (provider==='anthropic') return ['none','low','medium','high'].includes(e)?e:'medium';
+export function normalizeEffortForProvider(provider, effort = 'none') {
+  const x = String(effort || 'none').toLowerCase();
+  if (provider === 'gemini') return ['low','medium','high'].includes(x) ? x : 'medium';
+  if (provider === 'anthropic') {
+    if (x === 'max' || x === 'xhigh') return 'max';
+    if (x === 'high') return 'high';
+    if (x === 'medium') return 'medium';
+    if (x === 'low' || x === 'minimal') return 'low';
+    return 'medium';
+  }
+  if (provider === 'mistral') {
+    if (x === 'xhigh' || x === 'max') return 'xhigh';
+    if (['none','minimal','low','medium','high'].includes(x)) return x;
+    return 'medium';
+  }
+  if (provider === 'xai') return ['low','medium','high','xhigh'].includes(x) ? x : 'high';
+  if (provider === 'openai') return ['none','minimal','low','medium','high','xhigh','max'].includes(x) ? x : 'medium';
+  if (provider === 'deepseek') {
+    if (x === 'max') return 'max';
+    if (x === 'xhigh' || x === 'high' || x === 'medium') return x === 'xhigh' || x === 'medium' ? 'high' : 'high';
+    if (x === 'low' || x === 'minimal') return 'low';
+    return 'high';
+  }
   return 'none';
 }
 
-export function providerCapabilitySnapshot() {
-  return Object.fromEntries(Object.entries(CAPABILITIES).map(([provider, capabilities])=>({
-    [provider]: [...capabilities]
-  }).[provider] ? [provider, [...capabilities]] : [provider, []]));
+export function providerCapabilitySnapshot(providerStatus = {}) {
+  return Object.entries(providerStatus).map(([name, status]) => ({
+    provider: name,
+    configured: Boolean(status?.configured),
+    model: status?.model || null,
+    capabilities: status?.capabilities || [],
+  }));
 }
