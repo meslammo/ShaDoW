@@ -214,7 +214,7 @@ export async function anthropicAgent({ message, systemPrompt, toolDefinitions, r
       messages,
       tools,
       tool_choice: { type: 'auto' },
-      ...(String(model).includes('sonnet-5') ? { effort: normalizeReasoningEffort(reasoningEffort) === 'none' ? 'medium' : normalizeReasoningEffort(reasoningEffort) } : {}),
+      ...(String(model).includes('sonnet-5') ? { output_config: { effort: ['low','medium','high','max'].includes(normalizeReasoningEffort(reasoningEffort)) ? normalizeReasoningEffort(reasoningEffort) : 'medium' } } : {}),
     });
 
     const blocks = Array.isArray(out?.content) ? out.content : [];
