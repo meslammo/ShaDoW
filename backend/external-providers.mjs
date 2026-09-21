@@ -37,7 +37,7 @@ export const externalProviderConfig = {
   mistral: {
     keyEnv: 'MISTRAL_API_KEY',
     modelEnv: 'MISTRAL_MODEL',
-    defaultModel: 'mistral-medium-latest',
+    defaultModel: 'mistral-medium-3-5',
     capabilities: ['chat', 'reasoning', 'vision', 'tools'],
   },
   anthropic: {
