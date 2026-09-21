@@ -141,6 +141,40 @@ public final class ShadowCloudClient {
     private JSONObject postJson(String path,JSONObject body,int timeout)throws Exception{if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+path).openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(timeout);c.setRequestProperty("Content-Type","application/json; charset=utf-8");c.setRequestProperty("Accept","application/json");byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());return new JSONObject(json==null?"{}":json);}finally{if(c!=null)c.disconnect();}}
     public String generateImage(String prompt)throws Exception{JSONObject result=postJson("/v1/images",new JSONObject().put("prompt",prompt).put("size","1024x1024"),120000);if(!result.optBoolean("ok",false))throw new IllegalStateException(result.optString("error","image_generation_failed"));String data=result.optString("image_base64","").trim();if(data.isEmpty())throw new IllegalStateException("empty_image");return data;}
     public byte[] synthesizeSpeech(String text)throws Exception{JSONObject body=new JSONObject().put("input",text);HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/v1/speech").openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(60000);c.setRequestProperty("Content-Type","application/json; charset=utf-8");byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();if(code<200||code>=300)throw new IllegalStateException("speech_failed_"+code);return readBytes(c.getInputStream());}finally{if(c!=null)c.disconnect();}}
+    /** MOD-78: cloud speech-to-text path. Provider credentials stay server-side. */
+    public String transcribeSpeech(byte[] audio,String contentType)throws Exception{
+        if(audio==null||audio.length==0)throw new IllegalArgumentException("audio_required");
+        JSONObject body=new JSONObject();
+        body.put("audio_base64",android.util.Base64.encodeToString(audio,android.util.Base64.NO_WRAP));
+        body.put("content_type",contentType==null?"audio/wav":contentType);
+        JSONObject r=postJson("/v1/transcribe",body,90000);
+        if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","transcription_failed"));
+        return r.optString("text","").trim();
+    }
+
+    /** MOD-78: server-authoritative image understanding path. */
+    public String analyzeImage(byte[] image,String mimeType,String prompt)throws Exception{
+        if(image==null||image.length==0)throw new IllegalArgumentException("image_required");
+        JSONObject body=new JSONObject();
+        body.put("image_base64",android.util.Base64.encodeToString(image,android.util.Base64.NO_WRAP));
+        body.put("content_type",mimeType==null?"image/jpeg":mimeType);
+        body.put("prompt",prompt==null||prompt.trim().isEmpty()?"حلل الصورة بدقة واذكر ما يمكن التحقق منه فقط.":prompt);
+        JSONObject r=postJson("/v1/vision",body,90000);
+        if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","vision_failed"));
+        return r.optString("answer","").trim();
+    }
+
+    /** MOD-78: cloud view of the same twelve-stage master pipeline. */
+    public String runMasterPipeline(String request,boolean authenticated,boolean confirmed)throws Exception{
+        JSONObject body=new JSONObject();
+        body.put("message",request==null?"":request);
+        body.put("authenticated",authenticated);
+        body.put("confirmed",confirmed);
+        JSONObject r=postJson("/v1/master/run",body,90000);
+        if(!r.optBoolean("ok",false)&&!"confirmation_required".equals(r.optString("error","")))throw new IllegalStateException(r.optString("error","master_pipeline_failed"));
+        return r.toString();
+    }
+
     public void resetConversation(){prefs().edit().remove(RESPONSE_ID).apply();}
     private String deviceProfile(){JSONObject d=new JSONObject();try{d.put("manufacturer",android.os.Build.MANUFACTURER);d.put("model",android.os.Build.MODEL);d.put("android",android.os.Build.VERSION.RELEASE);d.put("sdk",android.os.Build.VERSION.SDK_INT);PackageManager pm=context.getPackageManager();List<ApplicationInfo> apps=pm.getInstalledApplications(PackageManager.GET_META_DATA);ArrayList<String> names=new ArrayList<>();for(ApplicationInfo app:apps){CharSequence label=pm.getApplicationLabel(app);if(label!=null)names.add(label.toString());if(names.size()>=120)break;}Collections.sort(names,String.CASE_INSENSITIVE_ORDER);JSONArray a=new JSONArray();for(String n:names)a.put(n);d.put("installed_apps",a);}catch(Exception ignored){}return d.toString();}
     private android.content.SharedPreferences prefs(){return context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);}
