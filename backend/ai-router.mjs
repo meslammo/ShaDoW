@@ -3,6 +3,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
 import { anthropicAgent, externalProviderStatus, geminiAgent, localOpenAICompatAgent, localProviderStatus, mistralAgent } from './external-providers.mjs';
+import { normalizeEffortForProvider, providerOrderFor } from './task-router.mjs';
 
 const { Pool } = pg;
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
@@ -10,15 +11,15 @@ const XAI_URL = 'https://api.x.ai/v1/responses';
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const cfg = {
   openaiKey: (process.env.OPENAI_API_KEY || '').trim(),
-  openaiModel: (process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim(),
+  openaiModel: (process.env.OPENAI_MODEL || 'gpt-5.6').trim(),
   xaiKey: (process.env.XAI_API_KEY || '').trim(),
   xaiModel: (process.env.XAI_MODEL || 'grok-4.6').trim(),
   deepseekKey: (process.env.DEEPSEEK_API_KEY || '').trim(),
-  deepseekModel: (process.env.DEEPSEEK_MODEL || 'deepseek-flash').trim(),
+  deepseekModel: (process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro').trim(),
   mistralKey: (process.env.MISTRAL_API_KEY || '').trim(),
-  mistralModel: (process.env.MISTRAL_MODEL || 'mistral-large-latest').trim(),
+  mistralModel: (process.env.MISTRAL_MODEL || 'mistral-medium-latest').trim(),
   anthropicKey: (process.env.ANTHROPIC_API_KEY || '').trim(),
-  anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim(),
+  anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5').trim(),
   geminiKey: (process.env.GEMINI_API_KEY || '').trim(),
   geminiModel: (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
   localBaseUrl: (process.env.SHADOW_LOCAL_AI_BASE_URL || '').trim(),
@@ -419,11 +420,11 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
       } else if (provider === 'deepseek') {
         output = await deepseekAgent(message, device, normalizedEffort);
       } else if (provider === 'mistral') {
-        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.mistralModel, apiKey: cfg.mistralKey });
+        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.mistralModel, apiKey: cfg.mistralKey, reasoningEffort: normalizeEffortForProvider('mistral', normalizedEffort) });
       } else if (provider === 'anthropic') {
-        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.anthropicModel, apiKey: cfg.anthropicKey });
+        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.anthropicModel, apiKey: cfg.anthropicKey, reasoningEffort: normalizeEffortForProvider('anthropic', normalizedEffort) });
       } else if (provider === 'gemini') {
-        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.geminiModel, apiKey: cfg.geminiKey });
+        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.geminiModel, apiKey: cfg.geminiKey, reasoningEffort: normalizeEffortForProvider('gemini', normalizedEffort) });
       } else {
         output = await responsesAgent(provider, message, previousResponseId, device, normalizedEffort);
       }
