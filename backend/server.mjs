@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { applyFiles, createPullRequest, status as developmentStatus } from './development-agent.mjs';
+import { applyFiles, createPullRequest, runDevelopmentPipeline, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
 import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router.mjs';
@@ -312,6 +312,30 @@ app.post('/v1/development/pull-request', rateLimit, async (req, res) => {
     res.status(message === 'github_write_not_configured' ? 503 : 400).json({ ok: false, error: message });
   }
 });
+app.post('/v1/development/run', rateLimit, async (req, res) => {
+  if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
+  const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : 'shadow-agent-work';
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 200) : 'SHADOW Development Agent change';
+  const body = typeof req.body?.body === 'string' ? req.body.body.slice(0, 10000) : '';
+  const message = typeof req.body?.commit_message === 'string' && req.body.commit_message.trim() ? req.body.commit_message.trim().slice(0, 160) : 'SHADOW Development Agent change';
+  try {
+    const result = await runDevelopmentPipeline({
+      branch,
+      title,
+      body,
+      message,
+      files: req.body?.files,
+      token: typeof req.body?.github_token === 'string' ? req.body.github_token.trim() : '',
+      draft: req.body?.draft !== false,
+      waitSeconds: Number(req.body?.wait_seconds || 240),
+    });
+    return res.json({ ok: true, executed: true, result });
+  } catch (e) {
+    const messageOut = String(e?.message || 'development_pipeline_failed');
+    return res.status(messageOut === 'github_write_not_configured' ? 503 : 400).json({ ok: false, error: messageOut });
+  }
+});
+
 app.post('/v1/development/apply', rateLimit, async (req, res) => {
   if (req.body?.approved !== true) return res.status(403).json({ ok: false, error: 'explicit_approval_required' });
   const branch = typeof req.body?.branch === 'string' && /^[A-Za-z0-9._/-]{1,80}$/.test(req.body.branch) ? req.body.branch : 'shadow-agent-work';
