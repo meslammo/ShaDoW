@@ -82,3 +82,29 @@ export async function createPullRequest({branch, title, body = '', token = '', d
     base: result?.base?.sha || null,
   };
 }
+
+
+async function workflowRunsForSha(sha, token) {
+  return gh(`/repos/${REPO}/actions/runs?head_sha=${encodeURIComponent(sha)}&per_page=20`, {}, token);
+}
+
+export async function runDevelopmentPipeline({ branch = 'shadow-agent-work', message = 'SHADOW Development Agent change', title = 'SHADOW Development Agent change', body = '', files = [], token = '', draft = true, waitSeconds = 240 }) {
+  const authToken = String(token || TOKEN).trim();
+  if (!configured(authToken)) throw new Error('github_write_not_configured');
+  const applied = await applyFiles({ branch, message, files, token: authToken });
+  const lastCommit = applied.files?.slice(-1)?.[0]?.commit_sha || applied.branch_created ? applied.branch_created : null;
+  const pr = await createPullRequest({ branch, title, body, token: authToken, draft });
+  const started = Date.now();
+  let workflowState = { status: 'waiting', runs: [] };
+  while (Date.now() - started < Math.max(10, Number(waitSeconds) || 240) * 1000) {
+    const data = await workflowRunsForSha(lastCommit, authToken);
+    const runs = Array.isArray(data?.workflow_runs) ? data.workflow_runs : [];
+    workflowState = {
+      status: runs.length ? (runs.some(x => x.conclusion === 'failure') ? 'failure' : runs.every(x => x.status === 'completed') ? 'success' : 'in_progress') : 'waiting',
+      runs: runs.map(x => ({ id: x.id, name: x.name, status: x.status, conclusion: x.conclusion, url: x.html_url })),
+    };
+    if (workflowState.status === 'success' || workflowState.status === 'failure') break;
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+  return { repo: REPO, branch, applied, pull_request: pr, verification: workflowState };
+}
