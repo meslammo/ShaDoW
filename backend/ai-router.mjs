@@ -17,7 +17,7 @@ const cfg = {
   deepseekKey: (process.env.DEEPSEEK_API_KEY || '').trim(),
   deepseekModel: (process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro').trim(),
   mistralKey: (process.env.MISTRAL_API_KEY || '').trim(),
-  mistralModel: (process.env.MISTRAL_MODEL || 'mistral-medium-latest').trim(),
+  mistralModel: (process.env.MISTRAL_MODEL || 'mistral-medium-3-5').trim(),
   anthropicKey: (process.env.ANTHROPIC_API_KEY || '').trim(),
   anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5').trim(),
   geminiKey: (process.env.GEMINI_API_KEY || '').trim(),
