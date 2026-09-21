@@ -53,3 +53,27 @@ The Android and cloud surfaces now expose one explicit 12-stage execution contra
 - Cloud STT: POST `/v1/transcribe`.
 - Cloud vision: POST `/v1/vision`.
 - Provider/device side effects remain credential/permission gated and are never reported as successful without evidence.
+
+## MOD-94 — Final E2E capability wiring
+The current release routes requests through a task-aware multi-model gateway and keeps one SHADOW command surface.
+
+Current recommended provider defaults:
+- OpenAI: `gpt-5.6`
+- xAI/Grok: `grok-4.6`
+- DeepSeek: `deepseek-v4-pro`
+- Mistral: `mistral-medium-latest`
+- Anthropic: `claude-sonnet-5`
+- Gemini: `gemini-3.8-flash`
+
+Media adapters:
+- STT: OpenAI cloud transcription with Gemini 3.8 audio-understanding fallback.
+- TTS: OpenAI cloud TTS with Gemini TTS fallback; Android TTS remains the local playback fallback.
+- Vision: image/camera -> cloud vision analysis.
+- Images: OpenAI or Gemini image generation.
+- Video: Gemini Veo 3.1 endpoint.
+- Web: search + fetch + multi-source research tool.
+- Memory: PostgreSQL-first durable memory with evidence/provenance metadata.
+- Development: guarded GitHub apply -> PR -> CI verification pipeline.
+- Phone: Accessibility control primitives for navigation, clicking, typing, long-press and swipe.
+
+Provider credentials are still external deployment secrets. A missing provider is reported as unconfigured; SHADOW never pretends it ran an external operation.
