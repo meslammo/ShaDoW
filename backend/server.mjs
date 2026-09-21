@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -173,7 +174,7 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
     const fresh = /(latest|today|now|current|news|update|جديد|دلوقتي|حالي|آخر|اخر|النهارده|بحث|ابحث|دور)/i.test(message);
     const pipeline = {
       status: pending ? 'action_pending' : 'completed',
-      trace_id: require('node:crypto').createHash('sha256').update(message).digest('hex').slice(0, 16),
+      trace_id: createHash('sha256').update(message).digest('hex').slice(0, 16),
       startup_blocking: false,
       stages: [
         { stage: 'understand', status: 'executed' },
