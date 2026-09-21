@@ -92,7 +92,8 @@ export async function runDevelopmentPipeline({ branch = 'shadow-agent-work', mes
   const authToken = String(token || TOKEN).trim();
   if (!configured(authToken)) throw new Error('github_write_not_configured');
   const applied = await applyFiles({ branch, message, files, token: authToken });
-  const lastCommit = applied.files?.slice(-1)?.[0]?.commit_sha || applied.branch_created ? applied.branch_created : null;
+  const lastCommit = applied.files?.slice(-1)?.[0]?.commit_sha || null;
+  if (!lastCommit) throw new Error('development_commit_missing');
   const pr = await createPullRequest({ branch, title, body, token: authToken, draft });
   const started = Date.now();
   let workflowState = { status: 'waiting', runs: [] };
