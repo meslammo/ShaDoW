@@ -10,7 +10,7 @@ import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
-const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1').trim();
+const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.5-flare').trim();
 const ttsModel = String(process.env.SHADOW_TTS_MODEL || 'gpt-4o-mini-tts').trim();
 const ttsVoice = String(process.env.SHADOW_TTS_VOICE || 'onyx').trim();
 const ttsVoiceId = String(process.env.SHADOW_TTS_VOICE_ID || '').trim();
@@ -18,7 +18,7 @@ const ttsInstructions = String(process.env.SHADOW_TTS_INSTRUCTIONS || 'Speak wit
 const geminiKey = String(process.env.GEMINI_API_KEY || '').trim();
 const geminiImageModel = String(process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image').trim();
 const geminiVideoModel = String(process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview').trim();
-const transcriptionModel = String(process.env.SHADOW_STT_MODEL || 'gpt-4o-mini-transcribe').trim();
+const transcriptionModel = String(process.env.SHADOW_STT_MODEL || 'gpt-transcribe').trim();
 const geminiTranscriptionModel = String(process.env.GEMINI_STT_MODEL || 'gemini-3.5-transcribe').trim();
 const geminiTtsModel = String(process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview').trim();
 const visionModel = String(process.env.SHADOW_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6').trim();
