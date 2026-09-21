@@ -325,16 +325,21 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void attach(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("Files");p.getMenu().add("Photos");p.getMenu().add("Camera");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("Files")){Intent x=new Intent(Intent.ACTION_OPEN_DOCUMENT);x.addCategory(Intent.CATEGORY_OPENABLE);x.setType("*/*");startActivityForResult(x,FILE);}else if(n.equals("Photos")){Intent x=new Intent(Intent.ACTION_PICK);x.setType("image/*");startActivityForResult(x,FILE);}else{try{startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),CAMERA);}catch(Exception e){system("No camera application is available.");}}return true;});p.show();}
     private void features(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));String[] a={"📺 TV Remote","❄️ AC Remote","🔎 Remote capabilities","🌐 Web search","🎨 Image design","⚡ Full 12-Step Master","📱 Deep phone control","🧠 Development Agent","🛰 Master Bus","📍 Spatial Radar","🧠 Think Hard"+(reasoningMode?" ✓":""),"🔴 Deep Think"+("xhigh".equals(reasoningEffort)?" ✓":""),"🛑 Stop Deep Think","🔐 GitHub Authorization","🎙 Hands-Free: "+(handsFreeVoice?"ON":"OFF"),"🌙 Wake Word: "+(isWakeEnabled()?"ON":"OFF"),"Profile / Memory","System status","🔒 Lock Master identity","Settings"};for(String s:a)p.getMenu().add(s);p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.startsWith("📺")||n.startsWith("❄️")||n.startsWith("🔎"))remotes.showCenter();else if(n.startsWith("⚡ Full 12-Step Master"))runFullMasterPipeline();else if(n.startsWith("📱"))startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));else if(n.startsWith("🛰"))assistant(lifecycleBridge==null?"Master Bus غير متاح.":lifecycleBridge.status());else if(n.startsWith("📍")){if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},904);}else{spatialRadar.start();assistant("Spatial Radar اتفعل. تحديثات المكان هتدخل Master Bus بدون تخزين إحداثيات داخل الـevent.");}}else if(n.startsWith("🌐")){input.setText("ابحث أونلاين عن ");input.requestFocus();}else if(n.startsWith("🎨")){input.setText("صمم صورة: ");input.requestFocus();}else if(n.startsWith("🧠 Think Hard")){setReasoning(true,"high");assistant("🧠 Think Hard اتفعل — Black/Red mode.");}else if(n.startsWith("🔴 Deep Think")){setReasoning(true,"xhigh");assistant("🔴 Deep Think اتفعل — Black/Red mode.");}else if(n.startsWith("🛑 Stop Deep Think")){setReasoning(false,"none");assistant("تم إيقاف Think Hard / Deep Think.");}else if(n.startsWith("🧠 Development"))system("Development Agent: analyze → plan → approve → edit → test → report");else if(n.startsWith("🔐 GitHub"))connectGithub();else if(n.startsWith("🎙 Hands-Free")){handsFreeVoice=!handsFreeVoice;voiceState.setHandsFree(handsFreeVoice);assistant(handsFreeVoice?"Hands‑Free اتفعل — بعد كل رد صوتي Shadow هيبدأ يسمع تاني تلقائيًا.":"Hands‑Free اتقفل — الصوت هيفضل بنقرة واحدة فقط.");}
         else if(n.startsWith("🌙 Wake Word")){toggleWakeWord();}else if(n.equals("System status"))assistant(core.handle("status"));else if(n.startsWith("🔒")){identity.lock();assistant("تم قفل هوية الـMaster.");}else if(n.equals("Settings"))startActivity(new Intent(Settings.ACTION_SETTINGS));return true;});p.show();}
-    /** MOD-78: visible entry point for the complete twelve-stage master execution contract. */
+    /** MOD-86: full twelve-stage button now enters the same cloud master route used by normal AI execution. */
     private void runFullMasterPipeline(){
-        final String request=input==null?"":""+input.getText().toString().trim();
+        final String request=input==null?"":input.getText().toString().trim();
         final String task=request.isEmpty()?"شغّل مسار SHADOW الكامل واختبر المراحل الـ12":"شغّل مسار SHADOW الكامل: "+request;
-        system("SHADOW • تشغيل المراحل الـ12…");
+        system("SHADOW • تشغيل المراحل الـ12 أونلاين…");
         new Thread(()->{
             try{
-                final String result=pythonBridge.superniceRun(task,identity!=null&&identity.isAuthenticated(),false);
+                final String result=cloud.runMasterPipeline(task,identity!=null&&identity.isAuthenticated(),false);
                 runOnUiThread(()->{assistant(result);stage("done");});
-            }catch(Throwable e){runOnUiThread(()->assistant("مسار SHADOW الكامل لم يشتغل: "+String.valueOf(e.getMessage())));}
+            }catch(Throwable e){
+                runOnUiThread(()->{
+                    assistant("المسار الأونلاين الكامل متاح لكن الطلب فشل: "+String.valueOf(e.getMessage())+"\n\nلن يتم تشغيل AI أوفلاين بدلًا منه.");
+                    stage("reconnecting");
+                });
+            }
         }).start();
     }
 
