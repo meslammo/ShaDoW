@@ -29,6 +29,18 @@ public final class ShadowPermissionManager {
                 .show();
     }
 
+    /** Continue the progressive permission flow only after Android reports a grant. */
+    public boolean onPermissionResult(int requestCode, int[] grantResults) {
+        if (requestCode != 905 && requestCode != 801 && requestCode != 803 && requestCode != 904) return false;
+        if (grantResults == null || grantResults.length == 0) return true;
+        boolean grantedAny = false;
+        for (int result : grantResults) {
+            if (result == PackageManager.PERMISSION_GRANTED) { grantedAny = true; break; }
+        }
+        if (grantedAny) requestNext();
+        return true;
+    }
+
     private void requestNext() {
         if (Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             activity.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 905);
