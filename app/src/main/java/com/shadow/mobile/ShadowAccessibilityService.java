@@ -32,6 +32,51 @@ public final class ShadowAccessibilityService extends AccessibilityService {
         java.util.List<AccessibilityNodeInfo> nodes=root.findAccessibilityNodeInfosByText(text.trim());
         for(AccessibilityNodeInfo n:nodes){if(n==null)continue;if(n.isClickable()&&n.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;AccessibilityNodeInfo p=n.getParent();if(p!=null&&p.isClickable()&&p.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;}return false;
     }
+    public static boolean clickDescription(String text){
+        if(instance==null||text==null||text.trim().isEmpty())return false;
+        AccessibilityNodeInfo root=instance.getRootInActiveWindow();
+        return root!=null&&clickDescriptionRecursive(root,text.trim());
+    }
+    private static boolean clickDescriptionRecursive(AccessibilityNodeInfo n,String text){
+        if(n==null)return false;
+        CharSequence d=n.getContentDescription();
+        if(d!=null&&d.toString().equalsIgnoreCase(text)&&n.isClickable()&&n.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;
+        for(int i=0;i<n.getChildCount();i++)if(clickDescriptionRecursive(n.getChild(i),text))return true;
+        return false;
+    }
+    public static boolean longClickText(String text){
+        if(instance==null||text==null||text.trim().isEmpty())return false;
+        AccessibilityNodeInfo root=instance.getRootInActiveWindow();
+        if(root==null)return false;
+        java.util.List<AccessibilityNodeInfo> nodes=root.findAccessibilityNodeInfosByText(text.trim());
+        for(AccessibilityNodeInfo n:nodes){
+            if(n!=null&&n.isLongClickable()&&n.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK))return true;
+        }
+        return false;
+    }
+    public static boolean swipe(String direction){
+        if(instance==null||android.os.Build.VERSION.SDK_INT<24)return false;
+        AccessibilityNodeInfo root=instance.getRootInActiveWindow();
+        if(root==null)return false;
+        Rect r=new Rect();root.getBoundsInScreen(r);
+        float cx=r.centerX(),cy=r.centerY();
+        float x1=cx,y1=cy,x2=cx,y2=cy;
+        String d=String.valueOf(direction==null?"up":direction).toLowerCase(java.util.Locale.ROOT);
+        if(d.contains("down")||d.contains("تحت")||d.contains("اسفل")||d.contains("أسفل")){y1=cy*0.45f;y2=cy*1.55f;}
+        else if(d.contains("left")||d.contains("شمال")||d.contains("يسار")){x1=cx*1.55f;x2=cx*0.45f;}
+        else if(d.contains("right")||d.contains("يمين")){x1=cx*0.45f;x2=cx*1.55f;}
+        else {y1=cy*1.55f;y2=cy*0.45f;}
+        x1=Math.max(r.left+10,Math.min(r.right-10,x1));x2=Math.max(r.left+10,Math.min(r.right-10,x2));
+        y1=Math.max(r.top+10,Math.min(r.bottom-10,y1));y2=Math.max(r.top+10,Math.min(r.bottom-10,y2));
+        android.graphics.Path path=new android.graphics.Path();
+        path.moveTo(x1,y1);path.lineTo(x2,y2);
+        android.accessibilityservice.GestureDescription gesture=
+            new android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(new android.accessibilityservice.GestureDescription.StrokeDescription(path,0,450))
+                .build();
+        return instance.dispatchGesture(gesture,null,null);
+    }
+
     public static boolean typeText(String text){
         if(instance==null||text==null)return false; AccessibilityNodeInfo root=instance.getRootInActiveWindow();if(root==null)return false; AccessibilityNodeInfo target=findEditable(root);
         if(target==null)return false; Bundle b=new Bundle();b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,text);return target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b);
