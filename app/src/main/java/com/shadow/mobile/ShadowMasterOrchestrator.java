@@ -15,7 +15,7 @@ public final class ShadowMasterOrchestrator {
     public ShadowMasterOrchestrator() { this(new ShadowMasterEventBus()); }
     public ShadowMasterOrchestrator(ShadowMasterEventBus eventBus) { this.eventBus = eventBus == null ? new ShadowMasterEventBus() : eventBus; }
     public ShadowMasterEventBus events() { return eventBus; }
-    public enum Route { CHAT, LOCAL_DEVICE, GITHUB, DEVELOPMENT, COMPANION, SPATIAL, IMAGE, SYSTEM }
+    public enum Route { CHAT, LOCAL_DEVICE, GITHUB, DEVELOPMENT, COMPANION, SPATIAL, IMAGE, VISION, SYSTEM }
     public enum Stage { UNDERSTANDING, AUTHENTICATING, PLANNING, EXECUTING, VERIFYING, LEARNING, DONE, FAILED, PAUSED }
 
     public static final class Plan {
@@ -41,6 +41,7 @@ public final class ShadowMasterOrchestrator {
                 case COMPANION: return "companion";
                 case SPATIAL: return "spatial";
                 case IMAGE: return "image";
+                case VISION: return "vision";
                 case SYSTEM: return "system";
                 default: return "chat";
             }
@@ -73,6 +74,7 @@ public final class ShadowMasterOrchestrator {
 
         Route route;
         if (isImage(x)) route = Route.IMAGE;
+        else if (isVision(x)) route = Route.VISION;
         else if (isGithub(x)) route = Route.GITHUB;
         else if (isDevelopment(x)) route = Route.DEVELOPMENT;
         else if (isSpatial(x)) route = Route.SPATIAL;
@@ -93,6 +95,11 @@ public final class ShadowMasterOrchestrator {
                 confirmation ? ShadowMasterEventBus.Type.APPROVAL_REQUIRED : ShadowMasterEventBus.Type.PLAN_READY,
                 request, plan.routeName(), plan.stageLabel(), !confirmation));
         return plan;
+    }
+
+    private static boolean isVision(String x) {
+        return containsAny(x, "حلل الصورة", "حلل الصورة", "شوف الصورة", "اقرأ الصورة",
+                "describe image", "analyze image", "analyze screenshot", "حلل الشاشة", "شوف الشاشة");
     }
 
     private static boolean isImage(String x) {

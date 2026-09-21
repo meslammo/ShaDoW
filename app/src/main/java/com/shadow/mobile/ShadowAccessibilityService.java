@@ -20,6 +20,11 @@ public final class ShadowAccessibilityService extends AccessibilityService {
     @Override public void onInterrupt(){}
     @Override public void onDestroy(){if(instance==this)instance=null;super.onDestroy();}
     public static boolean enabled(){return instance!=null;}
+    public static boolean back(){return global(GLOBAL_ACTION_BACK);}
+    public static boolean home(){return global(GLOBAL_ACTION_HOME);}
+    public static boolean recents(){return global(GLOBAL_ACTION_RECENTS);}
+    public static boolean notifications(){return global(GLOBAL_ACTION_NOTIFICATIONS);}
+    public static boolean quickSettings(){return global(GLOBAL_ACTION_QUICK_SETTINGS);}
     public static boolean global(int action){return instance!=null&&instance.performGlobalAction(action);}
 
     public static boolean clickText(String text){
