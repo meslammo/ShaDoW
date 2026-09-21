@@ -43,6 +43,7 @@ app.get('/health', async (_req, res) => res.json({
   ok: true,
   service: 'shadow-cloud',
   agent: 'unified-multi-ai',
+  online: true,
   providers: providerStatus(),
   memory: await memoryStatus(),
   capabilities: {
