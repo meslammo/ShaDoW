@@ -260,7 +260,7 @@ async function deepseekAgent(message, device, reasoningEffort = 'none') {
   const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message }];
   const tools = TOOL_DEFINITIONS.map(x => ({ type: 'function', function: { name: x.name, description: x.description, parameters: x.parameters } }));
   for (let i = 0; i < 8; i++) {
-    const deepBody = { model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2 };
+    const deepBody = { model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2, reasoning_effort: normalizeEffortForProvider('deepseek', reasoningEffort) };
     const response = await fetch(DEEPSEEK_URL, { method: 'POST', headers: { Authorization: `Bearer ${cfg.deepseekKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(deepBody), signal: AbortSignal.timeout(65000) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { const e = new Error(body?.error?.message || `upstream_${response.status}`); e.http = response.status; throw e; }
@@ -322,7 +322,7 @@ async function streamResponses(requestPayload, onEvent) {
 
 export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', onDelta, onDone, onPending }) {
   if (!cfg.openaiKey) throw new Error('no_online_ai_provider_available');
-  const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const remembered = await memoryPrompt(message);
   const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
   const model = cfg.openaiModel;
@@ -398,9 +398,7 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
     normalOrder = [preferredProvider];
   } else {
     const freeFirst = String(process.env.SHADOW_FREE_FIRST ?? 'true').toLowerCase() !== 'false';
-    const free = ['local', 'mistral', 'gemini', 'deepseek'];
-    const paid = ['openai', 'xai', 'anthropic'];
-    normalOrder = freeFirst ? [...free, ...paid] : [...paid, ...free];
+    normalOrder = providerOrderFor(message, freeFirst);
   }
   const order = normalOrder;
   const attempts = [];
