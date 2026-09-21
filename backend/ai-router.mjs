@@ -458,9 +458,16 @@ export function providerStatus() {
     deepseek: { configured: Boolean(cfg.deepseekKey), model: cfg.deepseekModel },
     local: localProviderStatus(),
     ...externalProviderStatus(),
-    routing: String(process.env.SHADOW_FREE_FIRST ?? 'true').toLowerCase() === 'false'
-      ? 'OpenAI -> xAI -> Anthropic -> DeepSeek -> Mistral -> Gemini -> Local'
-      : 'free-first: Local -> Mistral -> Gemini -> DeepSeek -> OpenAI -> xAI -> Anthropic',
+    routing: 'task-aware provider routing',
+    default_models: {
+      openai: cfg.openaiModel,
+      xai: cfg.xaiModel,
+      deepseek: cfg.deepseekModel,
+      mistral: cfg.mistralModel,
+      anthropic: cfg.anthropicModel,
+      gemini: cfg.geminiModel,
+      local: cfg.localModel,
+    },
     tools: TOOL_DEFINITIONS.map(x => x.name),
     workspace: cfg.workspaceDir,
     memory: { database_configured: Boolean(cfg.databaseUrl), database_ready: dbReady, fallback_file: cfg.memoryDir },
