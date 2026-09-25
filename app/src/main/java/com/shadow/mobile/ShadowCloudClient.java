@@ -24,7 +24,7 @@ public final class ShadowCloudClient {
     public CloudReply chat(String message)throws Exception{return chat(message,"none");}
     public CloudReply chat(String message,String reasoningEffort)throws Exception{
         try {
-            if (isConfigured() && health()) return runChat(message, null, null, reasoningEffort);
+            if (isConfigured()) return runChat(message, null, null, reasoningEffort);
         } catch (Exception ignored) {}
         return pollinationsChat(message);
     }
@@ -117,7 +117,7 @@ public final class ShadowCloudClient {
     }
     public void streamChat(String message,String reasoningEffort,StreamListener listener)throws Exception{
         try{
-            if(isConfigured() && health()){
+            if(isConfigured()){
                 streamChatBackend(message,reasoningEffort,listener);
                 return;
             }
