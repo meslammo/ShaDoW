@@ -164,7 +164,24 @@ public final class ShadowCloudClient {
         return r.optString("answer","").trim();
     }
 
-    /** MOD-78: cloud view of the same twelve-stage master pipeline. */
+    /** EVO-35: query the unified 35-phase platform contract. */
+    public String platformStatus() throws Exception {
+        if(!isConfigured()) throw new IllegalStateException("Cloud backend is not configured");
+        HttpURLConnection c=null;
+        try{
+            c=(HttpURLConnection)new URL(baseUrl+"/v1/platform/status").openConnection();
+            c.setRequestMethod("GET");
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(15000);
+            c.setRequestProperty("Accept","application/json");
+            int code=c.getResponseCode();
+            String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());
+            if(code<200||code>=300) throw new IllegalStateException("platform_status_"+code);
+            return json;
+        }finally{if(c!=null)c.disconnect();}
+    }
+
+    /** EVO-35: cloud entry point for the governed unified master execution contract. */
     public String runMasterPipeline(String request,boolean authenticated,boolean confirmed)throws Exception{
         JSONObject body=new JSONObject();
         body.put("message",request==null?"":request);
