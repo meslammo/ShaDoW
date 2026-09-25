@@ -35,8 +35,6 @@ services:
         value: openai
       - key: POLLINATIONS_IMAGE_MODEL
         value: gptimage
-      - key: OPENAI_IMAGE_MODEL
-        value: gpt-image-2.5-flare
       - key: SHADOW_STT_MODEL
         value: gpt-transcribe
       - key: SHADOW_TTS_MODEL
