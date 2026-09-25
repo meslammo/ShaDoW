@@ -65,13 +65,14 @@ class GovernedOnlineBrainAdapter:
     ) -> dict[str, Any]:
         ctx = dict(context or {})
         confirmed_actions = [str(x) for x in ctx.get("confirmed_actions", []) if str(x).strip()]
+        top_level_confirmed = bool(ctx.get("confirmed", False))
         schemas = self.control_plane.tool_schemas()
 
         def execute_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             return self.control_plane.execute_tool(
                 name,
                 arguments,
-                confirmed=name in confirmed_actions,
+                confirmed=(name in confirmed_actions) or top_level_confirmed,
                 automation_granted=bool(ctx.get("automation_granted", False)),
             )
 
