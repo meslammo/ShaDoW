@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import hashlib
 from pathlib import Path
-import py_compile
 import shutil
 from typing import Iterable
 
@@ -61,7 +60,8 @@ class LiveUpdateManager:
         files = tuple(str(p.relative_to(staged)) for p in staged.rglob("*.py"))
         try:
             for path in files:
-                py_compile.compile(str(staged / path), doraise=True)
+                source = (staged / path).read_text(encoding="utf-8")
+                compile(source, str(staged / path), "exec")
         except Exception as exc:
             return UpdateResult(False, staged.name, "validation_failed", version, files, str(exc)[:240])
         return UpdateResult(True, staged.name, "validated", version, files)
