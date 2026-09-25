@@ -261,9 +261,13 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
                         });
                     }
                     public void onDone(ShadowCloudClient.StreamDone done){
-                        cloudOnline=true;
-                        final String answer=transcript.toString().trim();
-                        runOnUiThread(()->{
+                         cloudOnline=true;
+                         String streamedAnswer=transcript.toString().trim();
+                         if(streamedAnswer.isEmpty() && done!=null && done.text!=null && !done.text.trim().isEmpty()){
+                             streamedAnswer=done.text.trim();
+                         }
+                         final String answer=streamedAnswer;
+                         runOnUiThread(()->{
                             masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"online_stream_completed",!answer.isEmpty());
                             masterEvent(ShadowMasterEventBus.Type.MEMORY_WRITE,request,plan.routeName(),"conversation_response",true);
                             masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"online_stream_chat_completed",!answer.isEmpty());
