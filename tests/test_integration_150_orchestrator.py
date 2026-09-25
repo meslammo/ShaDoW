@@ -38,7 +38,7 @@ def test_unified_orchestrator_joins_request_to_online_brain_governance_execution
     assert ("model_route", "CORE-013", "executed") in stages
     assert ("memory", "CORE-025", "executed") in stages
     assert ("online_brain", None, "completed") in stages
-    assert ("governance", "CORE-012", "executed") in stages
+    assert ("governance", "CORE-012", "policy_allow") in stages
     assert ("execute", "CORE-024", "executed") in stages
     assert ("verify", "CORE-057", "executed") in stages
     assert ("audit", "CORE-140", "executed") in stages
