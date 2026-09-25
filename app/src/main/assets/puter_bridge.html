@@ -68,34 +68,20 @@
     try {
       await ensureAuth();
       try { if (puter.auth?.isSignedIn?.()) A.onReady(true); } catch(e) {}
-      const opts = { model: (p.model === 'gpt-5.6-luna' ? 'openai/gpt-5.6-luna' : (p.model || 'openai/gpt-5.6-luna')), stream: Boolean(p.stream) };
+      const opts = { model: p.model || 'gpt-5.6-luna', stream: false };
       if (p.reasoning_effort && p.reasoning_effort !== 'none') opts.reasoning_effort = p.reasoning_effort;
       history.push({ role:'user', content: p.message || '' });
+
+      // Reliability-first online path: use the normal completion API instead of
+      // an async iterable inside Android WebView. The answer is still forwarded
+      // through the existing streaming bridge in one complete delta, so the UI
+      // cannot get stuck after receiving the user's message.
       const r = await puter.ai.chat(history, opts);
-      if (opts.stream) {
-        let full = '';
-        for await (const part of r) {
-          if (part?.type === 'error') throw new Error(part.message || 'puter_stream_error');
-          const t = streamTextOf(part);
-          if (t) { full += t; A.onChunk(id, t); }
-        }
-
-        // Some providers can legally end a stream without text chunks. Recover once
-        // through a normal online call instead of silently returning an empty turn.
-        if (!full) {
-          const recovery = await puter.ai.chat(history, { model: opts.model });
-          full = textOf(recovery);
-          if (full) A.onChunk(id, full);
-        }
-
-        if (!full) throw new Error('empty_online_response');
-        history.push({ role:'assistant', content: full });
-        A.onDone(id, full);
-      } else {
-        const t = textOf(r);
-        if (t) history.push({ role:'assistant', content: t });
-        A.onDone(id, t);
-      }
+      const t = textOf(r);
+      if (!t) throw new Error('empty_online_response');
+      history.push({ role:'assistant', content: t });
+      A.onChunk(id, t);
+      A.onDone(id, t);
     } catch(e) {
       A.onError(id, safe(e), authError(e));
     }
