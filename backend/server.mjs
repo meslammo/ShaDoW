@@ -42,46 +42,66 @@ function rateLimit(req, res, next) {
   next();
 }
 
-app.get('/health', async (_req, res) => res.json({
-  ok: true,
-  service: 'shadow-cloud',
-  agent: 'unified-multi-ai',
-  online: true,
-  providers: Object.fromEntries(Object.entries(providerStatus()).filter(([name]) => name !== 'local')),
-  memory: await memoryStatus(),
-  capabilities: {
-    web_search: true,
-    web_fetch: true,
-    streaming_chat: true,
-    streaming_provider: 'openai',
-    github_read: true,
-    github_write_gateway: githubOAuthStatus().configured,
-    files: true,
-    device_control: false,
-    agent_loop: true,
-    voiceprint_required: false,
-    speech_to_text: Boolean(apiKey),
-    vision: Boolean(apiKey),
-    full_12_step_master: true,
-    unified_150_core: true,
-    phase_roadmap: 35,
-    online_only_brain: true,
-    unified_cloud_pipeline: true,
-  },
-  image_generation: Boolean(apiKey || geminiKey || pollinationsKey),
-  tts: {
-    model: ttsModel,
-    voice: ttsVoice,
-    voice_id_configured: Boolean(ttsVoiceId),
-    mode: ttsVoiceId ? 'custom' : 'built_in',
-    style: 'jarvis-inspired-original',
-    locale: 'ar-EG',
-    gender: 'male',
-  },
-  development_agent: developmentStatus(),
-  github_authorization: githubOAuthStatus(),
-  voiceprint: { required: false, status: voiceprintStatus() },
-}));
+app.get('/health', async (_req, res) => {
+  // Health must stay fast and must never wait on a database connection.
+  let memory = { database_ready: false, healthcheck_timeout: false };
+  try {
+    memory = await Promise.race([
+      memoryStatus(),
+      new Promise(resolve => setTimeout(() => resolve({
+        database_ready: false,
+        healthcheck_timeout: true,
+      }), 800)),
+    ]);
+  } catch (error) {
+    memory = { database_ready: false, healthcheck_error: String(error?.message || error).slice(0, 160) };
+  }
+  const imageProvider = apiKey ? 'openai' : geminiKey ? 'gemini' : pollinationsKey ? 'pollinations' : 'not_configured';
+  return res.json({
+    ok: true,
+    service: 'shadow-cloud',
+    agent: 'unified-multi-ai',
+    online: true,
+    providers: Object.fromEntries(Object.entries(providerStatus()).filter(([name]) => name !== 'local')),
+    memory,
+    capabilities: {
+      web_search: true,
+      web_fetch: true,
+      streaming_chat: true,
+      streaming_provider: 'openai',
+      github_read: true,
+      github_write_gateway: githubOAuthStatus().configured,
+      files: true,
+      device_control: false,
+      agent_loop: true,
+      voiceprint_required: false,
+      speech_to_text: Boolean(apiKey),
+      vision: Boolean(apiKey),
+      full_12_step_master: true,
+      unified_150_core: true,
+      phase_roadmap: 35,
+      online_only_brain: true,
+      unified_cloud_pipeline: true,
+    },
+    image_generation: {
+      enabled: Boolean(apiKey || geminiKey || pollinationsKey),
+      provider: imageProvider,
+      model: imageProvider === 'openai' ? imageModel : imageProvider === 'gemini' ? geminiImageModel : pollinationsImageModel,
+    },
+    tts: {
+      model: ttsModel,
+      voice: ttsVoice,
+      voice_id_configured: Boolean(ttsVoiceId),
+      mode: ttsVoiceId ? 'custom' : 'built_in',
+      style: 'jarvis-inspired-original',
+      locale: 'ar-EG',
+      gender: 'male',
+    },
+    development_agent: developmentStatus(),
+    github_authorization: githubOAuthStatus(),
+    voiceprint: { required: false, status: voiceprintStatus() },
+  });
+});
 
 
 
