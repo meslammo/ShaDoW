@@ -285,6 +285,9 @@ def apply_synced_memory(facts: Any, home: Optional[str] = None) -> Dict[str, Any
     if not isinstance(facts, list):
         return {"ok": False, "status": "memory_facts_required", "imported": 0}
     control = UnifiedControlPlane(home or os.getcwd())
+    existing_items = control.memory.all()
+    existing_ids = {str(item.id) for item in existing_items}
+    existing_texts = {str(item.text).strip() for item in existing_items}
     imported = 0
     blocked = 0
     for item in facts[:100]:
@@ -304,6 +307,9 @@ def apply_synced_memory(facts: Any, home: Optional[str] = None) -> Dict[str, Any
             "كلمة السر", "باسورد", "توكن", "مفتاح سري"
         )):
             blocked += 1
+            continue
+        remote_id = str(item.get("id") or "").strip() if isinstance(item, dict) else ""
+        if (remote_id and remote_id in existing_ids) or text in existing_texts:
             continue
         control.memory.put(
             text,
