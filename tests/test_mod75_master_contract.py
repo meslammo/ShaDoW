@@ -57,13 +57,20 @@ def test_mod85_master_cycle_contract():
     assert "cycle.record(event.coreLayer)" in bridge
     assert "masterCycle=new ShadowMasterCycle()" in activity
 
-def test_mod86_route_mapping_covers_core_layers():
+def test_mod86_route_mapping_is_ai_only():
+    orchestrator = Path("app/src/main/java/com/shadow/mobile/ShadowMasterOrchestrator.java").read_text(encoding="utf-8")
     bus = Path("app/src/main/java/com/shadow/mobile/ShadowMasterEventBus.java").read_text(encoding="utf-8")
     cycle = Path("app/src/main/java/com/shadow/mobile/ShadowMasterCycle.java").read_text(encoding="utf-8")
-    for route, core in [("companion", "companion"), ("spatial", "spatial"), ("development", "development"), ("github", "development"), ("local-device", "device"), ("image", "integration"), ("chat", "web/personal")]:
-        assert '"' + route + '"'.replace("\\", "") in bus
-        assert '"' + core + '"' in bus
+    assert "device_control" not in orchestrator.lower() or "not part of the active Shadow route" in orchestrator
+    for route in ("development", "github", "image", "chat"):
+        assert '"' + route + '"' in bus
+    for route in ("companion", "spatial", "local-device"):
+        assert ('is' not in route) or route in orchestrator
     assert "verification" in cycle
+
+def test_mod86_device_like_requests_cannot_enter_local_device_route():
+    source = orchestrator = Path("app/src/main/java/com/shadow/mobile/ShadowMasterOrchestrator.java").read_text(encoding="utf-8")
+    assert "else if (isSpatial(x) || isCompanion(x) || isLocalDevice(x)) route = Route.CHAT;" in source
 
 def test_mod87_github_priority_and_sensitive_pause_events():
     orchestrator = Path("app/src/main/java/com/shadow/mobile/ShadowMasterOrchestrator.java").read_text(encoding="utf-8")
