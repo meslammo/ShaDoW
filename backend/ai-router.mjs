@@ -49,7 +49,7 @@ const systemPrompt = String(process.env.SHADOW_SYSTEM_PROMPT || [
   'Use file tools only inside the SHADOW workspace and never expose secrets.',
   'Never store or reveal passwords, API keys, access tokens, private keys, or authentication secrets.',
   'Use memory_search only when prior context is useful; use memory_save only when the user explicitly asks SHADOW to remember a non-sensitive fact or preference, and use memory_forget when the user asks to forget something.',
-  'For risky or irreversible device/file actions, request explicit confirmation before execution.',
+  'For risky or irreversible software/workspace actions, request explicit confirmation before execution.',
   'When all online AI providers fail, fail clearly and do not synthesize a local/offline AI answer.',
 ].join(' '));
 
@@ -201,13 +201,22 @@ const helperSet = {
   requireWriteApproval: true,
 };
 async function runTool(name, args, executionContext = {}) {
-  return executeTool(name, args, {
-    ...helperSet,
-    authorizeMutation: (action) => Boolean(
-      executionContext.confirmed === true
-      || (Array.isArray(executionContext.confirmedActions) && executionContext.confirmedActions.includes(action))
-    ),
-  });
+  try {
+    const result = await executeTool(name, args, {
+      ...helperSet,
+      authorizeMutation: (action) => Boolean(
+        executionContext.confirmed === true
+        || (Array.isArray(executionContext.confirmedActions) && executionContext.confirmedActions.includes(action))
+      ),
+    });
+    if (typeof executionContext.onTool === 'function') await executionContext.onTool({ name, kind: result.kind, ok: true });
+    return result;
+  } catch (error) {
+    if (typeof executionContext.onTool === 'function') {
+      await executionContext.onTool({ name, kind: 'error', ok: false, error: String(error?.message || error).slice(0, 120) });
+    }
+    throw error;
+  }
 }
 
 function textOf(body) {
@@ -243,7 +252,7 @@ async function callResponses(provider, payload) {
 }
 async function responsesAgent(provider, message, previousResponseId, device, reasoningEffort = 'none', executionContext = {}) {
   let previous = previousResponseId || undefined;
-  let input = device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message;
+  let input = message;
   let usedWeb = false;
   const remembered = await memoryPrompt(message);
   const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
@@ -272,7 +281,7 @@ async function responsesAgent(provider, message, previousResponseId, device, rea
   throw new Error('agent_loop_limit');
 }
 async function deepseekAgent(message, device, reasoningEffort = 'none', executionContext = {}) {
-  const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message }];
+  const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }];
   const tools = TOOL_DEFINITIONS.map(x => ({ type: 'function', function: { name: x.name, description: x.description, parameters: x.parameters } }));
   for (let i = 0; i < 8; i++) {
     const deepBody = { model: cfg.deepseekModel, messages, tools, tool_choice: 'auto', temperature: 0.2, reasoning_effort: normalizeEffortForProvider('deepseek', reasoningEffort) };
@@ -335,14 +344,14 @@ async function streamResponses(requestPayload, onEvent) {
   try { reader.releaseLock(); } catch {}
 }
 
-export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onDelta, onDone, onPending }) {
+export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onDelta, onDone, onPending, onTool = null }) {
   if (!cfg.openaiKey) throw new Error('no_online_ai_provider_available');
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const remembered = await memoryPrompt(message);
   const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
   const model = cfg.openaiModel;
   let previous = previousResponseId || undefined;
-  let input = device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message;
+  let input = message;
   let usedWeb = false;
 
   for (let round = 0; round < 8; round++) {
@@ -390,7 +399,7 @@ export async function streamAgent({ message, previousResponseId = '', device = '
     for (const call of calls.values()) {
       let args = {};
       try { args = JSON.parse(call.arguments || '{}'); } catch {}
-      const result = await runTool(call.name, args, { confirmed, confirmedActions });
+      const result = await runTool(call.name, args, { confirmed, confirmedActions, onTool });
       if (result.kind === 'client_action') {
         const pendingAction = { ...result, toolCallId: call.call_id };
         if (onPending) onPending({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb, pendingAction });
@@ -405,7 +414,7 @@ export async function streamAgent({ message, previousResponseId = '', device = '
   throw new Error('agent_loop_limit');
 }
 
-export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none', confirmed = false, confirmedActions = [] }) {
+export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onTool = null }) {
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const providerNames = ['openai','xai','deepseek','mistral','anthropic','gemini'];
   let normalOrder;
@@ -428,15 +437,15 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
     try {
       let output;
       if (provider === 'deepseek') {
-        output = await deepseekAgent(message, device, normalizedEffort, { confirmed, confirmedActions });
+        output = await deepseekAgent(message, '', normalizedEffort, { confirmed, confirmedActions, onTool });
       } else if (provider === 'mistral') {
-        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions }), model: cfg.mistralModel, apiKey: cfg.mistralKey, reasoningEffort: normalizeEffortForProvider('mistral', normalizedEffort) });
+        output = await mistralAgent({ message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions, onTool }), model: cfg.mistralModel, apiKey: cfg.mistralKey, reasoningEffort: normalizeEffortForProvider('mistral', normalizedEffort) });
       } else if (provider === 'anthropic') {
-        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions }), model: cfg.anthropicModel, apiKey: cfg.anthropicKey, reasoningEffort: normalizeEffortForProvider('anthropic', normalizedEffort) });
+        output = await anthropicAgent({ message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions, onTool }), model: cfg.anthropicModel, apiKey: cfg.anthropicKey, reasoningEffort: normalizeEffortForProvider('anthropic', normalizedEffort) });
       } else if (provider === 'gemini') {
-        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions }), model: cfg.geminiModel, apiKey: cfg.geminiKey, reasoningEffort: normalizeEffortForProvider('gemini', normalizedEffort) });
+        output = await geminiAgent({ message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions, onTool }), model: cfg.geminiModel, apiKey: cfg.geminiKey, reasoningEffort: normalizeEffortForProvider('gemini', normalizedEffort) });
       } else {
-        output = await responsesAgent(provider, message, previousResponseId, device, normalizedEffort, { confirmed, confirmedActions });
+        output = await responsesAgent(provider, message, previousResponseId, '', normalizedEffort, { confirmed, confirmedActions, onTool });
       }
       if (!output.answer) throw new Error('empty_ai_response');
       return { ...output, reasoningEffort: normalizedEffort, attempts };
