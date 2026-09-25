@@ -11,8 +11,9 @@ def test_mod54_android_router_source_exists():
     assert "flashlight" in text
 
 
-def test_mod54_design_is_online_first():
+def test_mod54_design_is_online_only():
     path = Path("app/src/main/java/com/shadow/mobile/ShadowCloudClient.java")
     text = path.read_text(encoding="utf-8")
-    assert "ShadowOnlineExecutionRouter.requiresLocalExecution" in text
-    assert "LocalExecutionRequiredException" in text
+    assert "ShadowOnlineExecutionRouter.requiresLocalExecution" not in text
+    assert "LocalExecutionRequiredException" not in text
+    assert "return runChat(message, null, null, reasoningEffort);" in text
