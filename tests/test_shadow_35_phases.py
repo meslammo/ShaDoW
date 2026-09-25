@@ -204,3 +204,13 @@ def test_long_running_tasks_automation_patterns_simulation_and_continuous_verifi
     checked = control.verifier.loop(True, lambda _round: True, max_rounds=3)
     assert checked["ok"] is True
     assert checked["rounds"][0]["round"] == 1
+
+
+def test_35_phase_roadmap_is_device_independent():
+    names = [p.name.lower() for p in PHASES_35]
+    joined = " ".join(names)
+    assert "device + spatial intelligence" not in joined
+    assert "companion system" not in joined
+    assert "cross-device shadow" not in joined
+    assert "federated device intelligence" not in joined
+    assert "spatial world model" not in joined
