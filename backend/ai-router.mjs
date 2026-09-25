@@ -200,8 +200,14 @@ const helperSet = {
   memoryForget: forgetMemory,
   requireWriteApproval: true,
 };
-async function runTool(name, args) {
-  return executeTool(name, args, helperSet);
+async function runTool(name, args, executionContext = {}) {
+  return executeTool(name, args, {
+    ...helperSet,
+    authorizeMutation: (action) => Boolean(
+      executionContext.confirmed === true
+      || (Array.isArray(executionContext.confirmedActions) && executionContext.confirmedActions.includes(action))
+    ),
+  });
 }
 
 function textOf(body) {
@@ -235,7 +241,7 @@ async function callResponses(provider, payload) {
   }
   return body;
 }
-async function responsesAgent(provider, message, previousResponseId, device, reasoningEffort = 'none') {
+async function responsesAgent(provider, message, previousResponseId, device, reasoningEffort = 'none', executionContext = {}) {
   let previous = previousResponseId || undefined;
   let input = device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message;
   let usedWeb = false;
@@ -254,7 +260,7 @@ async function responsesAgent(provider, message, previousResponseId, device, rea
     const outputs = [];
     for (const call of calls) {
       const args = typeof call.arguments === 'string' ? JSON.parse(call.arguments || '{}') : (call.arguments || {});
-      const result = await runTool(call.name, args);
+      const result = await runTool(call.name, args, executionContext);
       if (result.kind === 'client_action') {
         return { provider, model, answer: textOf(body) || 'هحتاج تنفيذ الإجراء على الموبايل.', responseId: body.id || null, usedWeb, pendingAction: { ...result, toolCallId: call.call_id || call.id || '' } };
       }
@@ -265,7 +271,7 @@ async function responsesAgent(provider, message, previousResponseId, device, rea
   }
   throw new Error('agent_loop_limit');
 }
-async function deepseekAgent(message, device, reasoningEffort = 'none') {
+async function deepseekAgent(message, device, reasoningEffort = 'none', executionContext = {}) {
   const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: device ? `${message}\n\n[DEVICE_PROFILE]\n${device}` : message }];
   const tools = TOOL_DEFINITIONS.map(x => ({ type: 'function', function: { name: x.name, description: x.description, parameters: x.parameters } }));
   for (let i = 0; i < 8; i++) {
@@ -279,7 +285,7 @@ async function deepseekAgent(message, device, reasoningEffort = 'none') {
     messages.push(messageOut);
     for (const toolCall of messageOut.tool_calls) {
       const args = JSON.parse(toolCall.function?.arguments || '{}');
-      const result = await runTool(toolCall.function?.name, args);
+      const result = await runTool(toolCall.function?.name, args, executionContext);
       if (result.kind === 'client_action') return { provider: 'deepseek', model: cfg.deepseekModel, answer: 'هحتاج أنفذ الإجراء ده على الجهاز.', responseId: null, usedWeb: false, pendingAction: { ...result, toolCallId: toolCall.id } };
       messages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(result.value) });
     }
@@ -329,7 +335,7 @@ async function streamResponses(requestPayload, onEvent) {
   try { reader.releaseLock(); } catch {}
 }
 
-export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', onDelta, onDone, onPending }) {
+export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onDelta, onDone, onPending }) {
   if (!cfg.openaiKey) throw new Error('no_online_ai_provider_available');
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const remembered = await memoryPrompt(message);
@@ -384,7 +390,7 @@ export async function streamAgent({ message, previousResponseId = '', device = '
     for (const call of calls.values()) {
       let args = {};
       try { args = JSON.parse(call.arguments || '{}'); } catch {}
-      const result = await runTool(call.name, args);
+      const result = await runTool(call.name, args, { confirmed, confirmedActions });
       if (result.kind === 'client_action') {
         const pendingAction = { ...result, toolCallId: call.call_id };
         if (onPending) onPending({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb, pendingAction });
@@ -399,7 +405,7 @@ export async function streamAgent({ message, previousResponseId = '', device = '
   throw new Error('agent_loop_limit');
 }
 
-export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none' }) {
+export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none', confirmed = false, confirmedActions = [] }) {
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const providerNames = ['openai','xai','deepseek','mistral','anthropic','gemini'];
   let normalOrder;
@@ -422,15 +428,15 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
     try {
       let output;
       if (provider === 'deepseek') {
-        output = await deepseekAgent(message, device, normalizedEffort);
+        output = await deepseekAgent(message, device, normalizedEffort, { confirmed, confirmedActions });
       } else if (provider === 'mistral') {
-        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.mistralModel, apiKey: cfg.mistralKey, reasoningEffort: normalizeEffortForProvider('mistral', normalizedEffort) });
+        output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions }), model: cfg.mistralModel, apiKey: cfg.mistralKey, reasoningEffort: normalizeEffortForProvider('mistral', normalizedEffort) });
       } else if (provider === 'anthropic') {
-        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.anthropicModel, apiKey: cfg.anthropicKey, reasoningEffort: normalizeEffortForProvider('anthropic', normalizedEffort) });
+        output = await anthropicAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions }), model: cfg.anthropicModel, apiKey: cfg.anthropicKey, reasoningEffort: normalizeEffortForProvider('anthropic', normalizedEffort) });
       } else if (provider === 'gemini') {
-        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.geminiModel, apiKey: cfg.geminiKey, reasoningEffort: normalizeEffortForProvider('gemini', normalizedEffort) });
+        output = await geminiAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool: (name, args) => runTool(name, args, { confirmed, confirmedActions }), model: cfg.geminiModel, apiKey: cfg.geminiKey, reasoningEffort: normalizeEffortForProvider('gemini', normalizedEffort) });
       } else {
-        output = await responsesAgent(provider, message, previousResponseId, device, normalizedEffort);
+        output = await responsesAgent(provider, message, previousResponseId, device, normalizedEffort, { confirmed, confirmedActions });
       }
       if (!output.answer) throw new Error('empty_ai_response');
       return { ...output, reasoningEffort: normalizedEffort, attempts };
