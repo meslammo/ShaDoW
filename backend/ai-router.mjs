@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
-import { anthropicAgent, externalProviderStatus, geminiAgent, localOpenAICompatAgent, localProviderStatus, mistralAgent } from './external-providers.mjs';
+import { anthropicAgent, externalProviderStatus, geminiAgent, localProviderStatus, mistralAgent } from './external-providers.mjs';
 import { normalizeEffortForProvider, providerOrderFor } from './task-router.mjs';
 
 const { Pool } = pg;
@@ -22,7 +22,6 @@ const cfg = {
   anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5').trim(),
   geminiKey: (process.env.GEMINI_API_KEY || '').trim(),
   geminiModel: (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
-  localBaseUrl: (process.env.SHADOW_LOCAL_AI_BASE_URL || '').trim(),
   localModel: (process.env.SHADOW_LOCAL_AI_MODEL || 'local-model').trim(),
   memoryDir: (process.env.SHADOW_MEMORY_DIR || '/data/shadow-memory').trim(),
   databaseUrl: (process.env.DATABASE_URL || '').trim(),
@@ -402,7 +401,7 @@ export async function streamAgent({ message, previousResponseId = '', device = '
 
 export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none' }) {
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
-  const providerNames = ['local','openai','xai','deepseek','mistral','anthropic','gemini'];
+  const providerNames = ['openai','xai','deepseek','mistral','anthropic','gemini'];
   let normalOrder;
   if (providerNames.includes(preferredProvider)) {
     normalOrder = [preferredProvider];
@@ -413,8 +412,7 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
   const order = normalOrder;
   const attempts = [];
   for (const provider of order) {
-    const configured = provider === 'local' ? Boolean(cfg.localBaseUrl)
-      : provider === 'openai' ? Boolean(cfg.openaiKey)
+    const configured = provider === 'openai' ? Boolean(cfg.openaiKey)
       : provider === 'xai' ? Boolean(cfg.xaiKey)
       : provider === 'deepseek' ? Boolean(cfg.deepseekKey)
       : provider === 'mistral' ? Boolean(cfg.mistralKey)
@@ -423,9 +421,7 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
     if (!configured) { attempts.push({ provider, reason: 'not_configured' }); continue; }
     try {
       let output;
-      if (provider === 'local') {
-        output = await localOpenAICompatAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.localModel, baseUrl: cfg.localBaseUrl });
-      } else if (provider === 'deepseek') {
+      if (provider === 'deepseek') {
         output = await deepseekAgent(message, device, normalizedEffort);
       } else if (provider === 'mistral') {
         output = await mistralAgent({ message: device ? message + '\n\n[DEVICE_PROFILE]\n' + device : message, systemPrompt, toolDefinitions: TOOL_DEFINITIONS, runTool, model: cfg.mistralModel, apiKey: cfg.mistralKey, reasoningEffort: normalizeEffortForProvider('mistral', normalizedEffort) });
