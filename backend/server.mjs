@@ -133,14 +133,13 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
   if (message.length > 12000) return res.status(413).json({ ok: false, error: 'message_too_large' });
   const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
-  const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
   const providerInput = String(req.body?.provider || '').toLowerCase();
   const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
   const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   const allowedProviders = ['openai', 'xai', 'grok', 'deepseek', 'mistral', 'anthropic', 'gemini'];
   const preferred = allowedProviders.includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
-    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true });
+    const result = await runAgent({ message, previousResponseId: previous, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true });
     return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
@@ -169,7 +168,6 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
     const result = await streamAgent({
       message,
       previousResponseId: previous,
-      device,
       reasoningEffort,
       confirmed: req.body?.confirmed === true,
       confirmedActions: Array.isArray(req.body?.confirmed_actions) ? req.body.confirmed_actions.map(String).slice(0, 32) : [],
@@ -190,21 +188,6 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
   }
 });
 
-app.post('/v1/agent/continue', rateLimit, async (req, res) => {
-  const provider = String(req.body?.provider || '').toLowerCase();
-  const responseId = String(req.body?.response_id || '').trim();
-  const toolCallId = String(req.body?.tool_call_id || '').trim();
-  const output = typeof req.body?.output === 'string' ? req.body.output.slice(0, 20000) : JSON.stringify(req.body?.output ?? '');
-  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
-  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
-  if (!provider || !toolCallId) return res.status(400).json({ ok: false, error: 'tool_context_required' });
-  const original = String(req.body?.original_message || 'نفّذ الإجراء المطلوب واستكمل.');
-  try {
-    const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider, reasoningEffort });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null });
-  } catch { return res.status(503).json({ ok: false, error: 'agent_continue_failed' }); }
-});
-
 app.post('/v1/master/run', rateLimit, async (req, res) => {
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
@@ -220,7 +203,6 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
   try {
     const result = await runAgent({
       message,
-      device: typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '',
       preferredProvider: 'auto',
       reasoningEffort: String(req.body?.reasoning_effort || 'none').toLowerCase(),
       confirmed,
