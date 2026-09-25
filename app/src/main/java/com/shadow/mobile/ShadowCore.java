@@ -60,7 +60,7 @@ public final class ShadowCore {
         if (isAny(x, "memory", "ذاكرة", "الذاكرة", "history", "سجل")) return memory();
         if (isAny(x, "time", "الوقت", "الساعة")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
         if (isAny(x, "date", "التاريخ", "النهارده", "اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم أونلاين.\nCore: ONLINE\nExecution: GOVERNED LOCAL + UNIFIED 150-CORE\nIdentity: " + (masterAuthenticated ? "MASTER AUTHENTICATED" : "UNVERIFIED") + "\nMemory: ACTIVE\nVoice: AVAILABLE";
+        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم أونلاين.\nCore: ONLINE\nExecution: GOVERNED LOCAL + UNIFIED 150-CORE\nIdentity: OWNER SESSION + "\nMemory: ACTIVE\nVoice: AVAILABLE";
         if (starts(x, "احسب ") || starts(x, "calculate ") || looksLikeMath(request)) {
             String expression = request.replaceFirst("(?i)^احسب\\s*", "").replaceFirst("(?i)^calculate\\s*", "").trim();
             try { return "CALCULATOR\n\n" + format(eval(expression)); }
