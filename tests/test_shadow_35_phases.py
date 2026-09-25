@@ -123,3 +123,33 @@ def test_platform_status_exposes_35_phase_contract(tmp_path):
     assert status["core_count"] == 150
     assert status["online_only_brain"] is True
     assert status["offline_ai_removed"] is True
+
+
+def test_learning_prediction_companion_spatial_and_backup_controls(tmp_path):
+    control = UnifiedControlPlane(str(tmp_path))
+
+    denied = control.learn_correction("remember this", approved=False)
+    assert denied["status"] == "approval_required"
+
+    learned = control.learn_correction("approved correction", approved=True)
+    assert learned["ok"] is True
+    assert control.predict_assistance("approved correction")
+
+    control.companions.register(CompanionRecord("watch-2", "watch", ("voice",), trusted=True))
+    delegated = control.delegate_companion("watch-2", "say hello", lambda task: {"task": task})
+    assert delegated["ok"] is True
+    assert delegated["output"]["task"] == "say hello"
+
+    observed = control.spatial_observe("device-1", "android", relation="near")
+    assert observed["ok"] is True
+    assert "device-1" in control.knowledge.neighbors("space:default", "near")
+
+    backup = tmp_path / "shadow-backup.json"
+    saved = control.backup_state(backup)
+    assert saved["ok"] is True
+    assert backup.exists()
+
+    progress = control.phase_progress()
+    assert progress["phase_count"] == 35
+    assert progress["implemented_contracts"] == 35
+    assert progress["external_verification_pending"] > 0
