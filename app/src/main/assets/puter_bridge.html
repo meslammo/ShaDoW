@@ -37,6 +37,7 @@
   async function ensureAuth() {
     try {
       if (puter.auth && typeof puter.auth.isSignedIn === 'function' && !puter.auth.isSignedIn()) {
+        try { A.onNeedAuth(); } catch(e) {}
         if (puter.ui?.authenticateWithPuter) {
           await puter.ui.authenticateWithPuter();
         } else if (puter.auth?.signIn) {
@@ -53,6 +54,7 @@
     try { p = JSON.parse(payloadJson || '{}'); } catch(e) {}
     try {
       await ensureAuth();
+      try { if (puter.auth?.isSignedIn?.()) A.onReady(true); } catch(e) {}
       const opts = { model: p.model || 'gpt-5.6-luna', stream: Boolean(p.stream) };
       if (p.reasoning_effort && p.reasoning_effort !== 'none') opts.reasoning_effort = p.reasoning_effort;
       history.push({ role:'user', content: p.message || '' });
