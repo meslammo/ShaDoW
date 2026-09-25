@@ -22,7 +22,7 @@ def test_orchestrator_owns_engine_and_live_update_manager(tmp_path):
 def test_orchestrator_live_update_uses_engine_queue_and_version(tmp_path):
     orchestrator = Unified150Orchestrator(str(tmp_path), online_brain=lambda *_: {'answer': 'ok'})
     result = orchestrator.live_update('0.56.2', {'shadow/core/probe_update.py': 'VALUE = 150\\n'})
-    assert result['ok'] is True
+    assert result['ok'] is True, result
     state = orchestrator.engine.snapshot()
     assert state['active_version'] == '0.56.2'
     assert state['pending_updates'] == []
