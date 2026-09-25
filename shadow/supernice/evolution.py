@@ -568,11 +568,21 @@ class UnifiedControlPlane:
             **report,
             "software_ready_phases": code_ready,
             "external_verification_gates": external,
+            "phase_progress": self.phase_progress(),
             "knowledge_nodes": len(self.knowledge.nodes),
             "knowledge_edges": len(self.knowledge.edges),
             "skills": len(self.skills._skills),
             "trusted_companions": len(self.companions.trusted()),
             "trusted_online_devices": len(self.devices.discover()),
+            "capabilities": {
+                "learning": True,
+                "predictive_assistance": True,
+                "companion_delegation": True,
+                "spatial_world_model": True,
+                "simulation": True,
+                "backup_restore": True,
+                "controlled_self_improvement": True,
+            },
             "diagnostics": self.diagnostics(),
         }
 
