@@ -23,7 +23,70 @@ public final class ShadowCloudClient {
 
     public CloudReply chat(String message)throws Exception{return chat(message,"none");}
     public CloudReply chat(String message,String reasoningEffort)throws Exception{
-        return runChat(message, null, null, reasoningEffort);
+        try {
+            if (isConfigured() && health()) return runChat(message, null, null, reasoningEffort);
+        } catch (Exception ignored) {}
+        return pollinationsChat(message);
+    }
+
+    private CloudReply pollinationsChat(String message)throws Exception{
+        String prompt = message == null ? "" : message.trim();
+        if (prompt.isEmpty()) throw new IllegalArgumentException("message_required");
+        String[] models = new String[]{"openai","mistral","gemini-fast"};
+        Exception last = null;
+        for (String model : models) {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("model", model);
+                body.put("private", true);
+                body.put("messages", new JSONArray()
+                        .put(new JSONObject().put("role","system").put("content",
+                                "You are SHADOW, a helpful online AI assistant. Reply naturally in Egyptian Arabic when appropriate. Do not claim actions you did not verify."))
+                        .put(new JSONObject().put("role","user").put("content", prompt)));
+                JSONObject out = postAbsoluteJson("https://text.pollinations.ai/openai", body, 90000);
+                String answer = out.optString("answer","").trim();
+                if (answer.isEmpty()) {
+                    JSONArray choices = out.optJSONArray("choices");
+                    if (choices != null && choices.length() > 0) {
+                        JSONObject msg = choices.optJSONObject(0);
+                        if (msg != null) answer = msg.optJSONObject("message") == null ? "" : msg.optJSONObject("message").optString("content","").trim();
+                    }
+                }
+                if (!answer.isEmpty()) return new CloudReply(answer,"","pollinations",model,false,null);
+            } catch(Exception e) { last=e; }
+        }
+        try {
+            String url = "https://text.pollinations.ai/" + java.net.URLEncoder.encode(prompt, "UTF-8")
+                    + "?model=openai&private=true";
+            HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
+            c.setRequestMethod("GET");c.setConnectTimeout(8000);c.setReadTimeout(90000);
+            c.setRequestProperty("Accept","text/plain");
+            int code=c.getResponseCode();
+            String answer=read(code>=200&&code<300?c.getInputStream():c.getErrorStream()).trim();
+            c.disconnect();
+            if(code>=200&&code<300&&!answer.isEmpty()) return new CloudReply(answer,"","pollinations","openai",false,null);
+            throw new IllegalStateException("pollinations_http_"+code);
+        } catch(Exception e) {
+            if(last!=null) e=last;
+            throw e;
+        }
+    }
+
+    private JSONObject postAbsoluteJson(String url,JSONObject body,int timeout)throws Exception{
+        HttpURLConnection c=null;
+        try{
+            c=(HttpURLConnection)new URL(url).openConnection();
+            c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(timeout);
+            c.setRequestProperty("Content-Type","application/json; charset=utf-8");
+            c.setRequestProperty("Accept","application/json");
+            byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);
+            c.setFixedLengthStreamingMode(bytes.length);
+            try(OutputStream out=c.getOutputStream()){out.write(bytes);}
+            int code=c.getResponseCode();
+            String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());
+            if(code<200||code>=300)throw new IllegalStateException("pollinations_http_"+code);
+            return new JSONObject(json==null||json.trim().isEmpty()?"{}":json);
+        }finally{if(c!=null)c.disconnect();}
     }
     public CloudReply continueAgent(String provider,String responseId,String toolCallId,String originalMessage,String output)throws Exception{return continueAgent(provider,responseId,toolCallId,originalMessage,output,"none");}
     public CloudReply continueAgent(String provider,String responseId,String toolCallId,String originalMessage,String output,String reasoningEffort)throws Exception{
@@ -53,7 +116,17 @@ public final class ShadowCloudClient {
         public StreamDone(String r,String p,String m,boolean w){responseId=r;provider=p;model=m;usedWeb=w;}
     }
     public void streamChat(String message,String reasoningEffort,StreamListener listener)throws Exception{
-        if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");
+        try{
+            if(isConfigured() && health()){
+                streamChatBackend(message,reasoningEffort,listener);
+                return;
+            }
+        }catch(Exception ignored){}
+        CloudReply fallback=pollinationsChat(message);
+        if(listener!=null){listener.onDelta(fallback.answer);listener.onDone(new StreamDone("",fallback.provider,fallback.model,false));}
+    }
+
+    private void streamChatBackend(String message,String reasoningEffort,StreamListener listener)throws Exception{
         JSONObject body=new JSONObject();
         body.put("message",message);
         String previous=prefs().getString(RESPONSE_ID,"");
