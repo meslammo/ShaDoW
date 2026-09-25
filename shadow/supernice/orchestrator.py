@@ -145,7 +145,7 @@ class Unified150Orchestrator:
         events: list[OrchestratorEvent] = []
         evidence: list[dict[str, Any]] = []
         request_id = str((context or {}).get("request_id") or uuid4())
-        ctx = {"request_id": request_id, "confirmed": bool(confirmed), **dict(context or {})}
+        ctx = {**dict(context or {}), "request_id": request_id, "confirmed": bool(confirmed)}
 
         if not text:
             return UnifiedRunResult(False, "request_required", metadata={"request_id": request_id})
