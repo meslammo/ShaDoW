@@ -47,12 +47,12 @@ class CoreRuntime:
             return CoreResult(
                 spec.id,
                 True,
-                "disabled_optional",
+                "disabled_out_of_scope",
                 result={
                     "core": spec.id,
                     "name": spec.name,
                     "enabled": False,
-                    "reason": "optional hardware/companion integration disabled",
+                    "reason": "external device integration is outside active Shadow scope",
                 },
                 evidence=[{"external_io": False, "device_io": False}],
                 metadata={"startup_blocking": False, "optional": True},
