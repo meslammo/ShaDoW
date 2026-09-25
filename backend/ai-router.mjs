@@ -9,7 +9,7 @@ const { Pool } = pg;
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 const XAI_URL = 'https://api.x.ai/v1/responses';
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
-const POLLINATIONS_URL = 'https://text.pollinations.ai';
+const POLLINATIONS_URL = 'https://gen.pollinations.ai/v1/chat/completions';
 const cfg = {
   openaiKey: (process.env.OPENAI_API_KEY || '').trim(),
   openaiModel: (process.env.OPENAI_MODEL || 'gpt-5.6').trim(),
@@ -26,8 +26,9 @@ const cfg = {
   localModel: (process.env.SHADOW_LOCAL_AI_MODEL || 'local-model').trim(),
   memoryDir: (process.env.SHADOW_MEMORY_DIR || '/data/shadow-memory').trim(),
   databaseUrl: (process.env.DATABASE_URL || '').trim(),
+  pollinationsKey: (process.env.POLLINATIONS_API_KEY || '').trim(),
   pollinationsModel: (process.env.POLLINATIONS_MODEL || 'openai').trim(),
-  pollinationsEnabled: String(process.env.POLLINATIONS_ANONYMOUS || 'true').trim().toLowerCase() !== 'false',
+  pollinationsEnabled: String(process.env.POLLINATIONS_ENABLED ?? 'true').trim().toLowerCase() !== 'false' && Boolean((process.env.POLLINATIONS_API_KEY || '').trim()),
   workspaceDir: (process.env.SHADOW_WORKSPACE_DIR || '/data/shadow-workspace').trim(),
 };
 const pool = cfg.databaseUrl ? new Pool({
@@ -305,73 +306,96 @@ async function deepseekAgent(message, device, reasoningEffort = 'none', executio
   throw new Error('agent_loop_limit');
 }
 
-async function pollinationsAgent(message) {
-  if (!cfg.pollinationsEnabled) throw new Error('pollinations_disabled');
-  const params = new URLSearchParams({
-    model: cfg.pollinationsModel,
-    private: 'true',
-  });
-  const system = String(systemPrompt || '').slice(0, 6000);
-  if (system) params.set('system', system);
-  const url = POLLINATIONS_URL + '/' + encodeURIComponent(String(message || '')) + '?' + params.toString();
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'text/plain', 'User-Agent': 'SHADOW-AI/1.0' },
-    signal: AbortSignal.timeout(90000),
-  });
-  const answer = (await response.text()).trim();
-  if (!response.ok) {
-    const error = new Error('pollinations_' + response.status);
-    error.http = response.status;
-    throw error;
-  }
-  if (!answer) throw new Error('pollinations_empty_response');
-  return {
-    provider: 'pollinations',
-    model: cfg.pollinationsModel,
-    answer,
-    responseId: null,
-    usedWeb: false,
-    pendingAction: null,
-    anonymous: true,
-  };
-}
+async function pollinationsAgent(message, executionContext = {}) {
+  if (!cfg.pollinationsEnabled || !cfg.pollinationsKey) throw new Error('pollinations_not_configured');
+  const remembered = await memoryPrompt(message);
+  const system = remembered
+    ? systemPrompt + '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered
+    : systemPrompt;
+  const messages = [
+    { role: 'system', content: system },
+    { role: 'user', content: message },
+  ];
+  const tools = TOOL_DEFINITIONS
+    .filter(x => x.name !== 'file_write')
+    .map(x => ({ type: 'function', function: { name: x.name, description: x.description, parameters: x.parameters } }));
 
-async function streamPollinations(message, onDelta, onDone) {
-  if (!cfg.pollinationsEnabled) throw new Error('pollinations_disabled');
-  const params = new URLSearchParams({
-    model: cfg.pollinationsModel,
-    private: 'true',
-    stream: 'true',
-  });
-  const url = POLLINATIONS_URL + '/' + encodeURIComponent(String(message || '')) + '?' + params.toString();
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'text/event-stream', 'User-Agent': 'SHADOW-AI/1.0' },
-    signal: AbortSignal.timeout(120000),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    const error = new Error('pollinations_' + response.status + ':' + body.slice(0, 120));
-    error.http = response.status;
-    throw error;
-  }
-  const text = await response.text();
-  if (!text.trim()) throw new Error('pollinations_empty_stream');
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.startsWith('data:')) continue;
-    const data = line.slice(5).trim();
-    if (!data || data === '[DONE]') continue;
-    try {
-      const parsed = JSON.parse(data);
-      const delta = parsed?.choices?.[0]?.delta?.content ?? parsed?.delta ?? parsed?.text ?? '';
-      if (typeof delta === 'string' && delta && onDelta) onDelta(delta);
-    } catch {
-      if (onDelta) onDelta(data);
+  for (let i = 0; i < 8; i++) {
+    const response = await fetch(POLLINATIONS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + cfg.pollinationsKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: cfg.pollinationsModel,
+        messages,
+        tools,
+        tool_choice: 'auto',
+        temperature: 0.2,
+      }),
+      signal: AbortSignal.timeout(90000),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(body?.error?.message || body?.error?.code || ('pollinations_' + response.status));
+      error.http = response.status;
+      throw error;
+    }
+    const messageOut = body?.choices?.[0]?.message;
+    if (!messageOut) throw new Error('pollinations_empty_response');
+    if (!Array.isArray(messageOut.tool_calls) || !messageOut.tool_calls.length) {
+      return {
+        provider: 'pollinations',
+        model: cfg.pollinationsModel,
+        answer: String(messageOut.content || '').trim(),
+        responseId: body.id || null,
+        usedWeb: false,
+        pendingAction: null,
+      };
+    }
+
+    messages.push(messageOut);
+    for (const toolCall of messageOut.tool_calls) {
+      const toolName = String(toolCall?.function?.name || '');
+      let args = {};
+      try { args = JSON.parse(toolCall?.function?.arguments || '{}'); }
+      catch { throw new Error('invalid_tool_arguments:' + toolName); }
+
+      const result = await runTool(toolName, args, executionContext);
+      if (result.kind === 'client_action') {
+        return {
+          provider: 'pollinations',
+          model: cfg.pollinationsModel,
+          answer: 'هحتاج تنفيذ الإجراء ده على الجهاز.',
+          responseId: body.id || null,
+          usedWeb: false,
+          pendingAction: { ...result, toolCallId: toolCall.id || '' },
+        };
+      }
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: JSON.stringify(result.value),
+      });
     }
   }
-  if (onDone) onDone({ responseId: null, provider: 'pollinations', model: cfg.pollinationsModel, reasoningEffort: 'none', usedWeb: false });
-  return { responseId: null, provider: 'pollinations', model: cfg.pollinationsModel, usedWeb: false };
+  throw new Error('agent_loop_limit');
+}
+
+async function streamPollinations(message, onDelta, onDone, executionContext = {}) {
+  const result = await pollinationsAgent(message, executionContext);
+  if (result.answer && onDelta) onDelta(result.answer);
+  if (onDone && !result.pendingAction) {
+    onDone({
+      responseId: result.responseId,
+      provider: result.provider,
+      model: result.model,
+      reasoningEffort: 'none',
+      usedWeb: false,
+    });
+  }
+  return result;
 }
 
 async function streamResponses(requestPayload, onEvent) {
@@ -418,7 +442,20 @@ async function streamResponses(requestPayload, onEvent) {
 
 export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onDelta, onDone, onPending, onTool = null }) {
   if (!cfg.openaiKey && !cfg.pollinationsEnabled) throw new Error('no_online_ai_provider_available');
-  if (!cfg.openaiKey && cfg.pollinationsEnabled) return streamPollinations(message, onDelta, onDone);
+  if (!cfg.openaiKey && cfg.pollinationsEnabled) {
+    const output = await streamPollinations(message, onDelta, onDone, { confirmed, confirmedActions, onTool });
+    if (output.pendingAction && onPending) {
+      onPending({
+        responseId: output.responseId || null,
+        provider: output.provider,
+        model: output.model,
+        reasoningEffort: normalizedEffort,
+        usedWeb: false,
+        pendingAction: output.pendingAction,
+      });
+    }
+    return output;
+  }
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const remembered = await memoryPrompt(message);
   const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
@@ -511,7 +548,7 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
     try {
       let output;
       if (provider === 'pollinations') {
-        output = await pollinationsAgent(message);
+        output = await pollinationsAgent(message, { confirmed, confirmedActions, onTool });
       } else if (provider === 'deepseek') {
         output = await deepseekAgent(message, '', normalizedEffort, { confirmed, confirmedActions, onTool });
       } else if (provider === 'mistral') {
@@ -541,7 +578,7 @@ export async function memoryStatus() {
 export function providerStatus() {
   return {
     openai: { configured: Boolean(cfg.openaiKey), model: cfg.openaiModel },
-    pollinations: { configured: Boolean(cfg.pollinationsEnabled), model: cfg.pollinationsModel, anonymous: true },
+    pollinations: { configured: Boolean(cfg.pollinationsEnabled && cfg.pollinationsKey), model: cfg.pollinationsModel, authenticated: Boolean(cfg.pollinationsKey) },
     xai: { configured: Boolean(cfg.xaiKey), model: cfg.xaiModel },
     deepseek: { configured: Boolean(cfg.deepseekKey), model: cfg.deepseekModel },
     local: localProviderStatus(),
