@@ -13,9 +13,9 @@ public class ShadowMasterOrchestratorTest {
         assertEquals(ShadowMasterOrchestrator.Route.GITHUB, p.route);
     }
 
-    @Test public void routesPhoneCommandsToLocalDevice() {
+    @Test public void routesDeviceLikeCommandsToChatInAiOnlyScope() {
         ShadowMasterOrchestrator.Plan p = router.plan("افتح إعدادات WiFi", true);
-        assertEquals(ShadowMasterOrchestrator.Route.LOCAL_DEVICE, p.route);
+        assertEquals(ShadowMasterOrchestrator.Route.CHAT, p.route);
     }
 
     @Test public void normalConversationStaysChat() {
@@ -36,8 +36,8 @@ public class ShadowMasterOrchestratorTest {
         assertEquals(ShadowMasterOrchestrator.Route.DEVELOPMENT, p.route);
     }
 
-    @Test public void spatialRequestHasDedicatedRoute() {
+    @Test public void spatialRequestStaysSoftwareChatInAiOnlyScope() {
         ShadowMasterOrchestrator.Plan p = router.plan("شغل رادار شادو", true);
-        assertEquals(ShadowMasterOrchestrator.Route.SPATIAL, p.route);
+        assertEquals(ShadowMasterOrchestrator.Route.CHAT, p.route);
     }
 }
