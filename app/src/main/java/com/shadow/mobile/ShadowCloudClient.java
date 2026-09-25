@@ -69,9 +69,10 @@ public final class ShadowCloudClient {
         void onPending(PendingAction action, String provider, String responseId);
     }
     public static final class StreamDone {
-        public final String responseId, provider, model;
+        public final String responseId, provider, model, text;
         public final boolean usedWeb;
-        public StreamDone(String r,String p,String m,boolean w){responseId=r;provider=p;model=m;usedWeb=w;}
+        public StreamDone(String r,String p,String m,boolean w){this(r,p,m,"",w);}
+        public StreamDone(String r,String p,String m,String t,boolean w){responseId=r;provider=p;model=m;text=t==null?"":t;usedWeb=w;}
     }
     public void streamChat(String message,String reasoningEffort,StreamListener listener)throws Exception{
         final boolean[] seen = {false};
@@ -89,7 +90,7 @@ public final class ShadowCloudClient {
             // Preserve the conversation and switch to the direct online brain without
             // exposing reconnect/offline status to the user.
         }
-        puter.streamChat(message,"gpt-5.6-luna",reasoningEffort,proxy == null ? new StreamListener(){
+        puter.streamChat(message,"openai/gpt-5.6-luna",reasoningEffort,proxy == null ? new StreamListener(){
             public void onDelta(String t){}
             public void onDone(StreamDone d){}
             public void onPending(PendingAction a,String p,String r){}
