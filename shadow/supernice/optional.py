@@ -1,19 +1,16 @@
-"""Optional hardware/companion capability policy.
+"""Retired external-device capability policy.
 
-Hardware integrations are never part of SHADOW startup. They are disabled by
-default and can be enabled explicitly when an adapter exists.
+Device/car/smart-home/wearable/companion integrations are outside the active
+Shadow AI build. Their historical Core contracts remain for compatibility and
+catalog completeness, but they can never be enabled by runtime configuration.
 """
 from __future__ import annotations
-
-import os
 
 OPTIONAL_DEVICE_CORE_IDS = frozenset(f"CORE-{i:03d}" for i in range(113, 132))
 
 
 def device_integrations_enabled() -> bool:
-    return os.getenv("SHADOW_ENABLE_DEVICE_CORES", "").strip().lower() in {
-        "1", "true", "yes", "on"
-    }
+    return False
 
 
 def is_optional_device_core(core_id: str) -> bool:
@@ -21,6 +18,6 @@ def is_optional_device_core(core_id: str) -> bool:
 
 
 def optional_core_status(core_id: str) -> str:
-    if is_optional_device_core(core_id) and not device_integrations_enabled():
-        return "disabled_optional"
+    if is_optional_device_core(core_id):
+        return "disabled_out_of_scope"
     return "enabled"
