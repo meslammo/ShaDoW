@@ -22,8 +22,6 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import java.io.*;
 import java.util.*;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 /** MOD-73: unified Shadow agent surface with online-first tool execution and verification. */
 public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitListener {
@@ -41,7 +39,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private LinearLayout rootView,composerRef; private TextView plusButtonRef,sendButtonRef,micButtonRef,menuButtonRef,moreButtonRef;
     private boolean voiceTurnActive=false;
     private final Handler voiceHandler=new Handler(Looper.getMainLooper());
-    private ShadowBargeInMonitor bargeInMonitor; private MediaRecorder voiceprintRecorder; private File voiceprintFile; private ShadowDeviceActivation deviceActivation;
+    private ShadowBargeInMonitor bargeInMonitor; private MediaRecorder voiceprintRecorder; private File voiceprintFile;
     private static final String WAKE_PREFS="shadow_voice_prefs";
     private static final String WAKE_ENABLED="wake_enabled";
     private int dp(float n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}
@@ -51,7 +49,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void masterEvent(ShadowMasterEventBus.Type type,String request,String route,String detail,boolean ok){if(orchestrator!=null)orchestrator.events().publish(new ShadowMasterEventBus.Event(type,request,route,detail,ok));}
     private TextView tv(String s,float z){TextView v=new TextView(this);v.setText(s);v.setTextColor(TEXT);v.setTextSize(z);return v;}
     private void stage(String s){if(status!=null){status.setText(ShadowProcessIndicators.render(s));status.setTextColor(reasoningMode?REASON_RED:Color.rgb(112,210,160));}if(liveVoice!=null&&reasoningMode)liveVoice.setTextColor(REASON_RED);}
-    @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);orchestrator=new ShadowMasterOrchestrator();identity=new ShadowVoiceIdentityGateway(this);deviceActivation=new ShadowDeviceActivation(this);remotes=new ShadowRemoteController(this);developmentAgent=new ShadowDevelopmentAgent(this);pythonBridge=new ShadowPythonRuntimeBridge(this);spatialRadar=new ShadowRadarController(this,orchestrator.events());masterCycle=new ShadowMasterCycle();companionRegistry=new ShadowCompanionRegistry(this);verificationLedger=new ShadowVerificationLedger(this);recoveryLedger=new ShadowRecoveryLedger(this);lifecycleBridge=new ShadowMasterLifecycleBridge(orchestrator.events(),core,developmentAgent,remotes,pythonBridge,companionRegistry,verificationLedger,recoveryLedger,masterCycle);
+    @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);orchestrator=new ShadowMasterOrchestrator();identity=new ShadowVoiceIdentityGateway(this);remotes=new ShadowRemoteController(this);developmentAgent=new ShadowDevelopmentAgent(this);pythonBridge=new ShadowPythonRuntimeBridge(this);spatialRadar=new ShadowRadarController(this,orchestrator.events());masterCycle=new ShadowMasterCycle();companionRegistry=new ShadowCompanionRegistry(this);verificationLedger=new ShadowVerificationLedger(this);recoveryLedger=new ShadowRecoveryLedger(this);lifecycleBridge=new ShadowMasterLifecycleBridge(orchestrator.events(),core,developmentAgent,remotes,pythonBridge,companionRegistry,verificationLedger,recoveryLedger,masterCycle);
         voiceState=new ShadowVoiceStateMachine(handsFreeVoice,new ShadowVoiceStateMachine.Callback(){
             public void onListening(){runOnUiThread(()->{ShadowWakeWordService.pauseListening();stage("listening");if(liveVoice!=null){liveVoice.setVisibility(View.VISIBLE);if(liveVoice.getText().toString().isEmpty())liveVoice.setText("🎙 Listening…");}if(handsFreeVoice&&!voiceTurnActive){voiceTurnActive=true;}if(handsFreeVoice&&!voice.isActive())voiceHandler.postDelayed(()->{if(handsFreeVoice&&!isFinishing()&&!voice.isActive())listen();},250);});}
             public void onProcessing(){runOnUiThread(()->{stage("thinking");if(liveVoice!=null){liveVoice.setVisibility(View.VISIBLE);liveVoice.setText("⏳ Processing…");}});}
@@ -86,210 +84,8 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void assistantMenu(String s){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("⧉ نسخ");p.getMenu().add("↗ مشاركة");p.getMenu().add("🔊 قراءة بصوت");p.getMenu().add("⏹ إيقاف الصوت");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.contains("نسخ"))copyText(s);else if(n.contains("مشاركة"))shareText(s);else if(n.contains("قراءة"))speakNow(s);else {stopCurrentTts();voiceState.userStoppedListening();}return true;});p.show();}
     private void system(String s){TextView v=tv(s,11);v.setTextColor(MUTED);messages.addView(v);bottom();}
     private void bottom(){messages.post(()->{ViewParent p=messages.getParent();if(p instanceof ScrollView)((ScrollView)p).fullScroll(View.FOCUS_DOWN);});}
-    private void check(){
-        new Thread(()->{
-            cloudOnline=cloud.health();
-            if(cloudOnline){
-                bootstrapShadowDevice();
-            }
-            runOnUiThread(()->stage(cloudOnline?"online":"reconnecting"));
-        }).start();
-    }
-
-    private void bootstrapShadowDevice(){
-        try{
-            if(!deviceActivation.isActivated()){
-                JSONObject registered=cloud.registerDevice(deviceActivation,"");
-                String token=registered.optString("activation_token","").trim();
-                String instance=registered.optString("instance_id","").trim();
-                if(!token.isEmpty()&&!instance.isEmpty()){
-                    deviceActivation.saveActivation(instance,token);
-                }
-            }
-            if(deviceActivation.isActivated()) syncShadowDevice();
-        }catch(Throwable ignored){}
-    }
-
-    private void syncShadowDevice(){
-        try{
-            JSONObject manifest=new JSONObject();
-            manifest.put("platform","android");
-            manifest.put("app_version",BuildConfig.VERSION_NAME);
-            manifest.put("phase_count",35);
-            manifest.put("core_count",150);
-
-            JSONArray memory=new JSONArray();
-            try{
-                JSONArray exported=new JSONArray(pythonBridge.exportSyncMemory());
-                for(int i=0;i<exported.length()&&i<100;i++) memory.put(exported.optJSONObject(i));
-            }catch(Throwable ignored){}
-
-            JSONObject response=cloud.syncShadowDevice(
-                deviceActivation,
-                new JSONObject(),
-                memory,
-                manifest
-            );
-            deviceActivation.saveSyncSnapshot(response.toString());
-
-            JSONObject sync=response.optJSONObject("sync");
-            if(sync!=null){
-                JSONArray remoteMemory=sync.optJSONArray("memory_facts");
-                if(remoteMemory!=null&&remoteMemory.length()>0) pythonBridge.applySyncedMemory(remoteMemory.toString());
-            }
-        }catch(Throwable ignored){}
-    }
-
-    private void showDeviceLinkMenu(){
-        if(deviceActivation==null||!deviceActivation.isActivated()){
-            assistant("الجهاز لسه مش متفعّل على Shadow Cloud. وصّله بالإنترنت وافتح Shadow مرة.");
-            return;
-        }
-        new AlertDialog.Builder(this)
-            .setTitle("🔗 ربط Shadow بجهاز آخر")
-            .setMessage("اختار العملية:")
-            .setPositiveButton("إنشاء كود لفون جديد",(d,w)->startShadowLink())
-            .setNegativeButton("إدخال كود من فون آخر",(d,w)->askShadowLinkCode())
-            .show();
-    }
-
-    private void startShadowLink(){
-        new Thread(()->{
-            try{
-                JSONObject result=cloud.startShadowLink(deviceActivation);
-                String code=result.optString("code","");
-                String expires=result.optString("expires_at","");
-                runOnUiThread(()->new AlertDialog.Builder(this)
-                    .setTitle("كود ربط Shadow")
-                    .setMessage(code+"\n\nالكود صالح مرة واحدة ولمدة قصيرة حتى "+expires+" .\nخليه معاك على الفون الجديد.")
-                    .setPositiveButton("تمام",null)
-                    .show());
-            }catch(Throwable e){runOnUiThread(()->assistant("تعذر إنشاء كود الربط: "+e.getMessage()));}
-        }).start();
-    }
-
-    private void askShadowLinkCode(){
-        final EditText codeInput=new EditText(this);
-        codeInput.setHint("مثال: A1B2C3D4");
-        codeInput.setSingleLine(true);
-        new AlertDialog.Builder(this)
-            .setTitle("إدخال كود ربط Shadow")
-            .setView(codeInput)
-            .setPositiveButton("ربط الآن",(d,w)->completeShadowLink(codeInput.getText().toString().trim()))
-            .setNegativeButton("إلغاء",null)
-            .show();
-    }
-
-    private void completeShadowLink(String code){
-        new Thread(()->{
-            try{
-                JSONObject result=cloud.completeShadowLink(deviceActivation,code);
-                String token=result.optString("activation_token","").trim();
-                String instance=result.optString("instance_id","").trim();
-                if(token.isEmpty()||instance.isEmpty()) throw new IllegalStateException("link_activation_failed");
-                deviceActivation.saveActivation(instance,token);
-                syncShadowDevice();
-                JSONObject sync=new JSONObject(deviceActivation.syncSnapshot()).optJSONObject("sync");
-                int pending=sync==null?0:sync.optJSONArray("pending_gates")==null?0:sync.optJSONArray("pending_gates").length();
-                runOnUiThread(()->assistant("تم ربط الفون بنفس Shadow Instance ✓\nالجهاز اتعرّف، والحالة المشتركة اتسحبت.\nGates لسه ناقصة: "+pending));
-            }catch(Throwable e){runOnUiThread(()->assistant("ربط Shadow فشل: "+String.valueOf(e.getMessage())));}
-        }).start();
-    }
-
-    private void showAcceptanceGates(){
-        if(deviceActivation==null||!deviceActivation.isActivated()){
-            assistant("فعّل الجهاز/اربطه الأول عشان نشوف الـAcceptance Gates المشتركة.");
-            return;
-        }
-        new Thread(()->{
-            try{
-                syncShadowDevice();
-                JSONObject platform=cloud.platformStatus();
-                JSONObject sync=new JSONObject(deviceActivation.syncSnapshot()).optJSONObject("sync");
-                JSONArray pending=sync==null?null:sync.optJSONArray("pending_gates");
-                StringBuilder b=new StringBuilder("REAL-WORLD ACCEPTANCE GATES\\n\\n");
-                if(pending==null||pending.length()==0){
-                    b.append("مفيش Gates معلقة في الـsync الحالي.\\n");
-                }else{
-                    for(int i=0;i<pending.length();i++){
-                        JSONObject g=pending.optJSONObject(i);
-                        if(g!=null){
-                            b.append("• ").append(g.optString("gate_id")).append(" — ")
-                             .append(g.optString("status","pending")).append("\\n");
-                        }
-                    }
-                }
-                b.append("\\nاختبارات الجهاز الحقيقي لازم تتنفذ فعلًا قبل تسجيل Passed.");
-                runOnUiThread(()->{
-                    new AlertDialog.Builder(this)
-                        .setTitle("🧪 Real-World Acceptance")
-                        .setMessage(b.toString())
-                        .setPositiveButton("تسجيل نتيجة",(d,w)->chooseAcceptanceGate())
-                        .setNegativeButton("إغلاق",null)
-                        .show();
-                });
-            }catch(Throwable e){runOnUiThread(()->assistant("تعذر قراءة Acceptance Gates: "+String.valueOf(e.getMessage())));}
-        }).start();
-    }
-
-    private void chooseAcceptanceGate(){
-        new Thread(()->{
-            try{
-                JSONObject catalog=cloud.acceptanceGates();
-                JSONArray gates=catalog.optJSONArray("gates");
-                if(gates==null||gates.length()==0) throw new IllegalStateException("gate_catalog_empty");
-                String[] labels=new String[gates.length()];
-                String[] ids=new String[gates.length()];
-                for(int i=0;i<gates.length();i++){
-                    JSONObject g=gates.optJSONObject(i);
-                    ids[i]=g==null?"":g.optString("gate_id","");
-                    labels[i]=ids[i]+" — pending external proof";
-                }
-                runOnUiThread(()->new AlertDialog.Builder(this)
-                    .setTitle("اختار الـGate اللي اختبرته")
-                    .setItems(labels,(dialog,which)->promptAcceptanceGateResult(ids[which]))
-                    .setNegativeButton("إلغاء",null)
-                    .show());
-            }catch(Throwable e){runOnUiThread(()->assistant("تعذر تحميل Gate catalog: "+String.valueOf(e.getMessage())));}
-        }).start();
-    }
-
-    private void promptAcceptanceGateResult(String gateId){
-        final EditText evidence=new EditText(this);
-        evidence.setHint("Evidence / Build URL / Device note");
-        evidence.setSingleLine(false);
-        new AlertDialog.Builder(this)
-            .setTitle("تأكيد نتيجة: "+gateId)
-            .setMessage("اكتب دليل الاختبار الحقيقي. التسجيل هنا مجرد evidence؛ Shadow لن يدّعي نجاح الاختبار من غير نتيجة فعلية.")
-            .setView(evidence)
-            .setPositiveButton("Passed",(d,w)->{
-                String ref=evidence.getText().toString().trim();
-                if(ref.isEmpty()){
-                    assistant("لازم Evidence قبل تسجيل Gate كـPassed.");
-                    return;
-                }
-                reportAcceptanceGate(gateId,"passed",ref);
-            })
-            .setNegativeButton("Failed",(d,w)->reportAcceptanceGate(gateId,"failed",evidence.getText().toString().trim()))
-            .setNeutralButton("إلغاء",null)
-            .show();
-    }
-
-    private void reportAcceptanceGate(String gateId,String result,String evidenceRef){
-        new Thread(()->{
-            try{
-                JSONObject response=cloud.reportAcceptanceGate(deviceActivation,gateId,result,evidenceRef,"reported from Android acceptance panel");
-                deviceActivation.saveSyncSnapshot(response.toString());
-                int pending=0;
-                JSONObject sync=response.optJSONObject("sync");
-                if(sync!=null&&sync.optJSONArray("pending_gates")!=null) pending=sync.optJSONArray("pending_gates").length();
-                final int remaining=pending;
-                runOnUiThread(()->assistant("تم تسجيل "+gateId+" = "+result.toUpperCase(Locale.ROOT)+" ✓\\nGates لسه ناقصة: "+remaining));
-            }catch(Throwable e){runOnUiThread(()->assistant("تسجيل الـGate فشل: "+String.valueOf(e.getMessage())));}
-        }).start();
-    }
-
-
+    private void check(){new Thread(()->{cloudOnline=cloud.health();runOnUiThread(()->stage(cloudOnline?"online":"reconnecting"));}).start();}
+    private boolean handleIdentityCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("تحقق من صوتي")||x.contains("تحقق بصوتي")||x.equals("verify my voice")||x.equals("voiceprint verify")){startVoiceprintVerification();return true;}if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")||x.equals("voice identity status")){assistant(identity.status());return true;}if(x.contains("اقفل الهوية")||x.contains("اقفل الهويه")||x.equals("lock identity")||x.equals("logout shadow")){identity.lock();assistant("تم قفل هوية الـMaster. الأوامر الحساسة هتحتاج كلمة السر تاني.");return true;}if(x.startsWith("عيّن كلمة السر:")||x.startsWith("عين كلمة السر:")||x.startsWith("عيّن كلمه السر:")||x.startsWith("عين كلمه السر:")||x.startsWith("set passphrase:")||x.startsWith("set password:")){String p=identity.extractPassphrase(s);if(identity.enroll(p)){assistant("تم تسجيل كلمة سر الـMaster محليًا بشكل آمن. مش هخزن الكلمة نفسها، فقط SHA-256.\nقول: كلمة السر: <الكلمة> عند طلب أمر حساس.");}else assistant("كلمة السر لازم تكون 6 أحرف/رموز على الأقل.");return true;}return false;}
     private void startVoiceprintVerification(){
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},MIC);return;}
         if(voiceprintRecorder!=null)return;
@@ -528,7 +324,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private boolean isImage(String s){String x=s.toLowerCase(Locale.ROOT);return x.contains("صمم صورة")||x.contains("اعمل صورة")||x.contains("صورة لـ")||x.contains("generate image")||x.contains("create an image")||x.contains("design an image");}
     private void generateImage(String prompt){system("SHADOW • بيصمم الصورة أونلاين…");new Thread(()->{try{String b64=cloud.generateImage(prompt);byte[] data=android.util.Base64.decode(b64,android.util.Base64.DEFAULT);runOnUiThread(()->{ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(BitmapFactory.decodeStream(new ByteArrayInputStream(data)));messages.addView(image,new LinearLayout.LayoutParams(-1,dp(320)));masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,prompt,"image","image_rendered",true);masterEvent(ShadowMasterEventBus.Type.COMPLETED,prompt,"image","image_completed",true);assistant("اتفضل — الصورة جاهزة.");stage("online");});}catch(Throwable e){runOnUiThread(()->{assistant("مش قادر أولّد الصورة دلوقتي: "+e.getMessage());stage("reconnecting");});}}).start();}
     private void attach(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("Files");p.getMenu().add("Photos");p.getMenu().add("Camera");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.equals("Files")){Intent x=new Intent(Intent.ACTION_OPEN_DOCUMENT);x.addCategory(Intent.CATEGORY_OPENABLE);x.setType("*/*");startActivityForResult(x,FILE);}else if(n.equals("Photos")){Intent x=new Intent(Intent.ACTION_PICK);x.setType("image/*");startActivityForResult(x,FILE);}else{try{startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),CAMERA);}catch(Exception e){system("No camera application is available.");}}return true;});p.show();}
-    private void features(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));String[] a={"📺 TV Remote","❄️ AC Remote","🔎 Remote capabilities","🌐 Web search","🎨 Image design","⚡ Full 35-Phase Master","📱 Deep phone control","🧠 Development Agent","🛰 Master Bus","🧩 35-Phase Platform","🩺 Shadow Diagnostics","🔗 Link Shadow Device","🧪 Real-World Acceptance Gates","📍 Spatial Radar","🧠 Think Hard"+(reasoningMode?" ✓":""),"🔴 Deep Think"+("xhigh".equals(reasoningEffort)?" ✓":""),"🛑 Stop Deep Think","🔐 GitHub Authorization","🎙 Hands-Free: "+(handsFreeVoice?"ON":"OFF"),"🌙 Wake Word: "+(isWakeEnabled()?"ON":"OFF"),"Profile / Memory","System status","🔒 Lock Master identity","Settings"};for(String s:a)p.getMenu().add(s);p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.startsWith("📺")||n.startsWith("❄️")||n.startsWith("🔎"))remotes.showCenter();else if(n.startsWith("⚡ Full 35-Phase Master"))runFullMasterPipeline();else if(n.startsWith("📱"))startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));else if(n.startsWith("🛰"))assistant(lifecycleBridge==null?"Master Bus غير متاح.":lifecycleBridge.status());else if(n.startsWith("🧩")){new Thread(()->{try{String s=pythonBridge.platformStatus();runOnUiThread(()->assistant(s));}catch(Throwable e){runOnUiThread(()->assistant("تعذر قراءة عقد الـ35 مرحلة: "+e.getMessage()));}}).start();}else if(n.startsWith("🩺")){new Thread(()->{try{String s=pythonBridge.platformDiagnostics();runOnUiThread(()->assistant(s));}catch(Throwable e){runOnUiThread(()->assistant("تعذر تشغيل تشخيص Shadow: "+e.getMessage()));}}).start();}else if(n.startsWith("🔗"))showDeviceLinkMenu();else if(n.startsWith("🧪"))showAcceptanceGates();else if(n.startsWith("📍")){if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},904);}else{spatialRadar.start();assistant("Spatial Radar اتفعل. تحديثات المكان هتدخل Master Bus بدون تخزين إحداثيات داخل الـevent.");}}else if(n.startsWith("🌐")){input.setText("ابحث أونلاين عن ");input.requestFocus();}else if(n.startsWith("🎨")){input.setText("صمم صورة: ");input.requestFocus();}else if(n.startsWith("🧠 Think Hard")){setReasoning(true,"high");assistant("🧠 Think Hard اتفعل — Black/Red mode.");}else if(n.startsWith("🔴 Deep Think")){setReasoning(true,"xhigh");assistant("🔴 Deep Think اتفعل — Black/Red mode.");}else if(n.startsWith("🛑 Stop Deep Think")){setReasoning(false,"none");assistant("تم إيقاف Think Hard / Deep Think.");}else if(n.startsWith("🧠 Development"))system("Development Agent: analyze → plan → approve → edit → test → report");else if(n.startsWith("🔐 GitHub"))connectGithub();else if(n.startsWith("🎙 Hands-Free")){handsFreeVoice=!handsFreeVoice;voiceState.setHandsFree(handsFreeVoice);assistant(handsFreeVoice?"Hands‑Free اتفعل — بعد كل رد صوتي Shadow هيبدأ يسمع تاني تلقائيًا.":"Hands‑Free اتقفل — الصوت هيفضل بنقرة واحدة فقط.");}
+    private void features(){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));String[] a={"📺 TV Remote","❄️ AC Remote","🔎 Remote capabilities","🌐 Web search","🎨 Image design","⚡ Full 35-Phase Master","📱 Deep phone control","🧠 Development Agent","🛰 Master Bus","🧩 35-Phase Platform","🩺 Shadow Diagnostics","📍 Spatial Radar","🧠 Think Hard"+(reasoningMode?" ✓":""),"🔴 Deep Think"+("xhigh".equals(reasoningEffort)?" ✓":""),"🛑 Stop Deep Think","🔐 GitHub Authorization","🎙 Hands-Free: "+(handsFreeVoice?"ON":"OFF"),"🌙 Wake Word: "+(isWakeEnabled()?"ON":"OFF"),"Profile / Memory","System status","🔒 Lock Master identity","Settings"};for(String s:a)p.getMenu().add(s);p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.startsWith("📺")||n.startsWith("❄️")||n.startsWith("🔎"))remotes.showCenter();else if(n.startsWith("⚡ Full 35-Phase Master"))runFullMasterPipeline();else if(n.startsWith("📱"))startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));else if(n.startsWith("🛰"))assistant(lifecycleBridge==null?"Master Bus غير متاح.":lifecycleBridge.status());else if(n.startsWith("🧩")){new Thread(()->{try{String s=pythonBridge.platformStatus();runOnUiThread(()->assistant(s));}catch(Throwable e){runOnUiThread(()->assistant("تعذر قراءة عقد الـ35 مرحلة: "+e.getMessage()));}}).start();}else if(n.startsWith("🩺")){new Thread(()->{try{String s=pythonBridge.platformDiagnostics();runOnUiThread(()->assistant(s));}catch(Throwable e){runOnUiThread(()->assistant("تعذر تشغيل تشخيص Shadow: "+e.getMessage()));}}).start();}else if(n.startsWith("📍")){if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},904);}else{spatialRadar.start();assistant("Spatial Radar اتفعل. تحديثات المكان هتدخل Master Bus بدون تخزين إحداثيات داخل الـevent.");}}else if(n.startsWith("🌐")){input.setText("ابحث أونلاين عن ");input.requestFocus();}else if(n.startsWith("🎨")){input.setText("صمم صورة: ");input.requestFocus();}else if(n.startsWith("🧠 Think Hard")){setReasoning(true,"high");assistant("🧠 Think Hard اتفعل — Black/Red mode.");}else if(n.startsWith("🔴 Deep Think")){setReasoning(true,"xhigh");assistant("🔴 Deep Think اتفعل — Black/Red mode.");}else if(n.startsWith("🛑 Stop Deep Think")){setReasoning(false,"none");assistant("تم إيقاف Think Hard / Deep Think.");}else if(n.startsWith("🧠 Development"))system("Development Agent: analyze → plan → approve → edit → test → report");else if(n.startsWith("🔐 GitHub"))connectGithub();else if(n.startsWith("🎙 Hands-Free")){handsFreeVoice=!handsFreeVoice;voiceState.setHandsFree(handsFreeVoice);assistant(handsFreeVoice?"Hands‑Free اتفعل — بعد كل رد صوتي Shadow هيبدأ يسمع تاني تلقائيًا.":"Hands‑Free اتقفل — الصوت هيفضل بنقرة واحدة فقط.");}
         else if(n.startsWith("🌙 Wake Word")){toggleWakeWord();}else if(n.equals("System status"))assistant(core.handle("status"));else if(n.startsWith("🔒")){identity.lock();assistant("تم قفل هوية الـMaster.");}else if(n.equals("Settings"))startActivity(new Intent(Settings.ACTION_SETTINGS));return true;});p.show();}
     /** EVO-35: full 35-phase button enters the governed cloud master route. */
     private void runFullMasterPipeline(){
