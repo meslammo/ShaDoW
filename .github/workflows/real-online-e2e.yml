@@ -2,6 +2,9 @@ name: SHADOW Real Online E2E
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - integration/150-online-brain-loop-2026-09-25:
 
 permissions:
   contents: read
@@ -24,6 +27,21 @@ jobs:
 
       - name: Compile
         run: python -m compileall -q shadow
+
+      - name: Require real provider credential
+        shell: bash
+        run: test -n "${OPENAI_API_KEY:-}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cloud pipeline and client E2E
+        working-directory: backend
+        run: |
+          npm install --ignore-scripts
+          node test-shadow-pipeline.mjs
+          node test-client-cloud-e2e.mjs
 
       - name: Real provider E2E
         run: pytest -q tests/test_online_brain_e2e.py -k real_online_brain_e2e
