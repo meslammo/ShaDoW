@@ -18,13 +18,9 @@ export const TASK_PROVIDER_ORDER = Object.freeze({
   video: ['gemini','xai','openai'],
 });
 
-export function providerOrderFor(message, freeFirst = true) {
+export function providerOrderFor(message, _freeFirst = true) {
   const task = classifyTask(message);
-  const order = [...(TASK_PROVIDER_ORDER[task] || TASK_PROVIDER_ORDER.chat)];
-  if (freeFirst) {
-    return order.includes('local') ? [ ...order.filter(x => x !== 'local')] : order;
-  }
-  return order.filter(x => x !== 'local');
+  return [...(TASK_PROVIDER_ORDER[task] || TASK_PROVIDER_ORDER.chat)];
 }
 
 export function normalizeEffortForProvider(provider, effort = 'none') {
