@@ -3,7 +3,7 @@
 SHADOW is a personal, unified Android AI assistant with one command surface. There is no visible Local Chat or Offline Chat mode.
 
 ## Runtime
-- Online-only multi-provider AI routing with a free-first order: local/self-hosted -> Mistral -> Gemini -> DeepSeek -> OpenAI -> xAI -> Anthropic.
+- Online-only multi-provider AI routing across configured cloud providers. Local/offline conversational AI is removed.
 - One Android master-routing contract (MOD-75): understand -> classify -> route -> execute -> verify.
 - Agent loop: understand -> plan -> route -> execute -> observe -> verify -> continue.
 - Tool registry for calculator, public web search/fetch, public GitHub reading, durable memory, workspace files, and governed software actions.
@@ -25,8 +25,8 @@ Sensitive actions remain governed by explicit identity/approval rules. There is 
 ## Super Nice 150-Core completion
 - CORE-001..012 remain backed by the original TwelveCoreRuntime.
 - CORE-013..150 have executable deterministic builtins that validate contracts, prepare outputs, and report evidence without faking network/device/provider execution.
-- Hardware/companion cores CORE-113..131 are disabled by default through SHADOW_ENABLE_DEVICE_CORES; they never block startup.
-- Real web, GitHub, media, provider and hardware side effects remain behind their existing governed adapters.
+- Hardware/device cores are retained only as dormant legacy contracts and are not part of the active Shadow build.
+- Real web, GitHub, media and provider side effects remain behind their existing governed adapters; device control is outside scope.
 - The runtime reports registered_handlers=150 and startup_blocking_integrations=[] when the optional hardware layer is disabled.
 - Android exposes the 150-Core status and single-core execution bridge through ShadowPythonRuntimeBridge.
 
@@ -53,7 +53,7 @@ The Android and cloud surfaces now expose a unified 35-phase platform contract b
 - Cloud: POST `/v1/master/run`.
 - Cloud STT: POST `/v1/transcribe`.
 - Cloud vision: POST `/v1/vision`.
-- Provider/device side effects remain credential/permission gated and are never reported as successful without evidence.
+- Provider side effects remain credential/permission gated and are never reported as successful without evidence.
 
 ## MOD-94 — Final E2E capability wiring
 The current release routes requests through a task-aware multi-model gateway and keeps one SHADOW command surface.
@@ -75,7 +75,7 @@ Media adapters:
 - Web: search + fetch + multi-source research tool.
 - Memory: PostgreSQL-first durable memory with evidence/provenance metadata.
 - Development: guarded GitHub apply -> PR -> CI verification pipeline.
-- Phone: Accessibility control primitives for navigation, clicking, typing, long-press and swipe.
+- Device control: removed from the active Shadow scope.
 
 Provider credentials are still external deployment secrets. A missing provider is reported as unconfigured; SHADOW never pretends it ran an external operation.
 
