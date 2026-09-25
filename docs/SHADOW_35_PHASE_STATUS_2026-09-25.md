@@ -19,13 +19,13 @@ No Core definitions are added here and the offline conversational AI path is not
 | 03 | Cloud Unified Runtime | IMPLEMENTED + E2E GATE | Cloud /v1/master/run uses production agent/tool path; live deployment proof remains |
 | 04 | Client Integration | IMPLEMENTED | Client bridge exposes unified 150-Core run/status/diagnostics; no device-control dependency |
 | 05 | Real Client E2E | IMPLEMENTED + E2E GATE | Requires deployed client validation; this is client validation, not device-control validation |
-| 06 | Voice + Hey Shadow | IMPLEMENTED + E2E GATE | Wake/background/barge-in code exists; real hardware validation remains |
+| 06 | Voice + Hey Shadow | IMPLEMENTED + E2E GATE | Voice/wake/streaming client path exists; client-level validation remains |
 | 07 | Online Context Intelligence | IMPLEMENTED | Online conversation/task/web/project context is software-only |
 | 08 | Agent Capability Layer | IMPLEMENTED | Software skills/agent capabilities are governed inside Shadow |
 | 09 | GitHub / Development Agent E2E | IMPLEMENTED + E2E GATE | Development pipeline exists; authenticated full lifecycle proof remains |
 | 10 | Security / Governance Hardening | IMPLEMENTED | Fail-closed permissions and secret filtering are wired |
 | 11 | Recovery / Reliability | IMPLEMENTED | Checkpoints, safe failures and recovery primitives are wired |
-| 12 | Production Hardening + First Release | IMPLEMENTED + E2E GATE | Release/backup/device evidence remains |
+| 12 | Production Hardening + First Release | IMPLEMENTED + E2E GATE | Release/backup evidence remains |
 | 13 | Full 150-Core Real Coverage | IMPLEMENTED + E2E GATE | 150 catalog + runtime + smoke; real per-adapter evidence remains |
 | 14 | Continuous Learning | IMPLEMENTED | Approved/context memory write path is present |
 | 15 | Advanced Agent Loop | IMPLEMENTED | Bounded tool rounds + workflow primitives |
@@ -45,7 +45,7 @@ No Core definitions are added here and the offline conversational AI path is not
 | 29 | World & Task Context Model | IMPLEMENTED | Entities, projects, events, tools and time; no spatial hardware dependency |
 | 30 | Continuous Verification | IMPLEMENTED | ContinuousVerifier plus execution verification |
 | 31 | Shadow Operating Layer | IMPLEMENTED | Unified identity/context/permission/control-plane surface |
-| 32 | Shadow Ecosystem | IMPLEMENTED | Skills + companion/device + adapter boundaries |
+| 32 | Shadow Ecosystem | IMPLEMENTED | Skills + software-integration adapter boundaries |
 | 33 | Global Reliability Layer | IMPLEMENTED + E2E GATE | Recovery primitives exist; production backup/failover/restore proof remains |
 | 34 | Shadow 2.x Evolution | IMPLEMENTED | Bounded self-evolution proposal/activation contract |
 | 35 | Shadow Long-Term Platform | IMPLEMENTED + E2E GATE | Platform contract exists; final real-world acceptance requires external gates |
