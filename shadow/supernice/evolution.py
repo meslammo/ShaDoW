@@ -422,6 +422,121 @@ class UnifiedControlPlane:
     def diagnostics(self) -> dict[str, Any]:
         return self.diagnostics_engine.run()
 
+    def learn_correction(self, correction: str, *, approved: bool = False) -> dict[str, Any]:
+        text = str(correction or "").strip()
+        if not text:
+            return {"ok": False, "status": "correction_required"}
+        decision = self.governance("memory.write", confirmed=approved)
+        if not decision.allowed:
+            return {"ok": False, "status": "approval_required", "reason": decision.reason}
+        item_id = self.remember(text, kind="approved_correction", tags=("learning", "approved"), source="owner-approved")
+        self.audit("learning.applied", outcome="ok", metadata={"memory_id": item_id})
+        return {"ok": True, "status": "learned", "memory_id": item_id}
+
+    def predict_assistance(self, query: str, limit: int = 3) -> list[dict[str, Any]]:
+        hits = self.memory.search(str(query or ""), max(1, min(int(limit), 10)))
+        return [
+            {
+                "suggestion": item.text,
+                "kind": item.kind,
+                "reason": "matched prior approved/runtime context",
+            }
+            for item in hits
+        ]
+
+    def delegate_companion(
+        self,
+        companion_id: str,
+        task: str,
+        handler: Optional[Callable[[str], Any]] = None,
+        *,
+        confirmed: bool = False,
+    ) -> dict[str, Any]:
+        record = self.companions.get(companion_id)
+        if record is None:
+            return {"ok": False, "status": "companion_not_found"}
+        if not record.trusted:
+            return {"ok": False, "status": "companion_not_trusted"}
+        if handler is None:
+            return {
+                "ok": True,
+                "status": "delegation_ready",
+                "companion_id": companion_id,
+                "task": str(task or ""),
+            }
+        try:
+            output = handler(str(task or ""))
+            self.audit("companion.delegated", outcome="ok", metadata={"companion_id": companion_id})
+            return {"ok": True, "status": "completed", "companion_id": companion_id, "output": output}
+        except Exception as exc:
+            self.audit("companion.failed", outcome="failed", metadata={"companion_id": companion_id, "error_type": type(exc).__name__})
+            return {"ok": False, "status": "companion_failed", "error_type": type(exc).__name__}
+
+    def spatial_observe(
+        self,
+        entity_id: str,
+        kind: str,
+        *,
+        relation: str = "near",
+        space_id: str = "space:default",
+        label: Optional[str] = None,
+        metadata: Optional[Mapping[str, Any]] = None,
+    ) -> dict[str, Any]:
+        sid = str(space_id or "space:default")
+        eid = str(entity_id or "").strip()
+        if not eid:
+            return {"ok": False, "status": "entity_required"}
+        self.knowledge.upsert_node(sid, "space", sid)
+        self.knowledge.upsert_node(eid, str(kind or "entity"), str(label or eid), dict(metadata or {}))
+        edge = self.knowledge.relate(sid, str(relation or "near"), eid)
+        self.audit("spatial.observed", metadata={"space_id": sid, "entity_id": eid, "relation": edge.relation})
+        return {"ok": True, "status": "observed", "space_id": sid, "entity_id": eid, "relation": edge.relation}
+
+    def backup_state(self, path: str | Path) -> dict[str, Any]:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "version": "evo35",
+            "created_at": time.time(),
+            "memory": json.loads(self.memory.export()),
+            "knowledge": self.knowledge.export(),
+            "skills": self.skills.manifest(),
+            "companions": self.companions.snapshot(),
+            "devices": self.devices.snapshot(),
+        }
+        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "path": str(target), "memory_items": len(payload["memory"])}
+
+    def restore_memory_from_backup(self, path: str | Path) -> dict[str, Any]:
+        source = Path(path)
+        data = json.loads(source.read_text(encoding="utf-8"))
+        count = 0
+        for item in data.get("memory", []):
+            text = str(item.get("text") or "").strip()
+            if not text:
+                continue
+            self.memory.put(
+                text,
+                kind=str(item.get("kind") or "fact"),
+                tags=tuple(item.get("tags") or ()),
+                source=str(item.get("source") or "restore"),
+                item_id=str(item.get("id") or "") or None,
+            )
+            count += 1
+        self.audit("backup.restored", outcome="ok", metadata={"memory_items": count})
+        return {"ok": True, "restored_memory_items": count}
+
+    def phase_progress(self) -> dict[str, Any]:
+        implemented = [p.number for p in PHASES_35 if p.software_ready]
+        external = [p.number for p in PHASES_35 if p.external_gate]
+        return {
+            "phase_count": len(PHASES_35),
+            "implemented_contracts": len(implemented),
+            "external_verification_pending": len(external),
+            "implemented_phase_numbers": implemented,
+            "external_gate_phase_numbers": external,
+        }
+
     def multimodal(self, *, text: str = "", audio_ref: Optional[str] = None, image_ref: Optional[str] = None, vision: Optional[Mapping[str, Any]] = None, metadata: Optional[Mapping[str, Any]] = None) -> MultimodalEnvelope:
         return MultimodalEnvelope(text, audio_ref, image_ref, dict(vision or {}), dict(metadata or {}))
 
