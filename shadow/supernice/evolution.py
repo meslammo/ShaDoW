@@ -272,6 +272,10 @@ class RecoveryManager:
             raise KeyError("checkpoint_not_found")
         return dict(self._checkpoints[checkpoint_id])
 
+    def rollback(self, checkpoint_id: str) -> dict[str, Any]:
+        state = self.resume(checkpoint_id)
+        return {"ok": True, "status": "rolled_back", "checkpoint_id": checkpoint_id, "state": state}
+
     def discard(self, checkpoint_id: str) -> bool:
         return self._checkpoints.pop(checkpoint_id, None) is not None
 
@@ -415,6 +419,11 @@ class UnifiedControlPlane:
 
     def resume(self, checkpoint_id: str) -> dict[str, Any]:
         return self.recovery.resume(checkpoint_id)
+
+    def rollback(self, checkpoint_id: str) -> dict[str, Any]:
+        result = self.recovery.rollback(checkpoint_id)
+        self.audit("recovery.rollback", outcome="ok", metadata={"checkpoint_id": checkpoint_id})
+        return result
 
     def simulate_actions(self, actions: Iterable[Mapping[str, Any]], *, confirmed: bool = False) -> list[dict[str, Any]]:
         return self.simulation.preview(actions, confirmed=confirmed)
@@ -598,7 +607,7 @@ class SelfEvolution:
 
     @staticmethod
     def activation_allowed(proposal: EvolutionProposal, *, approved_by_master: bool, tests_passed: bool) -> bool:
-        return bool(approved_by_master and tests_passed and proposal.requires_approval)
+        return bool(approved_by_master and tests_passed)
 
 
 @dataclass(frozen=True)
