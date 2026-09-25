@@ -6,7 +6,6 @@ import { applyFiles, createPullRequest, runDevelopmentPipeline, status as develo
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
 import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router.mjs';
-import { registerDevice, startLink, completeLink, syncDevice, reportGate, externalGateCatalog } from './device-sync.mjs';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -82,88 +81,6 @@ app.get('/health', async (_req, res) => res.json({
 
 
 
-
-app.get('/v1/device/gates', (_req, res) => {
-  return res.json({ ok: true, phase_count: 35, core_count: 150, gates: externalGateCatalog() });
-});
-
-app.post('/v1/device/register', rateLimit, async (req, res) => {
-  try {
-    const result = await registerDevice({
-      instanceId: req.body?.instance_id,
-      deviceId: req.body?.device_id,
-      platform: req.body?.platform,
-      deviceLabel: req.body?.device_label,
-      appVersion: req.body?.app_version,
-      capabilities: req.body?.capabilities,
-      linkCode: req.body?.link_code,
-    });
-    return res.json(result);
-  } catch (error) {
-    return res.status(400).json({ ok: false, error: String(error?.message || 'device_register_failed') });
-  }
-});
-
-app.post('/v1/device/link/start', rateLimit, async (req, res) => {
-  try {
-    const result = await startLink({
-      deviceId: req.body?.device_id,
-      activationToken: req.body?.activation_token,
-      ttlSeconds: req.body?.ttl_seconds,
-    });
-    return res.json(result);
-  } catch (error) {
-    return res.status(403).json({ ok: false, error: String(error?.message || 'device_link_start_failed') });
-  }
-});
-
-app.post('/v1/device/link/complete', rateLimit, async (req, res) => {
-  try {
-    const result = await completeLink({
-      linkCode: req.body?.link_code,
-      deviceId: req.body?.device_id,
-      platform: req.body?.platform,
-      deviceLabel: req.body?.device_label,
-      appVersion: req.body?.app_version,
-      capabilities: req.body?.capabilities,
-    });
-    return res.json(result);
-  } catch (error) {
-    return res.status(400).json({ ok: false, error: String(error?.message || 'device_link_complete_failed') });
-  }
-});
-
-app.post('/v1/device/sync', rateLimit, async (req, res) => {
-  try {
-    const result = await syncDevice({
-      deviceId: req.body?.device_id,
-      activationToken: req.body?.activation_token,
-      phaseGates: req.body?.phase_gates,
-      memoryFacts: req.body?.memory_facts,
-      platformManifest: req.body?.platform_manifest,
-    });
-    return res.json(result);
-  } catch (error) {
-    return res.status(403).json({ ok: false, error: String(error?.message || 'device_sync_failed') });
-  }
-});
-
-app.post('/v1/device/gate-report', rateLimit, async (req, res) => {
-  try {
-    const result = await reportGate({
-      deviceId: req.body?.device_id,
-      activationToken: req.body?.activation_token,
-      gateId: req.body?.gate_id,
-      status: req.body?.status,
-      evidenceRef: req.body?.evidence_ref,
-      notes: req.body?.notes,
-    });
-    return res.json(result);
-  } catch (error) {
-    return res.status(400).json({ ok: false, error: String(error?.message || 'gate_report_failed') });
-  }
-});
-
 app.get('/v1/platform/status', async (_req, res) => {
   try {
     const memory = await memoryStatus();
@@ -194,9 +111,6 @@ app.get('/v1/platform/status', async (_req, res) => {
         simulation: true,
         diagnostics: true,
         controlled_self_improvement: true,
-        device_enrollment: true,
-        temporary_linking: true,
-        cross_device_sync: true,
       },
       external_verification_gates: [
         'real_provider_credentials',
