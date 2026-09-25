@@ -101,7 +101,6 @@ export const TOOL_DEFINITIONS = [
   { type: 'function', name: 'memory_forget', description: 'Forget a matching durable memory fact.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { type: 'function', name: 'file_read', description: 'Read a file from the SHADOW workspace only.', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
   { type: 'function', name: 'file_write', description: 'Write a file into the SHADOW workspace. Use only after explicit authorization for mutations.', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'], additionalProperties: false } },
-  { type: 'function', name: 'android_action', description: 'Request an Android action that the client can execute and verify.', parameters: { type: 'object', properties: { action: { type: 'string' }, argument: { type: 'string' }, reason: { type: 'string' }, requires_confirmation: { type: 'boolean' } }, required: ['action'], additionalProperties: false } },
 ];
 
 export async function executeTool(name, args, helpers = {}) {
@@ -124,11 +123,6 @@ export async function executeTool(name, args, helpers = {}) {
     if (mutationDenied('file_write', helpers) || (args.requires_confirmation !== true && helpers.requireWriteApproval)) throw new Error('explicit_confirmation_required');
     return { kind: 'result', value: await fileWrite(args.path, args.content) };
   }
-  if (name === 'android_action') {
-    const needs = Boolean(args.requires_confirmation);
-    if (needs && mutationDenied('android_action', helpers)) throw new Error('explicit_confirmation_required');
-    return { kind: 'client_action', action: String(args.action || ''), argument: String(args.argument || ''), reason: String(args.reason || ''), requires_confirmation: needs };
-  }
   throw new Error('unknown_tool');
 }
 
@@ -142,6 +136,6 @@ export function registryStatus() {
     github_read: true,
     files: true,
     memory: true,
-    android_action: true,
+    device_control: false,
   };
 }
