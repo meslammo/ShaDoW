@@ -64,6 +64,7 @@ app.get('/health', async (_req, res) => res.json({
     unified_150_core: true,
     phase_roadmap: 35,
     online_only_brain: true,
+    unified_cloud_pipeline: true,
   },
   image_generation: Boolean(apiKey || geminiKey),
   tts: {
