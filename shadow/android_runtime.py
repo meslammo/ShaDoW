@@ -244,6 +244,48 @@ def shadow_platform_status(home: Optional[str] = None) -> Dict[str, Any]:
     return Unified150Orchestrator(home or os.getcwd()).control.platform_status()
 
 
+def apply_synced_memory(facts: Any, home: Optional[str] = None) -> Dict[str, Any]:
+    """Import only sanitized, non-secret memory facts from a linked device."""
+    _install_shadow_package_alias()
+    from shadow.supernice.evolution import UnifiedControlPlane
+    if isinstance(facts, str):
+        try:
+            facts = json.loads(facts)
+        except Exception:
+            facts = []
+    if not isinstance(facts, list):
+        return {"ok": False, "status": "memory_facts_required", "imported": 0}
+    control = UnifiedControlPlane(home or os.getcwd())
+    imported = 0
+    blocked = 0
+    for item in facts[:100]:
+        if isinstance(item, dict):
+            text = str(item.get("text") or "").strip()
+            kind = str(item.get("kind") or "fact").strip() or "fact"
+            tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+        else:
+            text = str(item or "").strip()
+            kind = "fact"
+            tags = []
+        if not text or len(text) > 3000:
+            continue
+        if any(token in text.lower() for token in (
+            "password", "passphrase", "api_key", "access_token", "secret",
+            "private_key", "credential", "github_token", "bearer",
+            "كلمة السر", "باسورد", "توكن", "مفتاح سري"
+        )):
+            blocked += 1
+            continue
+        control.memory.put(
+            text,
+            kind=kind,
+            tags=tuple(str(x)[:80] for x in tags[:12]),
+            source="cross-device-sync",
+        )
+        imported += 1
+    return {"ok": True, "status": "memory_sync_applied", "imported": imported, "blocked": blocked}
+
+
 def shadow_diagnostics(home: Optional[str] = None) -> Dict[str, Any]:
     _install_shadow_package_alias()
     from shadow.supernice.orchestrator import Unified150Orchestrator
