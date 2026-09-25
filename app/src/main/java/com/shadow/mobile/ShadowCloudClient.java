@@ -196,6 +196,23 @@ public final class ShadowCloudClient {
         return postJson("/v1/device/register", body, 20000);
     }
 
+    /** EVO-35: fetch the shared catalog of real-world acceptance gates. */
+    public JSONObject acceptanceGates() throws Exception {
+        if(!isConfigured()) throw new IllegalStateException("Cloud backend is not configured");
+        HttpURLConnection c=null;
+        try{
+            c=(HttpURLConnection)new URL(baseUrl+"/v1/device/gates").openConnection();
+            c.setRequestMethod("GET");
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(15000);
+            c.setRequestProperty("Accept","application/json");
+            int code=c.getResponseCode();
+            String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());
+            if(code<200||code>=300) throw new IllegalStateException("gate_catalog_"+code);
+            return new JSONObject(json);
+        }finally{if(c!=null)c.disconnect();}
+    }
+
     /** EVO-35: create a one-time 10-minute pairing code on a trusted device. */
     public JSONObject startShadowLink(ShadowDeviceActivation activation) throws Exception {
         if (activation == null || !activation.isActivated()) throw new IllegalStateException("device_not_activated");
