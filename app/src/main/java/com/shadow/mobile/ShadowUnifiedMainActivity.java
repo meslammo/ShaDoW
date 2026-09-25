@@ -109,11 +109,7 @@ public class ShadowUnifiedMainActivity extends Activity implements TextToSpeech.
 
     private boolean handleIdentity(String s){
         String x=s.trim().toLowerCase(Locale.ROOT);
-        if(x.startsWith("عيّن كلمة السر:")||x.startsWith("عين كلمة السر:")||x.startsWith("عيّن كلمه السر:")||x.startsWith("عين كلمه السر:")||x.startsWith("set passphrase:")||x.startsWith("set password:")){
-            String p=identity.extractPassphrase(s); assistant(identity.enroll(p)?"تم تسجيل كلمة سر الـMaster محليًا بشكل آمن.":"كلمة السر لازم تكون 6 أحرف/رموز على الأقل."); return true;
-        }
         if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")){assistant(identity.status());return true;}
-        if(x.contains("اقفل الهوية")||x.contains("اقفل الهويه")||x.equals("lock identity")){identity.lock();assistant("تم قفل هوية الـMaster.");return true;}
         return false;
     }
 
