@@ -13,6 +13,8 @@ from typing import Any, Callable, Dict, Mapping, Optional
 from .catalog import CORE_BY_ID
 from .contracts import CoreRequest, CoreResult
 from .integration import SuperNiceRuntime
+from .online_brain import RealOnlineBrainAdapter
+import re
 
 
 @dataclass(frozen=True)
@@ -63,9 +65,10 @@ class Unified150Orchestrator:
     production wiring can provide the real online provider gateway later.
     """
 
-    def __init__(self, workspace: str = ".") -> None:
+    def __init__(self, workspace: str = ".", online_brain: Optional[OnlineBrain] = None) -> None:
         self.workspace = workspace
         self.runtime = SuperNiceRuntime(workspace)
+        self.online_brain = online_brain
 
     @property
     def core_count(self) -> int:
@@ -187,19 +190,10 @@ class Unified150Orchestrator:
         selected = selected_core or self.select_core(text)
         events.append(OrchestratorEvent("tool_route", selected, "selected"))
 
-        if online_brain is None:
-            events.append(OrchestratorEvent("online_brain", None, "adapter_pending"))
-            return UnifiedRunResult(
-                False,
-                "online_brain_required",
-                selected_core=selected,
-                events=events,
-                metadata={"online_only": True, "core_count": self.core_count},
-            )
-
+        brain = online_brain or self.online_brain or RealOnlineBrainAdapter()
         try:
             brain_payload = dict(
-                online_brain(
+                brain(
                     text,
                     {
                         "identity": identity.result,
@@ -240,21 +234,31 @@ class Unified150Orchestrator:
                 events=events,
             )
 
-        auth = self.execute_core(
-            "CORE-012",
+        spec = CORE_BY_ID[selected]
+        risky = bool(re.search(
+            r"(delete|wipe|format|payment|purchase|send|transfer|deploy|commit|push|merge|حذف|امسح|فورمات|شراء|دفع|تحويل|نفذ|نفّذ)",
             text,
-            context={"capability": "master-pipeline", **ctx},
-            confirmed=confirmed,
-        )
-        events.append(OrchestratorEvent("governance", "CORE-012", auth.status))
-        if not auth.ok:
-            return UnifiedRunResult(
-                False,
-                auth.status,
-                answer=answer,
-                selected_core=selected,
-                events=events,
+            re.I,
+        ))
+        needs_governance = bool(spec.requires_confirmation or risky)
+        if needs_governance:
+            auth = self.execute_core(
+                "CORE-012",
+                text,
+                context={"capability": "master-pipeline", "selected_core": selected, **ctx},
+                confirmed=confirmed,
             )
+            events.append(OrchestratorEvent("governance", "CORE-012", auth.status))
+            if not auth.ok:
+                return UnifiedRunResult(
+                    False,
+                    auth.status,
+                    answer=answer,
+                    selected_core=selected,
+                    events=events,
+                )
+        else:
+            events.append(OrchestratorEvent("governance", "CORE-012", "policy_allow", "confirmation_not_required"))
 
         execution = self.execute_core(
             selected,
@@ -269,7 +273,7 @@ class Unified150Orchestrator:
         verification = self.execute_core(
             "CORE-057",
             "verify unified orchestration result",
-            context={"expected": execution.status, "actual": execution.status},
+            context={"expected": "executed", "actual": execution.status},
             confirmed=True,
         )
         events.append(OrchestratorEvent("verify", "CORE-057", verification.status))
