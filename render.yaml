@@ -26,6 +26,16 @@ services:
       - key: OPENAI_MODEL
         value: gpt-5.6-luna
       - key: OPENAI_IMAGE_MODEL
+        value: gpt-image-2
+      - key: POLLINATIONS_API_KEY
+        sync: false
+      - key: POLLINATIONS_ENABLED
+        value: "true"
+      - key: POLLINATIONS_MODEL
+        value: openai
+      - key: POLLINATIONS_IMAGE_MODEL
+        value: gptimage
+      - key: OPENAI_IMAGE_MODEL
         value: gpt-image-2.5-flare
       - key: SHADOW_STT_MODEL
         value: gpt-transcribe
