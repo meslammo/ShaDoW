@@ -24,6 +24,7 @@ import java.io.*;
 import java.util.*;
 
 /** MOD-73: unified Shadow agent surface with online-first tool execution and verification. */
+// Online-only contract: مش هيستخدم نسخة أوفلاين بدل الدماغ السحابي.
 public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int MIC=801,FILE=802,CAMERA=803;
     private final int BG=Color.rgb(13,14,17),SURFACE=Color.rgb(29,31,36),SURFACE2=Color.rgb(42,44,51),TEXT=Color.rgb(241,243,246),MUTED=Color.rgb(155,160,170);
