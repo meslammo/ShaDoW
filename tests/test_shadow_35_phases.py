@@ -1,8 +1,6 @@
 from shadow.supernice.evolution import (
     PHASES_35,
-    CompanionRecord,
     EvolutionProposal,
-    DeviceRecord,
     SkillRegistry,
     UnifiedControlPlane,
     WorkflowStep,
@@ -59,7 +57,7 @@ def test_workflow_checkpoint_simulation_and_verification(tmp_path):
     assert verified["ok"] is True
 
 
-def test_knowledge_skills_companions_and_devices(tmp_path):
+def test_knowledge_skills_are_software_only(tmp_path):
     control = UnifiedControlPlane(str(tmp_path))
     control.knowledge.upsert_node("p1", "project", "SHADOW")
     control.knowledge.upsert_node("f1", "file", "orchestrator.py")
@@ -69,12 +67,9 @@ def test_knowledge_skills_companions_and_devices(tmp_path):
     control.skills.register("echo", lambda value: value, version="1.2.0")
     assert control.skills.invoke("echo", value="ok") == "ok"
     assert control.skills.manifest()[0]["version"] == "1.2.0"
-
-    control.companions.register(CompanionRecord("watch-1", "watch", ("voice",), trusted=True))
-    assert len(control.companions.trusted()) == 1
-
-    control.devices.register(DeviceRecord("phone-1", "android", ("camera", "voice"), online=True, trusted=True))
-    assert [d.device_id for d in control.devices.discover("camera")] == ["phone-1"]
+    assert control.external_device_control is False
+    assert control.delegate_companion("legacy-device", "test")["status"] == "disabled_by_scope"
+    assert control.spatial_observe("device-1", "android")["status"] == "disabled_by_scope"
 
 
 def test_multimodal_envelope_and_diagnostics(tmp_path):
@@ -124,6 +119,9 @@ def test_platform_status_exposes_35_phase_contract(tmp_path):
     assert status["core_count"] == 150
     assert status["online_only_brain"] is True
     assert status["offline_ai_removed"] is True
+    assert status["external_device_control"] is False
+    assert status["capabilities"]["agent_capability_layer"] is True
+    assert status["capabilities"]["world_task_context_model"] is True
 
 
 def test_learning_prediction_companion_spatial_and_backup_controls(tmp_path):
