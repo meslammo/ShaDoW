@@ -29,6 +29,19 @@
     return '';
   }
 
+  function streamTextOf(part) {
+    if (!part) return '';
+    if (typeof part === 'string') return part;
+    if (part.type === 'text' && typeof part.text === 'string') return part.text;
+    if (typeof part.text === 'string') return part.text;
+    if (typeof part.delta === 'string') return part.delta;
+    if (typeof part?.message?.content === 'string') return part.message.content;
+    if (Array.isArray(part?.message?.content)) {
+      return part.message.content.filter(x=>typeof x?.text==='string').map(x=>x.text).join('');
+    }
+    return '';
+  }
+
   function authError(e) {
     const s = (e?.error || e?.code || e?.message || e?.msg || safe(e)).toLowerCase();
     return /auth|unauthor|sign.?in|login|token|permission/.test(s);
@@ -55,17 +68,28 @@
     try {
       await ensureAuth();
       try { if (puter.auth?.isSignedIn?.()) A.onReady(true); } catch(e) {}
-      const opts = { model: p.model || 'gpt-5.6-luna', stream: Boolean(p.stream) };
+      const opts = { model: (p.model === 'gpt-5.6-luna' ? 'openai/gpt-5.6-luna' : (p.model || 'openai/gpt-5.6-luna')), stream: Boolean(p.stream) };
       if (p.reasoning_effort && p.reasoning_effort !== 'none') opts.reasoning_effort = p.reasoning_effort;
       history.push({ role:'user', content: p.message || '' });
       const r = await puter.ai.chat(history, opts);
       if (opts.stream) {
         let full = '';
         for await (const part of r) {
-          const t = typeof part?.text === 'string' ? part.text : '';
+          if (part?.type === 'error') throw new Error(part.message || 'puter_stream_error');
+          const t = streamTextOf(part);
           if (t) { full += t; A.onChunk(id, t); }
         }
-        if (full) history.push({ role:'assistant', content: full });
+
+        // Some providers can legally end a stream without text chunks. Recover once
+        // through a normal online call instead of silently returning an empty turn.
+        if (!full) {
+          const recovery = await puter.ai.chat(history, { model: opts.model });
+          full = textOf(recovery);
+          if (full) A.onChunk(id, full);
+        }
+
+        if (!full) throw new Error('empty_online_response');
+        history.push({ role:'assistant', content: full });
         A.onDone(id, full);
       } else {
         const t = textOf(r);
