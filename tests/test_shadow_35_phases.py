@@ -1,6 +1,7 @@
 from shadow.supernice.evolution import (
     PHASES_35,
     CompanionRecord,
+    EvolutionProposal,
     DeviceRecord,
     SkillRegistry,
     UnifiedControlPlane,
@@ -163,5 +164,9 @@ def test_rollback_and_controlled_self_improvement(tmp_path):
     assert rolled["status"] == "rolled_back"
     assert rolled["state"]["step"] == 4
 
-    proposal = control.skills  # keep the control plane composition rooted in existing services
-    assert proposal is not None
+    from shadow.supernice.evolution import SelfEvolution
+    evolution = SelfEvolution()
+    proposal = evolution.propose("safe change", "test", ["x.py"], ["pytest"])
+    assert evolution.activation_allowed(proposal, approved_by_master=False, tests_passed=True) is False
+    assert evolution.activation_allowed(proposal, approved_by_master=True, tests_passed=False) is False
+    assert evolution.activation_allowed(proposal, approved_by_master=True, tests_passed=True) is True
