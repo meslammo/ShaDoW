@@ -54,7 +54,7 @@ public final class ShadowPuterBridge {
                     view.evaluateJavascript(
                         "(typeof puter!=='undefined') ? '1' : '0'",
                         value -> {
-                            if ("1".equals(value) || ""1"".equals(value)) {
+                            if ("1".equals(value) || "\"1\"".equals(value)) {
                                 ready = true;
                                 synchronized (readyLock) { readyLock.notifyAll(); }
                             }
