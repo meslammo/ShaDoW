@@ -11,7 +11,9 @@ import { runUnifiedPipeline, streamUnifiedPipeline, platformContract } from './s
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
-const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.5-flare').trim();
+const pollinationsKey = String(process.env.POLLINATIONS_API_KEY || '').trim();
+const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2').trim();
+const pollinationsImageModel = String(process.env.POLLINATIONS_IMAGE_MODEL || 'gptimage').trim();
 const ttsModel = String(process.env.SHADOW_TTS_MODEL || 'gpt-4o-mini-tts').trim();
 const ttsVoice = String(process.env.SHADOW_TTS_VOICE || 'onyx').trim();
 const ttsVoiceId = String(process.env.SHADOW_TTS_VOICE_ID || '').trim();
@@ -66,7 +68,7 @@ app.get('/health', async (_req, res) => res.json({
     online_only_brain: true,
     unified_cloud_pipeline: true,
   },
-  image_generation: Boolean(apiKey || geminiKey),
+  image_generation: Boolean(apiKey || geminiKey || pollinationsKey),
   tts: {
     model: ttsModel,
     voice: ttsVoice,
@@ -426,6 +428,7 @@ app.post('/v1/images', rateLimit, async (req, res) => {
   if (prompt.length > 8000) return res.status(413).json({ ok: false, error: 'prompt_too_large' });
   try {
     const useGemini = provider === 'gemini' || (provider === 'auto' && !apiKey && geminiKey);
+    const usePollinations = provider === 'pollinations' || (provider === 'auto' && !apiKey && !geminiKey && pollinationsKey);
     if (useGemini) {
       if (!geminiKey) return res.status(503).json({ ok: false, error: 'gemini_image_provider_not_configured' });
       const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
@@ -443,6 +446,27 @@ app.post('/v1/images', rateLimit, async (req, res) => {
       const data = body?.output_image?.data;
       if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_gemini_image' });
       return res.json({ ok: true, image_base64: data, model: geminiImageModel, provider: 'gemini' });
+    }
+    if (usePollinations) {
+      if (!pollinationsKey) return res.status(503).json({ ok: false, error: 'pollinations_image_provider_not_configured' });
+      const response = await fetch('https://gen.pollinations.ai/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + pollinationsKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: pollinationsImageModel,
+          prompt,
+          size: '1024x1024',
+        }),
+        signal: AbortSignal.timeout(120000),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return res.status(502).json({ ok: false, error: body?.error?.message || 'pollinations_image_upstream_error' });
+      const data = body?.data?.[0]?.b64_json;
+      if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_pollinations_image' });
+      return res.json({ ok: true, image_base64: data, model: pollinationsImageModel, provider: 'pollinations' });
     }
     if (!apiKey) return res.status(503).json({ ok: false, error: 'image_provider_not_configured' });
     const response = await fetch('https://api.openai.com/v1/images/generations', {
