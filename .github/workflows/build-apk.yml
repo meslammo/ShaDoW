@@ -35,6 +35,7 @@ jobs:
           node --check development-agent.mjs
           node --test test-external-providers.mjs
           node --test test-task-router.mjs
+          node --test test-tool-governance.mjs
 
   build:
     needs: verify-backend
