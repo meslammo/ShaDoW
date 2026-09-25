@@ -139,7 +139,7 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const allowedProviders = ['openai', 'xai', 'grok', 'deepseek', 'mistral', 'anthropic', 'gemini'];
   const preferred = allowedProviders.includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
-    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort });
+    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true });
     return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
@@ -170,6 +170,8 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
       previousResponseId: previous,
       device,
       reasoningEffort,
+      confirmed: req.body?.confirmed === true,
+      confirmedActions: Array.isArray(req.body?.confirmed_actions) ? req.body.confirmed_actions.map(String).slice(0, 32) : [],
       onDelta: (text) => send({ type: 'delta', text }),
       onPending: (data) => send({ type: 'pending_action', ...data }),
       onDone: (data) => send({ type: 'done', ...data }),
@@ -220,6 +222,7 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
       device: typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '',
       preferredProvider: 'auto',
       reasoningEffort: String(req.body?.reasoning_effort || 'none').toLowerCase(),
+      confirmed,
     });
     const usedWeb = Boolean(result.usedWeb);
     const pending = result.pendingAction || null;
