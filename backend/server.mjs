@@ -115,12 +115,12 @@ app.get('/v1/platform/status', async (_req, res) => {
       },
       external_verification_gates: [
         'real_provider_credentials',
-        'real_android_device',
+        'real_client_e2e',
         'wake_word_and_barge_in',
-        'real_device_adapters',
-        'trusted_companions',
-        'cross_device_federation',
-        'production_failover_restore',
+        'github_development_e2e',
+        
+        
+        'production_backup_restore',
       ],
     });
   } catch (error) {
