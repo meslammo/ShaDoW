@@ -1,8 +1,6 @@
 package com.shadow.mobile;
 
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import java.io.BufferedReader;
@@ -12,9 +10,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /** MOD-73: unified online agent client with verified Android action continuation. */
 public final class ShadowCloudClient {
@@ -38,7 +33,7 @@ public final class ShadowCloudClient {
     }
     private CloudReply runChat(String message,String provider,String responseId,String reasoningEffort)throws Exception{
         if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");
-        JSONObject body=new JSONObject();body.put("message",message);String previous=responseId!=null?responseId:prefs().getString(RESPONSE_ID,"");if(!previous.isEmpty())body.put("previous_response_id",previous);body.put("device",deviceProfile());if(provider!=null&&!provider.isEmpty())body.put("provider",provider);body.put("reasoning_effort",reasoningEffort==null?"none":reasoningEffort);
+        JSONObject body=new JSONObject();body.put("message",message);String previous=responseId!=null?responseId:prefs().getString(RESPONSE_ID,"");if(!previous.isEmpty())body.put("previous_response_id",previous);if(provider!=null&&!provider.isEmpty())body.put("provider",provider);body.put("reasoning_effort",reasoningEffort==null?"none":reasoningEffort);
         JSONObject result=postJson("/v1/chat",body,65000); CloudReply reply=parseReply(result); if(!reply.responseId.isEmpty())prefs().edit().putString(RESPONSE_ID,reply.responseId).apply(); return reply;
     }
     private CloudReply parseReply(JSONObject result)throws Exception{
@@ -64,7 +59,6 @@ public final class ShadowCloudClient {
         body.put("message",message);
         String previous=prefs().getString(RESPONSE_ID,"");
         if(!previous.isEmpty())body.put("previous_response_id",previous);
-        body.put("device",deviceProfile());
         body.put("reasoning_effort",reasoningEffort==null?"none":reasoningEffort);
         HttpURLConnection c=null;
         try{
@@ -193,7 +187,7 @@ public final class ShadowCloudClient {
     }
 
     public void resetConversation(){prefs().edit().remove(RESPONSE_ID).apply();}
-    private String deviceProfile(){JSONObject d=new JSONObject();try{d.put("manufacturer",android.os.Build.MANUFACTURER);d.put("model",android.os.Build.MODEL);d.put("android",android.os.Build.VERSION.RELEASE);d.put("sdk",android.os.Build.VERSION.SDK_INT);PackageManager pm=context.getPackageManager();List<ApplicationInfo> apps=pm.getInstalledApplications(PackageManager.GET_META_DATA);ArrayList<String> names=new ArrayList<>();for(ApplicationInfo app:apps){CharSequence label=pm.getApplicationLabel(app);if(label!=null)names.add(label.toString());if(names.size()>=120)break;}Collections.sort(names,String.CASE_INSENSITIVE_ORDER);JSONArray a=new JSONArray();for(String n:names)a.put(n);d.put("installed_apps",a);}catch(Exception ignored){}return d.toString();}
+
     private android.content.SharedPreferences prefs(){return context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);}
     private static String read(InputStream stream)throws Exception{if(stream==null)return"";StringBuilder b=new StringBuilder();try(BufferedReader r=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null)b.append(line);}return b.toString();}
     private static byte[] readBytes(InputStream stream)throws Exception{if(stream==null)return new byte[0];java.io.ByteArrayOutputStream b=new java.io.ByteArrayOutputStream();byte[] buf=new byte[8192];int n;while((n=stream.read(buf))!=-1)b.write(buf,0,n);return b.toByteArray();}
