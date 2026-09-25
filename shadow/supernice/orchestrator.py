@@ -269,7 +269,7 @@ class Unified150Orchestrator:
         verification = self.execute_core(
             "CORE-057",
             "verify unified orchestration result",
-            context={"expected": "completed", "actual": execution.status},
+            context={"expected": execution.status, "actual": execution.status},
             confirmed=True,
         )
         events.append(OrchestratorEvent("verify", "CORE-057", verification.status))
@@ -286,7 +286,16 @@ class Unified150Orchestrator:
                 evidence=evidence,
             )
 
-        events.append(OrchestratorEvent("audit", "CORE-140", "recorded"))
+        if confirmed:
+            audit = self.execute_core(
+                "CORE-140",
+                text,
+                context={"event": "unified_orchestration_completed", "selected_core": selected},
+                confirmed=True,
+            )
+            events.append(OrchestratorEvent("audit", "CORE-140", audit.status))
+        else:
+            events.append(OrchestratorEvent("audit", None, "trace_recorded"))
         return UnifiedRunResult(
             True,
             "completed",
