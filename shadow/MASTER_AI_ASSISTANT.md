@@ -10,13 +10,13 @@ SHADOW is a personal AI assistant / orchestration layer for Mohamed. It is not o
 Primary operating rule:
 - **Online = primary path.**
 - **Online-only AI:** SHADOW requires a reachable cloud AI provider for conversational intelligence; no offline AI mode or fallback is exposed.
-- Phone is the first host; Watch, Car, Smart Home, PC, TV, IoT and future companions are extensions.
+- The current build is client-independent: Android is only a UI/transport surface; external device control is not part of Shadow.
 
 ## 2. Authority and Identity
 
 Authority hierarchy:
 
-**Mohamed → MASTER AUTHORITY → SHADOW → Companions / Devices**
+**Mohamed → MASTER AUTHORITY → SHADOW**
 
 Identity model:
 1. Voice identity identifies the speaker.
@@ -51,8 +51,8 @@ Discovers, authenticates, permits, evaluates, promotes/demotes, and revokes soft
 - Gap: full dynamic software registry is **PARTIALLY IMPLEMENTED**.
 
 ### Core 05 — Execution
-Routes an intent to Cloud, Android local actions, GitHub, image generation, speech, or future companions.
-- Current: local execution bridge + cloud APIs + GitHub authorization bridge exist.
+Routes an intent to Cloud AI, web/software tools, GitHub, image generation, speech, memory, and governed software capabilities.
+- Current: cloud APIs + GitHub authorization bridge + governed software tools exist.
 - Critical requirement: Chat must never be treated as execution evidence.
 
 ### Core 06 — Verification
@@ -136,7 +136,7 @@ Custom uploaded voice / biometric voice identity remains **NOT PROVEN COMPLETE**
 
 Primary components:
 - `JarvisMainActivity` — UI, state indicators, command routing, voice controls.
-- `ShadowCore` — governed local execution/runtime adapters used by the online master route.
+- `ShadowCore` — client-side runtime surface; no external device-control capability is active.
 - `ShadowCloudClient` — Cloud API gateway.
 - `ShadowGithubAuth` — encrypted GitHub token storage through Android Keystore.
 - CI — release build and runtime checks.
@@ -147,7 +147,7 @@ Required routing rule:
 
 Examples:
 - Chat → Cloud Chat.
-- Phone action → Phone Controller.
+- Software capability/action → governed Cloud/Tool execution.
 - GitHub request → GitHub Authorization / Development Agent.
 - Image → Image API.
 - Voice → Speech API.
@@ -163,7 +163,7 @@ Current contract:
 `Input → Identity → Understanding → Master Route → Planning → Route Handler → Verification → Response`
 
 Implemented in the Android app:
-- `ShadowMasterOrchestrator` classifies requests into Chat, Local Device, GitHub/Development, Image, or System.
+- `ShadowMasterOrchestrator` classifies requests into Chat, GitHub/Development, Image/Vision, and System; device-like requests are not active routes.
 - GitHub/development requests are isolated from normal Chat routing.
 - Device-control requests are not part of the active Shadow route; the app remains a client surface.
 - Voice and text enter the same request route.
@@ -510,7 +510,7 @@ Definition of Done: all critical flows pass device and cloud E2E tests with evid
 
 **Fix GitHub Routing → Complete OAuth → Prove End-to-End Self-Development.**
 
-The immediate implementation must never hide a GitHub failure behind Chat. If OAuth is unavailable, SHADOW must say so explicitly and remain fail-closed.
+The immediate implementation must never hide a GitHub failure behind Chat. If OAuth is unavailable, SHADOW must say so explicitly and remain fail-closed. External device integration is not an implementation prerequisite.
 
 
 ## MOD-75.27 — Master Lifecycle Wiring
