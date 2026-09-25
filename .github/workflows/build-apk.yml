@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - integration/150-online-brain-loop-2026-09-25
   pull_request:
     branches:
