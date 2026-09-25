@@ -1,0 +1,72 @@
+name: SHADOW Real Online E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - integration/150-online-brain-loop-2026-09-25
+
+permissions:
+  contents: read
+
+jobs:
+  real-online-e2e:
+    runs-on: ubuntu-latest
+    env:
+      SHADOW_E2E_REAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: python -m pip install -e . pytest
+
+      - name: Compile
+        run: python -m compileall -q shadow
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cloud pipeline and client E2E
+        working-directory: backend
+        run: |
+          npm install --ignore-scripts
+          node test-shadow-pipeline.mjs
+          node test-client-cloud-e2e.mjs
+
+      - name: Check real provider credentials
+        env:
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "${POLLINATIONS_API_KEY}" ]; then
+            echo "SHADOW_E2E_PROVIDER=pollinations" >> "$GITHUB_ENV"
+            echo "### Real online provider: Pollinations configured" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "${OPENAI_API_KEY}" ]; then
+            echo "SHADOW_E2E_PROVIDER=openai" >> "$GITHUB_ENV"
+            echo "### Real online provider: OpenAI configured" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "SHADOW_E2E_PROVIDER=none" >> "$GITHUB_ENV"
+            echo "::warning::No real AI provider secret is configured. Provider E2E will be skipped; cloud/client E2E remains required."
+            echo "### Real online provider: NOT CONFIGURED" >> "$GITHUB_STEP_SUMMARY"
+            echo "Add repository secret `POLLINATIONS_API_KEY` or `OPENAI_API_KEY` to enable the live provider test." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Real online provider E2E
+        if: env.SHADOW_E2E_PROVIDER != 'none'
+        working-directory: backend
+        env:
+          SHADOW_E2E_PROVIDER: ${{ env.SHADOW_E2E_PROVIDER }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node test-real-provider-e2e.mjs
+
+      - name: Provider E2E status
+        if: env.SHADOW_E2E_PROVIDER == 'none'
+        run: |
+          echo "Provider E2E skipped because no provider secret is configured."

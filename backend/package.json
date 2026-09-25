@@ -3,11 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
-  "scripts": { "start": "node server.mjs" },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test-task-router.mjs"
+  },
   "dependencies": {
     "express": "^5.1.0",
     "helmet": "^8.1.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "pg": "^8.16.3"
   }
 }

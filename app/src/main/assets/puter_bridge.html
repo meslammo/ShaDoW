@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://js.puter.com https://*.puter.com https://*.puter.site; script-src 'self' https://js.puter.com 'unsafe-inline'; connect-src https://* wss://*; img-src data: blob: https:; style-src 'self' 'unsafe-inline';">
+</head>
+<body>
+<script src="https://js.puter.com/v2/"></script>
+<script>
+(function(){
+  const A = window.AndroidShadow;
+  let ready = false;
+  const history = [];
+
+  function safe(v) {
+    try { return typeof v === 'string' ? v : JSON.stringify(v); }
+    catch(e) { return String(v ?? ''); }
+  }
+
+  function textOf(r) {
+    if (typeof r === 'string') return r.trim();
+    if (typeof r?.text === 'string') return r.text.trim();
+    if (typeof r?.message?.content === 'string') return r.message.content.trim();
+    if (Array.isArray(r?.message?.content)) {
+      return r.message.content.filter(x=>typeof x?.text==='string').map(x=>x.text).join('').trim();
+    }
+    if (typeof r?.content === 'string') return r.content.trim();
+    return '';
+  }
+
+  function streamTextOf(part) {
+    if (!part) return '';
+    if (typeof part === 'string') return part;
+    if (part.type === 'text' && typeof part.text === 'string') return part.text;
+    if (typeof part.text === 'string') return part.text;
+    if (typeof part.delta === 'string') return part.delta;
+    if (typeof part?.message?.content === 'string') return part.message.content;
+    if (Array.isArray(part?.message?.content)) {
+      return part.message.content.filter(x=>typeof x?.text==='string').map(x=>x.text).join('');
+    }
+    return '';
+  }
+
+  function authError(e) {
+    const s = (e?.error || e?.code || e?.message || e?.msg || safe(e)).toLowerCase();
+    return /auth|unauthor|sign.?in|login|token|permission/.test(s);
+  }
+
+  async function ensureAuth() {
+    try {
+      if (puter.auth && typeof puter.auth.isSignedIn === 'function' && !puter.auth.isSignedIn()) {
+        try { A.onNeedAuth(); } catch(e) {}
+        if (puter.ui?.authenticateWithPuter) {
+          await puter.ui.authenticateWithPuter();
+        } else if (puter.auth?.signIn) {
+          await puter.auth.signIn({attempt_temp_user_creation:true});
+        }
+      }
+    } catch(e) {
+      throw e;
+    }
+  }
+
+  window.shadowChat = async function(id, payloadJson) {
+    let p = {};
+    try { p = JSON.parse(payloadJson || '{}'); } catch(e) {}
+    try {
+      await ensureAuth();
+      try { if (puter.auth?.isSignedIn?.()) A.onReady(true); } catch(e) {}
+      const opts = { model: p.model || 'gpt-5.6-luna', stream: false };
+      if (p.reasoning_effort && p.reasoning_effort !== 'none') opts.reasoning_effort = p.reasoning_effort;
+      history.push({ role:'user', content: p.message || '' });
+
+      // Reliability-first online path: use the normal completion API instead of
+      // an async iterable inside Android WebView. The answer is still forwarded
+      // through the existing streaming bridge in one complete delta, so the UI
+      // cannot get stuck after receiving the user's message.
+      const r = await puter.ai.chat(history, opts);
+      const t = textOf(r);
+      if (!t) throw new Error('empty_online_response');
+      history.push({ role:'assistant', content: t });
+      A.onChunk(id, t);
+      A.onDone(id, t);
+    } catch(e) {
+      A.onError(id, safe(e), authError(e));
+    }
+  };
+
+  window.shadowReset = function() { history.length = 0; };
+
+  window.shadowImage = async function(id, payloadJson) {
+    let p = {};
+    try { p = JSON.parse(payloadJson || '{}'); } catch(e) {}
+    try {
+      await ensureAuth();
+      const image = await puter.ai.txt2img(p.prompt || '', {
+        model: p.model || 'gpt-image-2',
+        ratio: p.ratio || {w:1,h:1}
+      });
+      const src = image?.src || String(image || '');
+      if (!src) throw new Error('empty_image');
+      if (src.startsWith('data:')) {
+        A.onImage(id, src);
+      } else {
+        const resp = await fetch(src);
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => A.onImage(id, String(reader.result || ''));
+        reader.onerror = () => A.onError(id, 'image_read_failed', false);
+        reader.readAsDataURL(blob);
+      }
+    } catch(e) {
+      A.onError(id, safe(e), authError(e));
+    }
+  };
+
+  window.shadowVision = async function(id, payloadJson) {
+    let p = {};
+    try { p = JSON.parse(payloadJson || '{}'); } catch(e) {}
+    try {
+      await ensureAuth();
+      const mime = p.mime || 'image/jpeg';
+      const dataUri = p.dataUri || ('data:' + mime + ';base64,' + (p.base64 || ''));
+      const r = await puter.ai.chat([{
+        role:'user',
+        content:[
+          {type:'text', text:p.prompt || 'حلل الصورة بدقة واذكر ما يمكن التحقق منه فقط، ووضح عدم اليقين.'},
+          {type:'image_url', image_url:{url:dataUri}}
+        ]
+      }], {model:p.model || 'gemini-3.8-flash'});
+      A.onDone(id, textOf(r));
+    } catch(e) {
+      A.onError(id, safe(e), authError(e));
+    }
+  };
+
+  window.shadowReady = async function() {
+    ready = true;
+    let signed = false;
+    try { signed = Boolean(puter.auth?.isSignedIn?.()); } catch(e) {}
+    A.onReady(signed);
+  };
+
+  if (typeof puter !== 'undefined') window.shadowReady();
+  else window.addEventListener('load', window.shadowReady);
+})();
+</script>
+</body>
+</html>

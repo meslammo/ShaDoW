@@ -1,34 +1,45 @@
 plugins {
     id 'com.android.application'
     id 'com.chaquo.python'
+    id 'org.jetbrains.kotlin.android'
 }
-
 android {
     namespace 'com.shadow.mobile'
     compileSdk 35
     buildFeatures { buildConfig = true }
     defaultConfig {
-        applicationId 'com.shadow.mobile'
+        applicationId 'com.shadow.mobile.test'
         minSdk 26
         targetSdk 35
-        versionCode 58
-        versionName '1.4.2'
-        buildConfigField 'String', 'SHADOW_BACKEND_URL', '"https://shadow-cloud-api-production.up.railway.app"'
+        versionCode 97
+        versionName '1.9.2-shadow-online-150-hatchable-gateway'
+        buildConfigField 'String', 'SHADOW_BACKEND_URL', '"https://shadow-cloud-150.hatchable.site/api"'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
-    buildTypes {
-        release { minifyEnabled false; shrinkResources false; signingConfig signingConfigs.debug }
-    }
+    buildTypes { release { minifyEnabled false; shrinkResources false; signingConfig signingConfigs.debug } }
     afterEvaluate {
         tasks.matching { it.name == 'mergeDebugPythonSources' || it.name == 'mergeReleasePythonSources' }.configureEach {
             dependsOn tasks.matching { it.name == 'javaPreCompileDebug' || it.name == 'javaPreCompileRelease' }
-            dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeReleaseMetadata' }
+            dependsOn tasks.matching { it.name == 'mergeDebugNativeDebugMetadata' || it.name == 'mergeReleaseNativeRelease' }
             dependsOn tasks.matching { it.name == 'installDebugPythonRequirements' || it.name == 'installReleasePythonRequirements' }
         }
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+chaquopy { defaultConfig { version = '3.11' }; sourceSets { main { srcDirs = ['../shadow'] } } }
+
+dependencies {
+    implementation 'xyz.rementia:openwakeword:0.1.5'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 }
 
-chaquopy {
-    defaultConfig { version = '3.11' }
-    sourceSets { main { srcDirs = ['../shadow'] } }
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
 }
