@@ -36,6 +36,7 @@ jobs:
           node --test test-external-providers.mjs
           node --test test-task-router.mjs
           node --test test-tool-governance.mjs
+          node --test test-device-sync.mjs
 
   build:
     needs: verify-backend
