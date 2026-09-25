@@ -39,8 +39,10 @@ jobs:
           node test-shadow-pipeline.mjs
           node test-client-cloud-e2e.mjs
 
-      - name: Real anonymous online provider E2E
+      - name: Real online provider E2E
         working-directory: backend
         env:
-          SHADOW_E2E_PROVIDER: pollinations
+          SHADOW_E2E_PROVIDER: ${{ secrets.POLLINATIONS_API_KEY != '' && 'pollinations' || 'openai' }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node test-real-provider-e2e.mjs
