@@ -11,6 +11,7 @@
 (function(){
   const A = window.AndroidShadow;
   let ready = false;
+  const history = [];
 
   function safe(v) {
     try { return typeof v === 'string' ? v : JSON.stringify(v); }
@@ -54,21 +55,27 @@
       await ensureAuth();
       const opts = { model: p.model || 'gpt-5.6-luna', stream: Boolean(p.stream) };
       if (p.reasoning_effort && p.reasoning_effort !== 'none') opts.reasoning_effort = p.reasoning_effort;
-      const r = await puter.ai.chat(p.message || '', opts);
+      history.push({ role:'user', content: p.message || '' });
+      const r = await puter.ai.chat(history, opts);
       if (opts.stream) {
         let full = '';
         for await (const part of r) {
           const t = typeof part?.text === 'string' ? part.text : '';
           if (t) { full += t; A.onChunk(id, t); }
         }
+        if (full) history.push({ role:'assistant', content: full });
         A.onDone(id, full);
       } else {
-        A.onDone(id, textOf(r));
+        const t = textOf(r);
+        if (t) history.push({ role:'assistant', content: t });
+        A.onDone(id, t);
       }
     } catch(e) {
       A.onError(id, safe(e), authError(e));
     }
   };
+
+  window.shadowReset = function() { history.length = 0; };
 
   window.shadowImage = async function(id, payloadJson) {
     let p = {};
