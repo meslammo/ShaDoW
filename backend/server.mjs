@@ -194,6 +194,9 @@ app.get('/v1/platform/status', async (_req, res) => {
         simulation: true,
         diagnostics: true,
         controlled_self_improvement: true,
+        device_enrollment: true,
+        temporary_linking: true,
+        cross_device_sync: true,
       },
       external_verification_gates: [
         'real_provider_credentials',
