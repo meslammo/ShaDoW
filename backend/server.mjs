@@ -244,7 +244,7 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
         { stage: 'memory', status: 'integrated' },
         { stage: 'web_discovery', status: fresh || usedWeb ? 'used' : 'not_required' },
         { stage: 'github_development', status: development ? 'routed' : 'not_required' },
-        { stage: 'phone_devices', status: device ? (pending ? 'action_pending' : 'client_adapter_ready') : 'not_required' },
+        { stage: 'capability_execution', status: 'software_only', device_control: false, external_devices: false },
         { stage: 'agent_loop', status: 'executed', bounded_rounds: 8 },
         { stage: 'security_approval', status: confirmed ? 'confirmed' : 'not_required' },
         { stage: 'execute', status: pending ? 'action_pending' : 'completed' },
