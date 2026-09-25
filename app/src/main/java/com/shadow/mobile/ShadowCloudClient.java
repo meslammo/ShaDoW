@@ -17,7 +17,8 @@ public final class ShadowCloudClient {
     private static final String RESPONSE_ID = "previous_response_id";
     private final Context context; private final String baseUrl; private final ShadowPuterBridge puter;
     public ShadowCloudClient(Context context){this.context=context.getApplicationContext();this.baseUrl=BuildConfig.SHADOW_BACKEND_URL.replaceAll("/+$","");this.puter=new ShadowPuterBridge(context);}
-    public boolean isConfigured(){return baseUrl.startsWith("https://")&&!baseUrl.contains("REPLACE_WITH");}
+    /** The historical Railway endpoint is expired; never block the first response on it. */
+    public boolean isConfigured(){return baseUrl.startsWith("https://")&&!baseUrl.contains("REPLACE_WITH")&&!baseUrl.contains("shadow-cloud-api-production.up.railway.app");}
     public String getBaseUrl(){return baseUrl;} public boolean onlineBrainReady(){return puter.isReady();}
     public boolean health(){if(!isConfigured())return puter.isReady();HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/health").openConnection();c.setRequestMethod("GET");c.setConnectTimeout(5000);c.setReadTimeout(7000);return c.getResponseCode()==200;}catch(Exception ignored){return false;}finally{if(c!=null)c.disconnect();}}
 
