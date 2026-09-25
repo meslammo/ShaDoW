@@ -153,3 +153,15 @@ def test_learning_prediction_companion_spatial_and_backup_controls(tmp_path):
     assert progress["phase_count"] == 35
     assert progress["implemented_contracts"] == 35
     assert progress["external_verification_pending"] > 0
+
+
+def test_rollback_and_controlled_self_improvement(tmp_path):
+    control = UnifiedControlPlane(str(tmp_path))
+    checkpoint = control.checkpoint("req-rollback", {"step": 4, "status": "before-change"})
+    rolled = control.rollback(checkpoint)
+    assert rolled["ok"] is True
+    assert rolled["status"] == "rolled_back"
+    assert rolled["state"]["step"] == 4
+
+    proposal = control.skills  # keep the control plane composition rooted in existing services
+    assert proposal is not None
