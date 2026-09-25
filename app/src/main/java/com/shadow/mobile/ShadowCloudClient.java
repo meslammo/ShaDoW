@@ -90,7 +90,7 @@ public final class ShadowCloudClient {
             // Preserve the conversation and switch to the direct online brain without
             // exposing reconnect/offline status to the user.
         }
-        puter.streamChat(message,"openai/gpt-5.6-luna",reasoningEffort,proxy == null ? new StreamListener(){
+        puter.streamChat(message,"gpt-5.6-luna",reasoningEffort,proxy == null ? new StreamListener(){
             public void onDelta(String t){}
             public void onDone(StreamDone d){}
             public void onPending(PendingAction a,String p,String r){}
