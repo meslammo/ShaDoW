@@ -197,7 +197,7 @@ export async function registerDevice({
         sync_available: true,
       };
     }
-    const instance = safeString(instanceId, 160) || ('shadow-' + crypto.randomUUID());
+    const instance = 'shadow-' + crypto.randomUUID();
     const token = makeToken();
     await pool.query(
       'INSERT INTO shadow_device_registry(device_id,instance_id,platform,device_label,app_version,activation_token_hash,capabilities,gate_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
@@ -319,42 +319,67 @@ export async function syncDevice({
   };
 
   if (await ensureDb()) {
-    const current = await pool.query('SELECT gate_state,memory_facts FROM shadow_device_registry WHERE device_id=$1', [deviceId]);
-    const storedGates = current.rows[0]?.gate_state || {};
-    const storedMemory = current.rows[0]?.memory_facts || [];
-    const mergedGates = { ...defaultGateState(), ...storedGates, ...incomingGates };
-    for (const gate of EXTERNAL_GATES) {
-      if (incomingGates[gate]?.status === 'passed' && storedGates[gate]?.status === 'passed') {
-        mergedGates[gate] = {
-          ...storedGates[gate],
-          ...incomingGates[gate],
-        };
-      }
-    }
-    const mergedMemory = [...storedMemory, ...incomingMemory].filter((item, index, array) =>
-      item?.text && index === array.findIndex(x => x.text === item.text)
-    ).slice(-MAX_MEMORY_FACTS);
+    const all = await pool.query('SELECT device_id,instance_id,platform,device_label,app_version,capabilities,gate_state,memory_facts,last_seen FROM shadow_device_registry WHERE instance_id=$1 ORDER BY last_seen DESC', [device.instance_id]);
+    const mergedGates = mergeGateStates(
+      defaultGateState(),
+      ...all.rows.map(row => row.gate_state || {}),
+      incomingGates,
+    );
+    const mergedMemory = mergeMemoryFacts(
+      ...all.rows.map(row => row.memory_facts || []),
+      incomingMemory,
+    );
     await pool.query(
       'UPDATE shadow_device_registry SET gate_state=$2,memory_facts=$3,last_seen=NOW() WHERE device_id=$1',
       [deviceId, JSON.stringify(mergedGates), JSON.stringify(mergedMemory)]
     );
-
-    const all = await pool.query('SELECT device_id,instance_id,platform,device_label,app_version,capabilities,gate_state,memory_facts,last_seen FROM shadow_device_registry WHERE instance_id=$1 ORDER BY last_seen DESC', [device.instance_id]);
     return makeSyncResponse(device.instance_id, deviceId, mergedGates, mergedMemory, all.rows, manifest);
   }
 
   const data = await readFile();
   const current = data.devices[deviceId];
-  const mergedGates = { ...defaultGateState(), ...(current.gate_state || {}), ...incomingGates };
-  const mergedMemory = [...(current.memory_facts || []), ...incomingMemory]
-    .filter((item, index, array) => item?.text && index === array.findIndex(x => x.text === item.text))
-    .slice(-MAX_MEMORY_FACTS);
+  const peers = Object.values(data.devices).filter(x => x.instance_id === device.instance_id);
+  const mergedGates = mergeGateStates(
+    defaultGateState(),
+    ...peers.map(row => row.gate_state || {}),
+    incomingGates,
+  );
+  const mergedMemory = mergeMemoryFacts(
+    ...peers.map(row => row.memory_facts || []),
+    incomingMemory,
+  );
   current.gate_state = mergedGates;
   current.memory_facts = mergedMemory;
   current.last_seen = nowIso();
   await writeFile(data);
-  const peers = Object.values(data.devices).filter(x => x.instance_id === device.instance_id);
   return makeSyncResponse(device.instance_id, deviceId, mergedGates, mergedMemory, peers, manifest);
+}
+
+function mergeGateStates(base, ...sources) {
+  const out = { ...base };
+  for (const source of sources) {
+    for (const [gateId, candidate] of Object.entries(source || {})) {
+      if (!candidate || typeof candidate !== 'object') continue;
+      const existing = out[gateId];
+      if (!existing || existing.status !== 'passed' || candidate.status === 'passed') {
+        out[gateId] = { ...existing, ...candidate };
+      }
+    }
+  }
+  return out;
+}
+
+function mergeMemoryFacts(...sources) {
+  const out = [];
+  for (const source of sources) {
+    if (!Array.isArray(source)) continue;
+    for (const item of source) {
+      if (!item?.text) continue;
+      if (out.some(existing => existing.text === item.text)) continue;
+      out.push(item);
+    }
+  }
+  return out.slice(-MAX_MEMORY_FACTS);
 }
 
 function makeSyncResponse(instanceId, deviceId, gates, memoryFacts, peers, manifest) {
