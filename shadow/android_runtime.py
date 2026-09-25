@@ -244,6 +244,35 @@ def shadow_platform_status(home: Optional[str] = None) -> Dict[str, Any]:
     return Unified150Orchestrator(home or os.getcwd()).control.platform_status()
 
 
+def export_sync_memory(home: Optional[str] = None) -> list[dict[str, Any]]:
+    """Export only durable non-secret facts suitable for cross-device sync."""
+    _install_shadow_package_alias()
+    from shadow.supernice.evolution import UnifiedControlPlane
+    control = UnifiedControlPlane(home or os.getcwd())
+    allowed_kinds = {"profile", "approved_correction", "fact", "preference", "project"}
+    rows = []
+    for item in control.memory.all()[-100:]:
+        if item.kind not in allowed_kinds:
+            continue
+        text_value = str(item.text or "").strip()
+        lower = text_value.lower()
+        if not text_value or len(text_value) > 3000:
+            continue
+        if any(token in lower for token in (
+            "password", "passphrase", "api_key", "access_token", "secret",
+            "private_key", "credential", "github_token", "bearer",
+            "كلمة السر", "باسورد", "توكن", "مفتاح سري"
+        )):
+            continue
+        rows.append({
+            "id": item.id,
+            "text": text_value,
+            "kind": item.kind,
+            "tags": list(item.tags),
+        })
+    return rows
+
+
 def apply_synced_memory(facts: Any, home: Optional[str] = None) -> Dict[str, Any]:
     """Import only sanitized, non-secret memory facts from a linked device."""
     _install_shadow_package_alias()
