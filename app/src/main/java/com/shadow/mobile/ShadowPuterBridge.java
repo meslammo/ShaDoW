@@ -11,7 +11,6 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.FrameLayout;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -77,6 +76,7 @@ public final class ShadowPuterBridge {
 
     public boolean isReady() { return ready; }
     public boolean isSignedIn() { return signedIn; }
+    public void resetConversation() { eval("shadowReset();"); }
 
     public ShadowCloudClient.CloudReply chatBlocking(String message, String model, String reasoningEffort) throws Exception {
         String id = "c" + seq.incrementAndGet();
