@@ -10,12 +10,12 @@ export function classifyTask(message = '') {
 }
 
 export const TASK_PROVIDER_ORDER = Object.freeze({
-  chat: ['gemini','mistral','deepseek','openai','xai','anthropic'],
+  chat: ['gemini','mistral','deepseek','openai','xai','anthropic','pollinations'],
   research: ['gemini','xai','openai','deepseek','mistral','anthropic'],
   code: ['xai','openai','anthropic','mistral','gemini','deepseek'],
   vision: ['gemini','openai','mistral','anthropic','xai'],
-  language: ['gemini','mistral','anthropic','openai','deepseek','xai'],
-  video: ['gemini','xai','openai'],
+  language: ['gemini','mistral','anthropic','openai','deepseek','xai','pollinations'],
+  video: ['gemini','xai','openai','pollinations'],
 });
 
 export function providerOrderFor(message, _freeFirst = true) {
