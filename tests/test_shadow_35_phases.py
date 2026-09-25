@@ -170,3 +170,39 @@ def test_rollback_and_controlled_self_improvement(tmp_path):
     assert evolution.activation_allowed(proposal, approved_by_master=False, tests_passed=True) is False
     assert evolution.activation_allowed(proposal, approved_by_master=True, tests_passed=False) is False
     assert evolution.activation_allowed(proposal, approved_by_master=True, tests_passed=True) is True
+
+
+def test_long_running_tasks_automation_patterns_simulation_and_continuous_verification(tmp_path):
+    control = UnifiedControlPlane(str(tmp_path))
+    started = control.start_long_task("job-1", {"step": 1})
+    assert started["status"] == "running"
+    paused = control.pause_long_task("job-1", {"step": 2})
+    assert paused["status"] == "paused"
+    resumed = control.resume_long_task("job-1")
+    assert resumed["state"]["step"] == 2
+    completed = control.complete_long_task("job-1")
+    assert completed["status"] == "completed"
+
+    control.register_automation(
+        "demo",
+        "trigger:test",
+        [WorkflowStep("a", lambda state: 1), WorkflowStep("b", lambda state: state["a"] + 1)],
+    )
+    automation_results = control.run_automation("trigger:test")
+    assert automation_results[0].ok is True
+    assert automation_results[0].output["b"] == 2
+
+    assert control.observe_pattern("morning workflow") == 1
+    assert control.observe_pattern("morning workflow") == 2
+    assert control.pattern_suggestions()[0]["pattern"] == "morning workflow"
+
+    impact = control.simulate_impact([
+        {"capability": "calculator"},
+        {"capability": "file.write"},
+    ])
+    assert impact["side_effects_executed"] is False
+    assert impact["confirmation_count"] == 1
+
+    checked = control.verifier.loop(True, lambda _round: True, max_rounds=3)
+    assert checked["ok"] is True
+    assert checked["rounds"][0]["round"] == 1
