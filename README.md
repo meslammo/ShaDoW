@@ -6,14 +6,14 @@ SHADOW is a personal, unified Android AI assistant with one command surface. The
 - Online-only multi-provider AI routing with a free-first order: local/self-hosted -> Mistral -> Gemini -> DeepSeek -> OpenAI -> xAI -> Anthropic.
 - One Android master-routing contract (MOD-75): understand -> classify -> route -> execute -> verify.
 - Agent loop: understand -> plan -> route -> execute -> observe -> verify -> continue.
-- Tool registry for calculator, public web search/fetch, public GitHub reading, durable memory, workspace files, and Android actions.
+- Tool registry for calculator, public web search/fetch, public GitHub reading, durable memory, workspace files, and governed software actions.
 - Embedded Python 12-Core governance remains the root authority.
 - Super Nice 150-Core now has a concrete handler for every registered Core; no Core is left in the old adapter_required dead-end state.
 - Durable non-secret memory with PostgreSQL preferred and file fallback.
 - ChatGPT-style voice interaction: voice and live text share the same conversation surface; Android TTS is the default client response path to avoid unnecessary cloud TTS calls.
 - Cloud TTS remains available in the backend as an optional path.
 - GitHub development gateway with explicit authorization and allowlisted repository paths.
-- Companion, device and spatial capabilities are isolated as optional adapters.
+- Phone, car, smart-home, wearable, companion and spatial-device control are outside the active Shadow scope.
 
 ## Single interaction path
 All user input — typed or spoken — enters the same master route. Voice is a transport, not a separate AI mode:
@@ -34,7 +34,7 @@ Sensitive actions remain governed by explicit identity/approval rules. There is 
 Secrets are not embedded in the APK. Durable memory rejects credential-like content. Web fetch blocks obvious private/local hosts. Mutating development actions require explicit approval and remain constrained by an allowlist. Builtin Core handlers are deterministic and do not perform external I/O.
 
 ## External dependencies
-Online AI, cloud TTS and GitHub OAuth depend on external provider credentials/permissions. Their absence does not disable the internal Android command surface. Hardware integrations are optional and disabled by default.
+Online AI, cloud TTS and GitHub OAuth depend on external provider credentials/permissions. Android is a client surface for Shadow, not a device-control subsystem. Hardware/device integrations are outside the current build scope.
 
 ## Build
 Android API 35, Java 17, Gradle 8.10.2, Android Gradle Plugin 8.6.1, Chaquopy 17.0.0, Python 3.11.
@@ -78,3 +78,8 @@ Media adapters:
 - Phone: Accessibility control primitives for navigation, clicking, typing, long-press and swipe.
 
 Provider credentials are still external deployment secrets. A missing provider is reported as unconfigured; SHADOW never pretends it ran an external operation.
+
+
+## Scope decision — AI-only
+
+Shadow's active architecture is intentionally device-independent. The current build does not control or connect to the phone host, car, smart-home equipment, watches, companions, spatial hardware, or other external devices. Android remains only a client surface for text, voice, images, status, and the online Shadow runtime. This removes device work from the critical path so the AI platform can be completed first.
