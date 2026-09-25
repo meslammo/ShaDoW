@@ -20,3 +20,6 @@ The Android UI already calls /v1/images. The backend supports OpenAI, Gemini, an
 ## Online-only rule
 
 The conversational brain remains cloud/online-only. Android TTS may remain a local playback fallback because that does not create an offline conversational brain.
+
+## 150-Core engine integration checkpoint
+The orchestrator owns the persistent engine and bounded live-update manager; the runtime remains online-only and exposes a single 150-core status mesh.

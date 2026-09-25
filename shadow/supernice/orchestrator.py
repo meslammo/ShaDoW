@@ -16,6 +16,8 @@ from .contracts import CoreRequest, CoreResult
 from .integration import SuperNiceRuntime
 from .evolution import UnifiedControlPlane
 from .online_brain import GovernedOnlineBrainAdapter, RealOnlineBrainAdapter
+from shadow.core.engine import ShadowEngine
+from shadow.core.live_update import LiveUpdateManager
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,8 @@ class Unified150Orchestrator:
         self.runtime = SuperNiceRuntime(workspace)
         self.control = UnifiedControlPlane(workspace)
         self.online_brain = online_brain or GovernedOnlineBrainAdapter(self.control)
+        self.engine = ShadowEngine(workspace)
+        self.live_updates = LiveUpdateManager(workspace)
 
     @property
     def core_count(self) -> int:
@@ -145,7 +149,8 @@ class Unified150Orchestrator:
         events: list[OrchestratorEvent] = []
         evidence: list[dict[str, Any]] = []
         request_id = str((context or {}).get("request_id") or uuid4())
-        ctx = {**dict(context or {}), "request_id": request_id, "confirmed": bool(confirmed)}
+        turn_id = self.engine.begin_turn(request_id)
+        ctx = {**dict(context or {}), "request_id": request_id, "turn_id": turn_id, "confirmed": bool(confirmed), "engine_state": self.engine.snapshot()}
 
         if not text:
             return UnifiedRunResult(False, "request_required", metadata={"request_id": request_id})
@@ -164,6 +169,7 @@ class Unified150Orchestrator:
         )
         events.append(OrchestratorEvent("identity", "CORE-001", identity.status))
         if not identity.ok:
+            self.engine.mark_degraded("identity")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "identity"})
             return UnifiedRunResult(False, identity.status, events=events, metadata={"request_id": request_id})
 
@@ -175,6 +181,7 @@ class Unified150Orchestrator:
         )
         events.append(OrchestratorEvent("reasoning", "CORE-003", reasoning.status))
         if not reasoning.ok:
+            self.engine.mark_degraded("reasoning")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "reasoning"})
             return UnifiedRunResult(False, reasoning.status, events=events, metadata={"request_id": request_id})
 
@@ -186,6 +193,7 @@ class Unified150Orchestrator:
         )
         events.append(OrchestratorEvent("model_route", "CORE-013", routing.status))
         if not routing.ok:
+            self.engine.mark_degraded("model_route")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "model_route"})
             return UnifiedRunResult(False, routing.status, events=events, metadata={"request_id": request_id})
 
@@ -199,6 +207,7 @@ class Unified150Orchestrator:
 
         selected = selected_core or self.select_core(text)
         if selected not in CORE_BY_ID:
+            self.engine.mark_degraded("unknown_selected_core")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "route", "core": selected})
             return UnifiedRunResult(False, "unknown_selected_core", selected_core=selected, events=events, metadata={"request_id": request_id})
         events.append(OrchestratorEvent("tool_route", selected, "selected"))
@@ -219,6 +228,7 @@ class Unified150Orchestrator:
             ) or {})
         except Exception as exc:
             events.append(OrchestratorEvent("online_brain", None, "failed", type(exc).__name__))
+            self.engine.mark_degraded("online_brain")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "online_brain", "error_type": type(exc).__name__})
             return UnifiedRunResult(
                 False,
@@ -233,6 +243,7 @@ class Unified150Orchestrator:
         ))
         answer = str(brain_payload.get("answer") or "").strip()
         if not answer:
+            self.engine.mark_degraded("empty_online_brain_response")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "online_brain", "error": "empty"})
             return UnifiedRunResult(False, "empty_online_brain_response", selected_core=selected, events=events, metadata={"request_id": request_id})
 
@@ -253,6 +264,7 @@ class Unified150Orchestrator:
             governance_status = auth.status
             events.append(OrchestratorEvent("governance", "CORE-012", auth.status))
             if not auth.ok:
+                self.engine.mark_degraded("governance_denied")
                 self.control.audit("request.denied", request_id=request_id, outcome="denied", metadata={"core": selected, "reason": auth.status})
                 return UnifiedRunResult(False, auth.status, answer=answer, selected_core=selected, events=events, metadata={"request_id": request_id})
         else:
@@ -290,6 +302,7 @@ class Unified150Orchestrator:
         evidence.append({"verification": "execution_ok", **semantic_verification})
 
         if not execution.ok or not verification.ok or not semantic_verification["ok"]:
+            self.engine.mark_degraded("verification")
             self.control.audit("request.failed", request_id=request_id, outcome="unverified", metadata={"stage": "verification", "execution": execution.status})
             return UnifiedRunResult(
                 False,
@@ -317,6 +330,7 @@ class Unified150Orchestrator:
             confirmed=True,
         )
         events.append(OrchestratorEvent("audit", "CORE-140", audit.status))
+        self.engine.complete_turn(turn_id)
         self.control.audit(
             "request.completed",
             request_id=request_id,
@@ -345,3 +359,35 @@ class Unified150Orchestrator:
                 "tools": len(self.control.tool_schemas()),
             },
         )
+
+
+    def mesh_status(self) -> dict[str, Any]:
+        """Return one status surface for the connected 150-Core runtime mesh."""
+        runtime_health = self.runtime.cores.health()
+        return {
+            "core_count": self.core_count,
+            "registered_handlers": runtime_health.get("registered_handlers", 0),
+            "all_registered": self.core_count == runtime_health.get("registered_handlers", 0),
+            "engine": self.engine.snapshot(),
+            "online_only": True,
+            "components": [
+                "identity", "reasoning", "model_route", "memory",
+                "online_brain", "governance", "150_core_execution",
+                "verification", "audit", "live_updates",
+            ],
+        }
+
+    def live_update(self, version: str, files: Mapping[str, str]) -> dict[str, Any]:
+        """Stage, validate and activate Python-side updates without resetting the session."""
+        staged = self.live_updates.stage(version, dict(files))
+        update_id = staged.name
+        self.engine.queue_update(update_id)
+        result = self.live_updates.activate(staged)
+        if result.ok:
+            self.engine.finish_update(update_id, version)
+        else:
+            self.engine.rollback_update()
+        return self.live_updates.describe(result)
+
+    def recover_online_session(self) -> dict[str, Any]:
+        return self.engine.recover()
