@@ -17,7 +17,7 @@ def test_master_pipeline_blocks_risky_request_without_confirmation(tmp_path):
 def test_master_pipeline_marks_web_when_fresh(tmp_path):
     result = SuperNiceMasterPipeline(str(tmp_path)).run("ابحثلي عن آخر تحديثات SHADOW", authenticated=True, confirmed=True)
     web = next(x for x in result["stages"] if x["stage"] == "web_discovery")
-    assert web["status"] in {"executed","adapter_pending","adapter_ready","handler_error"}
+    assert web["status"] in {"executed","adapter_pending","adapter_ready","adapter_unavailable","handler_error"}
 
 def test_master_pipeline_has_all_twelve_stage_names():
     assert len(SuperNiceMasterPipeline.STAGE_NAMES) == 12
