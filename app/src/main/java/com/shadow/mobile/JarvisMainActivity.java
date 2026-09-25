@@ -203,20 +203,93 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         }
         new Thread(()->{
             try{
-                JSONObject platform=new JSONObject(cloud.platformStatus());
+                syncShadowDevice();
+                JSONObject platform=cloud.platformStatus();
                 JSONObject sync=new JSONObject(deviceActivation.syncSnapshot()).optJSONObject("sync");
                 JSONArray pending=sync==null?null:sync.optJSONArray("pending_gates");
                 StringBuilder b=new StringBuilder("REAL-WORLD ACCEPTANCE GATES\\n\\n");
-                if(pending==null||pending.length()==0) b.append("مفيش Gates معلقة في الـsync الحالي.\\n");
-                else for(int i=0;i<pending.length();i++){JSONObject g=pending.optJSONObject(i);if(g!=null)b.append("• ").append(g.optString("gate_id")).append(" — ").append(g.optString("status")).append("\\n");}
-                b.append("\\nالاختبارات الواقعية لازم تتعمل على الجهاز/البيئة الفعلية قبل تسجيلها Passed.");
-                String msg=b.toString();
-                runOnUiThread(()->assistant(msg));
-            }catch(Throwable e){runOnUiThread(()->assistant("تعذر قراءة Acceptance Gates: "+e.getMessage()));}
+                if(pending==null||pending.length()==0){
+                    b.append("مفيش Gates معلقة في الـsync الحالي.\\n");
+                }else{
+                    for(int i=0;i<pending.length();i++){
+                        JSONObject g=pending.optJSONObject(i);
+                        if(g!=null){
+                            b.append("• ").append(g.optString("gate_id")).append(" — ")
+                             .append(g.optString("status","pending")).append("\\n");
+                        }
+                    }
+                }
+                b.append("\\nاختبارات الجهاز الحقيقي لازم تتنفذ فعلًا قبل تسجيل Passed.");
+                runOnUiThread(()->{
+                    new AlertDialog.Builder(this)
+                        .setTitle("🧪 Real-World Acceptance")
+                        .setMessage(b.toString())
+                        .setPositiveButton("تسجيل نتيجة",(d,w)->chooseAcceptanceGate())
+                        .setNegativeButton("إغلاق",null)
+                        .show();
+                });
+            }catch(Throwable e){runOnUiThread(()->assistant("تعذر قراءة Acceptance Gates: "+String.valueOf(e.getMessage())));}
         }).start();
     }
 
-    private boolean handleIdentityCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("تحقق من صوتي")||x.contains("تحقق بصوتي")||x.equals("verify my voice")||x.equals("voiceprint verify")){startVoiceprintVerification();return true;}if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")||x.equals("voice identity status")){assistant(identity.status());return true;}if(x.contains("اقفل الهوية")||x.contains("اقفل الهويه")||x.equals("lock identity")||x.equals("logout shadow")){identity.lock();assistant("تم قفل هوية الـMaster. الأوامر الحساسة هتحتاج كلمة السر تاني.");return true;}if(x.startsWith("عيّن كلمة السر:")||x.startsWith("عين كلمة السر:")||x.startsWith("عيّن كلمه السر:")||x.startsWith("عين كلمه السر:")||x.startsWith("set passphrase:")||x.startsWith("set password:")){String p=identity.extractPassphrase(s);if(identity.enroll(p)){assistant("تم تسجيل كلمة سر الـMaster محليًا بشكل آمن. مش هخزن الكلمة نفسها، فقط SHA-256.\nقول: كلمة السر: <الكلمة> عند طلب أمر حساس.");}else assistant("كلمة السر لازم تكون 6 أحرف/رموز على الأقل.");return true;}return false;}
+    private void chooseAcceptanceGate(){
+        new Thread(()->{
+            try{
+                JSONObject catalog=cloud.acceptanceGates();
+                JSONArray gates=catalog.optJSONArray("gates");
+                if(gates==null||gates.length()==0) throw new IllegalStateException("gate_catalog_empty");
+                String[] labels=new String[gates.length()];
+                String[] ids=new String[gates.length()];
+                for(int i=0;i<gates.length();i++){
+                    JSONObject g=gates.optJSONObject(i);
+                    ids[i]=g==null?"":g.optString("gate_id","");
+                    labels[i]=ids[i]+" — pending external proof";
+                }
+                runOnUiThread(()->new AlertDialog.Builder(this)
+                    .setTitle("اختار الـGate اللي اختبرته")
+                    .setItems(labels,(dialog,which)->promptAcceptanceGateResult(ids[which]))
+                    .setNegativeButton("إلغاء",null)
+                    .show());
+            }catch(Throwable e){runOnUiThread(()->assistant("تعذر تحميل Gate catalog: "+String.valueOf(e.getMessage())));}
+        }).start();
+    }
+
+    private void promptAcceptanceGateResult(String gateId){
+        final EditText evidence=new EditText(this);
+        evidence.setHint("Evidence / Build URL / Device note");
+        evidence.setSingleLine(false);
+        new AlertDialog.Builder(this)
+            .setTitle("تأكيد نتيجة: "+gateId)
+            .setMessage("اكتب دليل الاختبار الحقيقي. التسجيل هنا مجرد evidence؛ Shadow لن يدّعي نجاح الاختبار من غير نتيجة فعلية.")
+            .setView(evidence)
+            .setPositiveButton("Passed",(d,w)->{
+                String ref=evidence.getText().toString().trim();
+                if(ref.isEmpty()){
+                    assistant("لازم Evidence قبل تسجيل Gate كـPassed.");
+                    return;
+                }
+                reportAcceptanceGate(gateId,"passed",ref);
+            })
+            .setNegativeButton("Failed",(d,w)->reportAcceptanceGate(gateId,"failed",evidence.getText().toString().trim()))
+            .setNeutralButton("إلغاء",null)
+            .show();
+    }
+
+    private void reportAcceptanceGate(String gateId,String result,String evidenceRef){
+        new Thread(()->{
+            try{
+                JSONObject response=cloud.reportAcceptanceGate(deviceActivation,gateId,result,evidenceRef,"reported from Android acceptance panel");
+                deviceActivation.saveSyncSnapshot(response.toString());
+                int pending=0;
+                JSONObject sync=response.optJSONObject("sync");
+                if(sync!=null&&sync.optJSONArray("pending_gates")!=null) pending=sync.optJSONArray("pending_gates").length();
+                final int remaining=pending;
+                runOnUiThread(()->assistant("تم تسجيل "+gateId+" = "+result.toUpperCase(Locale.ROOT)+" ✓\\nGates لسه ناقصة: "+remaining));
+            }catch(Throwable e){runOnUiThread(()->assistant("تسجيل الـGate فشل: "+String.valueOf(e.getMessage())));}
+        }).start();
+    }
+
+
     private void startVoiceprintVerification(){
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},MIC);return;}
         if(voiceprintRecorder!=null)return;
