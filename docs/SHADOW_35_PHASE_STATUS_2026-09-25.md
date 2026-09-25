@@ -33,15 +33,15 @@ No Core definitions are added here and the offline conversational AI path is not
 | 18 | Autonomous-but-Governed Operations | IMPLEMENTED | Workflow/checkpoint/governance boundaries; real long-running operations remain |
 | 19 | Shadow Intelligence Evolution | IMPLEMENTED | Routing/planning/evaluation contracts |
 | 20 | Personal Knowledge Graph | IMPLEMENTED | KnowledgeGraph nodes/relations/export |
-| 21 | Predictive Assistance | FOUNDATION | Suggestion layer is available for extension; production behavior needs data validation |
+| 21 | Predictive Assistance | IMPLEMENTED + E2E GATE | Context-ranked suggestion API; production behavior still needs real usage validation |
 | 22 | Real-World Automation | IMPLEMENTED + E2E GATE | Workflow engine exists; live external automation proof remains |
 | 23 | Shadow Skills Platform | IMPLEMENTED | Versioned SkillRegistry with enable/disable/invocation |
-| 24 | Multi-Agent / Companion Intelligence | FOUNDATION | Companion coordination boundary exists; multi-agent live proof remains |
+| 24 | Multi-Agent / Companion Intelligence | IMPLEMENTED + E2E GATE | Trusted companion delegation boundary; live multi-agent proof remains |
 | 25 | Advanced Simulation & Sandbox | IMPLEMENTED | Permission-aware dry-run/simulation |
 | 26 | Self-Diagnostics | IMPLEMENTED | Runtime/workspace/core/tool diagnostics |
 | 27 | Controlled Self-Improvement | IMPLEMENTED + E2E GATE | Proposal/test/approval contract exists; real PR lifecycle proof remains |
 | 28 | Federated Device Intelligence | IMPLEMENTED + E2E GATE | Trusted DeviceFederation contract; remote hardware proof remains |
-| 29 | Spatial World Model | FOUNDATION | Spatial/context primitives build on KnowledgeGraph/device boundaries; real sensor proof remains |
+| 29 | Spatial World Model | IMPLEMENTED + E2E GATE | Spatial observations are represented in the knowledge graph; real sensor proof remains |
 | 30 | Continuous Verification | IMPLEMENTED | ContinuousVerifier plus execution verification |
 | 31 | Shadow Operating Layer | IMPLEMENTED | Unified identity/context/permission/control-plane surface |
 | 32 | Shadow Ecosystem | IMPLEMENTED | Skills + companion/device + adapter boundaries |
