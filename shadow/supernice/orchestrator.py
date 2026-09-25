@@ -363,7 +363,7 @@ class Unified150Orchestrator:
 
     def mesh_status(self) -> dict[str, Any]:
         """Return one status surface for the connected 150-Core runtime mesh."""
-        runtime_health = self.runtime.health()
+        runtime_health = self.runtime.cores.health()
         return {
             "core_count": self.core_count,
             "registered_handlers": runtime_health.get("registered_handlers", 0),
