@@ -60,6 +60,9 @@ app.get('/health', async (_req, res) => res.json({
     speech_to_text: Boolean(apiKey),
     vision: Boolean(apiKey),
     full_12_step_master: true,
+    unified_150_core: true,
+    phase_roadmap: 35,
+    online_only_brain: true,
   },
   image_generation: Boolean(apiKey || geminiKey),
   tts: {
@@ -75,6 +78,54 @@ app.get('/health', async (_req, res) => res.json({
   github_authorization: githubOAuthStatus(),
   voiceprint: { required: false, status: voiceprintStatus() },
 }));
+
+
+
+app.get('/v1/platform/status', async (_req, res) => {
+  try {
+    const memory = await memoryStatus();
+    const providers = providerStatus();
+    return res.json({
+      ok: true,
+      platform: 'SHADOW Long-Term Platform',
+      phase_count: 35,
+      core_count: 150,
+      online_only_brain: true,
+      offline_ai_removed: true,
+      architecture: 'Unified150Orchestrator + production Cloud Agent + governed tools',
+      memory,
+      providers: Object.fromEntries(Object.entries(providers).filter(([name]) => name !== 'local')),
+      capabilities: {
+        memory: true,
+        governance: true,
+        tools: Array.isArray(providers.tools) ? providers.tools : [],
+        streaming: true,
+        github: true,
+        development_agent: true,
+        android_actions: true,
+        multimodal: true,
+        companions: true,
+        spatial: true,
+        recovery: true,
+        skills: true,
+        simulation: true,
+        diagnostics: true,
+        controlled_self_improvement: true,
+      },
+      external_verification_gates: [
+        'real_provider_credentials',
+        'real_android_device',
+        'wake_word_and_barge_in',
+        'real_device_adapters',
+        'trusted_companions',
+        'cross_device_federation',
+        'production_failover_restore',
+      ],
+    });
+  } catch (error) {
+    return res.status(503).json({ ok: false, error: 'platform_status_failed' });
+  }
+});
 
 app.post('/v1/chat', rateLimit, async (req, res) => {
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
