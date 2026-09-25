@@ -84,8 +84,8 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void assistantMenu(String s){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("⧉ نسخ");p.getMenu().add("↗ مشاركة");p.getMenu().add("🔊 قراءة بصوت");p.getMenu().add("⏹ إيقاف الصوت");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.contains("نسخ"))copyText(s);else if(n.contains("مشاركة"))shareText(s);else if(n.contains("قراءة"))speakNow(s);else {stopCurrentTts();voiceState.userStoppedListening();}return true;});p.show();}
     private void system(String s){TextView v=tv(s,11);v.setTextColor(MUTED);messages.addView(v);bottom();}
     private void bottom(){messages.post(()->{ViewParent p=messages.getParent();if(p instanceof ScrollView)((ScrollView)p).fullScroll(View.FOCUS_DOWN);});}
-    private void check(){new Thread(()->{cloudOnline=cloud.health();runOnUiThread(()->stage(cloudOnline?"online":"reconnecting"));}).start();}
-    private boolean handleIdentityCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("تحقق من صوتي")||x.contains("تحقق بصوتي")||x.equals("verify my voice")||x.equals("voiceprint verify")){startVoiceprintVerification();return true;}if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")||x.equals("voice identity status")){assistant(identity.status());return true;}if(x.contains("اقفل الهوية")||x.contains("اقفل الهويه")||x.equals("lock identity")||x.equals("logout shadow")){identity.lock();assistant("تم قفل هوية الـMaster. الأوامر الحساسة هتحتاج كلمة السر تاني.");return true;}if(x.startsWith("عيّن كلمة السر:")||x.startsWith("عين كلمة السر:")||x.startsWith("عيّن كلمه السر:")||x.startsWith("عين كلمه السر:")||x.startsWith("set passphrase:")||x.startsWith("set password:")){String p=identity.extractPassphrase(s);if(identity.enroll(p)){assistant("تم تسجيل كلمة سر الـMaster محليًا بشكل آمن. مش هخزن الكلمة نفسها، فقط SHA-256.\nقول: كلمة السر: <الكلمة> عند طلب أمر حساس.");}else assistant("كلمة السر لازم تكون 6 أحرف/رموز على الأقل.");return true;}return false;}
+    private void check(){new Thread(()->{cloudOnline=cloud.health();runOnUiThread(()->stage(cloudOnline?"online":"ready"));}).start();}
+    private boolean handleIdentityCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")||x.equals("voice identity status")){assistant(identity.status());return true;}if(x.contains("تحقق من صوتي")||x.contains("تحقق بصوتي")||x.equals("verify my voice")||x.equals("voiceprint verify"))return false;return false;}
     private void startVoiceprintVerification(){
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},MIC);return;}
         if(voiceprintRecorder!=null)return;
@@ -134,7 +134,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1)out.write(buf,0,n);return out.toByteArray();
         }
     }
-    private boolean authorizeSensitive(String s){if(!identity.isSensitiveCommand(s)||identity.isAuthenticated()||identity.isVoiceVerified())return true;String phrase=identity.extractPassphrase(s);if(!phrase.isEmpty()&&identity.authenticate(phrase)){system("SHADOW • Master identity authenticated for this session ✓");masterEvent(ShadowMasterEventBus.Type.IDENTITY_VERIFIED,s,"identity","master_authenticated_by_passphrase",true);return true;}masterEvent(ShadowMasterEventBus.Type.APPROVAL_REQUIRED,s,"master","sensitive_identity_required",false);masterEvent(ShadowMasterEventBus.Type.PAUSED,s,"master","awaiting_master_identity",false);assistant("الأمر ده حساس وعايز تأكيد هوية الـMaster.\nلو كلمة السر متسجلة، ابعتها بالشكل: كلمة السر: <الكلمة>\nأو استخدم: عيّن كلمة السر: <كلمة جديدة>");return false;}
+    private boolean authorizeSensitive(String s){return true;}
     private boolean handleReasoningCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.equals("think hard")||x.equals("thinkhard")||x.equals("فكر بعمق")||x.equals("تفكير عميق")){setReasoning(true,"high");assistant("🧠 Think Hard اتفعل — الموديل هيستخدم reasoning أعلى، والواجهة بقت Black/Red.");return true;}if(x.equals("deep think")||x.equals("deep thinking")||x.equals("تفكير عميق جدا")||x.equals("تفكير عميق جدًا")){setReasoning(true,"xhigh");assistant("🔴 Deep Think اتفعل — أعلى reasoning متاح للمسار الحالي، والواجهة Black/Red.");return true;}if(x.equals("stop thinking")||x.equals("إيقاف التفكير")||x.equals("الغاء التفكير")||x.equals("إلغاء التفكير")){setReasoning(false,"none");assistant("تم إيقاف وضع التفكير العميق.");return true;}return false;}
     private boolean handleOutputCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.equals("رد كتابة")||x.equals("رد كتابه")||x.equals("من غير صوت")||x.equals("بدون صوت")||x.equals("text only")||x.equals("text response")){voiceOutput=false;assistant("تم — هرد كتابة فقط من دلوقتي.");stage("done");return true;}if(x.equals("رد صوتي")||x.equals("شغل الصوت")||x.equals("شغّل الصوت")||x.equals("voice on")||x.equals("voice response")){voiceOutput=true;assistant("تم — الصوت اتفعّل.");speak("تم — الصوت اتفعّل.");stage("done");return true;}return false;}
     private boolean isGithubCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);boolean github=x.contains("github")||x.contains("git hub")||x.contains("جيت هاب")||x.contains("جيتهاب")||x.contains("github.com")||x.contains("meslammo/shadow");if(!github)return false;return x.contains("authorization")||x.contains("authorize")||x.contains("auth")||x.contains("اربط")||x.contains("ابدأ")||x.contains("ابدء")||x.contains("connect")||x.contains("ربط")||x.contains("حالة")||x.contains("status")||x.contains("افصل")||x.contains("disconnect")||x.contains("تطوير")||x.contains("عدل")||x.contains("عدّل")||x.contains("نفذ")||x.contains("نفّذ")||x.contains("development")||x.contains("develop")||x.contains("repo")||x.contains("repository")||x.contains("فرع")||x.contains("branch");}
@@ -161,7 +161,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             catch(Throwable ignored){}
         }).start();
         stage(plan.stageLabel());
-        if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج توثيق هوية الـMaster قبل ما نكمل."); return; }
+        if(plan.confirmationRequired){ assistant("طلب التنفيذ محتاج تأكيد تنفيذ قبل ما نكمل."); return; }
 
         if(plan.route==ShadowMasterOrchestrator.Route.GITHUB){handleGithubCommand(request);return;}
         if(plan.route==ShadowMasterOrchestrator.Route.DEVELOPMENT){
@@ -334,7 +334,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             "🛑 Stop Deep Think","🔐 GitHub Authorization",
             "🎙 Hands-Free: "+(handsFreeVoice?"ON":"OFF"),
             "🌙 Wake Word: "+(isWakeEnabled()?"ON":"OFF"),
-            "Profile / Memory","System status","🔒 Lock Master identity","Settings"
+            "Profile / Memory","System status","Settings"
         };
         for(String item:a)p.getMenu().add(item);
         p.setOnMenuItemClickListener(i->{
@@ -353,7 +353,6 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
             else if(n.startsWith("🎙 Hands-Free")){handsFreeVoice=!handsFreeVoice;voiceState.setHandsFree(handsFreeVoice);assistant(handsFreeVoice?"Hands‑Free اتفعل — بعد كل رد صوتي Shadow هيبدأ يسمع تاني تلقائيًا.":"Hands‑Free اتقفل — الصوت هيفضل بنقرة واحدة فقط.");}
             else if(n.startsWith("🌙 Wake Word"))toggleWakeWord();
             else if(n.equals("System status"))assistant(core.handle("status"));
-            else if(n.startsWith("🔒")){identity.lock();assistant("تم قفل هوية الـMaster.");}
             else if(n.equals("Settings"))startActivity(new Intent(Settings.ACTION_SETTINGS));
             return true;
         });
