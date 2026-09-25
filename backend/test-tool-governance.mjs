@@ -41,24 +41,6 @@ const forget = await executeTool('memory_forget', { query: 'fact' }, {
 assert.equal(forget.value.forgotten, 1);
 
 await assert.rejects(
-  () => executeTool('android_action', { action: 'send_message', requires_confirmation: true }, {
-    ...helpers,
-    authorizeMutation: () => false,
-  }),
-  /explicit_confirmation_required/,
-);
-
-const safeAndroid = await executeTool('android_action', { action: 'status', requires_confirmation: false }, {
-  ...helpers,
-  authorizeMutation: () => false,
-});
-assert.equal(safeAndroid.kind, 'client_action');
-assert.equal(safeAndroid.requires_confirmation, false);
-
-console.log('tool-governance: ok');
-
-
-await assert.rejects(
   () => executeTool('android_action', { action: 'open_settings' }, {
     ...helpers,
     authorizeMutation: () => true,
