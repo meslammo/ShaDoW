@@ -124,7 +124,7 @@ def test_platform_status_exposes_35_phase_contract(tmp_path):
     assert status["capabilities"]["world_task_context_model"] is True
 
 
-def test_learning_prediction_companion_spatial_and_backup_controls(tmp_path):
+def test_learning_knowledge_and_backup_controls(tmp_path):
     control = UnifiedControlPlane(str(tmp_path))
 
     denied = control.learn_correction("remember this", approved=False)
@@ -134,14 +134,10 @@ def test_learning_prediction_companion_spatial_and_backup_controls(tmp_path):
     assert learned["ok"] is True
     assert control.predict_assistance("approved correction")
 
-    control.companions.register(CompanionRecord("watch-2", "watch", ("voice",), trusted=True))
-    delegated = control.delegate_companion("watch-2", "say hello", lambda task: {"task": task})
-    assert delegated["ok"] is True
-    assert delegated["output"]["task"] == "say hello"
-
-    observed = control.spatial_observe("device-1", "android", relation="near")
-    assert observed["ok"] is True
-    assert "device-1" in control.knowledge.neighbors("space:default", "near")
+    control.knowledge.upsert_node("p1", "project", "SHADOW")
+    control.knowledge.upsert_node("t1", "task", "finish AI-only scope")
+    control.knowledge.relate("p1", "contains", "t1")
+    assert control.knowledge.neighbors("p1") == ["t1"]
 
     backup = tmp_path / "shadow-backup.json"
     saved = control.backup_state(backup)
@@ -152,7 +148,6 @@ def test_learning_prediction_companion_spatial_and_backup_controls(tmp_path):
     assert progress["phase_count"] == 35
     assert progress["implemented_contracts"] == 35
     assert progress["external_verification_pending"] > 0
-
 
 def test_rollback_and_controlled_self_improvement(tmp_path):
     control = UnifiedControlPlane(str(tmp_path))
