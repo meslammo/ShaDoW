@@ -22,6 +22,8 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import java.io.*;
 import java.util.*;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /** MOD-73: unified Shadow agent surface with online-first tool execution and verification. */
 public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitListener {
@@ -39,7 +41,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private LinearLayout rootView,composerRef; private TextView plusButtonRef,sendButtonRef,micButtonRef,menuButtonRef,moreButtonRef;
     private boolean voiceTurnActive=false;
     private final Handler voiceHandler=new Handler(Looper.getMainLooper());
-    private ShadowBargeInMonitor bargeInMonitor; private MediaRecorder voiceprintRecorder; private File voiceprintFile;
+    private ShadowBargeInMonitor bargeInMonitor; private MediaRecorder voiceprintRecorder; private File voiceprintFile; private ShadowDeviceActivation deviceActivation;
     private static final String WAKE_PREFS="shadow_voice_prefs";
     private static final String WAKE_ENABLED="wake_enabled";
     private int dp(float n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}
@@ -49,7 +51,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void masterEvent(ShadowMasterEventBus.Type type,String request,String route,String detail,boolean ok){if(orchestrator!=null)orchestrator.events().publish(new ShadowMasterEventBus.Event(type,request,route,detail,ok));}
     private TextView tv(String s,float z){TextView v=new TextView(this);v.setText(s);v.setTextColor(TEXT);v.setTextSize(z);return v;}
     private void stage(String s){if(status!=null){status.setText(ShadowProcessIndicators.render(s));status.setTextColor(reasoningMode?REASON_RED:Color.rgb(112,210,160));}if(liveVoice!=null&&reasoningMode)liveVoice.setTextColor(REASON_RED);}
-    @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);orchestrator=new ShadowMasterOrchestrator();identity=new ShadowVoiceIdentityGateway(this);remotes=new ShadowRemoteController(this);developmentAgent=new ShadowDevelopmentAgent(this);pythonBridge=new ShadowPythonRuntimeBridge(this);spatialRadar=new ShadowRadarController(this,orchestrator.events());masterCycle=new ShadowMasterCycle();companionRegistry=new ShadowCompanionRegistry(this);verificationLedger=new ShadowVerificationLedger(this);recoveryLedger=new ShadowRecoveryLedger(this);lifecycleBridge=new ShadowMasterLifecycleBridge(orchestrator.events(),core,developmentAgent,remotes,pythonBridge,companionRegistry,verificationLedger,recoveryLedger,masterCycle);
+    @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);core=new ShadowCore(this);cloud=new ShadowCloudClient(this);githubAuth=new ShadowGithubAuth(this);orchestrator=new ShadowMasterOrchestrator();identity=new ShadowVoiceIdentityGateway(this);deviceActivation=new ShadowDeviceActivation(this);remotes=new ShadowRemoteController(this);developmentAgent=new ShadowDevelopmentAgent(this);pythonBridge=new ShadowPythonRuntimeBridge(this);spatialRadar=new ShadowRadarController(this,orchestrator.events());masterCycle=new ShadowMasterCycle();companionRegistry=new ShadowCompanionRegistry(this);verificationLedger=new ShadowVerificationLedger(this);recoveryLedger=new ShadowRecoveryLedger(this);lifecycleBridge=new ShadowMasterLifecycleBridge(orchestrator.events(),core,developmentAgent,remotes,pythonBridge,companionRegistry,verificationLedger,recoveryLedger,masterCycle);
         voiceState=new ShadowVoiceStateMachine(handsFreeVoice,new ShadowVoiceStateMachine.Callback(){
             public void onListening(){runOnUiThread(()->{ShadowWakeWordService.pauseListening();stage("listening");if(liveVoice!=null){liveVoice.setVisibility(View.VISIBLE);if(liveVoice.getText().toString().isEmpty())liveVoice.setText("🎙 Listening…");}if(handsFreeVoice&&!voiceTurnActive){voiceTurnActive=true;}if(handsFreeVoice&&!voice.isActive())voiceHandler.postDelayed(()->{if(handsFreeVoice&&!isFinishing()&&!voice.isActive())listen();},250);});}
             public void onProcessing(){runOnUiThread(()->{stage("thinking");if(liveVoice!=null){liveVoice.setVisibility(View.VISIBLE);liveVoice.setText("⏳ Processing…");}});}
@@ -84,7 +86,136 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private void assistantMenu(String s){PopupMenu p=new PopupMenu(this,findViewById(android.R.id.content));p.getMenu().add("⧉ نسخ");p.getMenu().add("↗ مشاركة");p.getMenu().add("🔊 قراءة بصوت");p.getMenu().add("⏹ إيقاف الصوت");p.setOnMenuItemClickListener(i->{String n=i.getTitle().toString();if(n.contains("نسخ"))copyText(s);else if(n.contains("مشاركة"))shareText(s);else if(n.contains("قراءة"))speakNow(s);else {stopCurrentTts();voiceState.userStoppedListening();}return true;});p.show();}
     private void system(String s){TextView v=tv(s,11);v.setTextColor(MUTED);messages.addView(v);bottom();}
     private void bottom(){messages.post(()->{ViewParent p=messages.getParent();if(p instanceof ScrollView)((ScrollView)p).fullScroll(View.FOCUS_DOWN);});}
-    private void check(){new Thread(()->{cloudOnline=cloud.health();runOnUiThread(()->stage(cloudOnline?"online":"reconnecting"));}).start();}
+    private void check(){
+        new Thread(()->{
+            cloudOnline=cloud.health();
+            if(cloudOnline){
+                bootstrapShadowDevice();
+            }
+            runOnUiThread(()->stage(cloudOnline?"online":"reconnecting"));
+        }).start();
+    }
+
+    private void bootstrapShadowDevice(){
+        try{
+            if(!deviceActivation.isActivated()){
+                JSONObject registered=cloud.registerDevice(deviceActivation,"");
+                String token=registered.optString("activation_token","").trim();
+                String instance=registered.optString("instance_id","").trim();
+                if(!token.isEmpty()&&!instance.isEmpty()){
+                    deviceActivation.saveActivation(instance,token);
+                }
+            }
+            if(deviceActivation.isActivated()) syncShadowDevice();
+        }catch(Throwable ignored){}
+    }
+
+    private void syncShadowDevice(){
+        try{
+            JSONObject manifest=new JSONObject();
+            manifest.put("platform","android");
+            manifest.put("app_version",BuildConfig.VERSION_NAME);
+            manifest.put("phase_count",35);
+            manifest.put("core_count",150);
+
+            JSONArray memory=new JSONArray();
+            try{
+                JSONArray exported=new JSONArray(pythonBridge.exportSyncMemory());
+                for(int i=0;i<exported.length()&&i<100;i++) memory.put(exported.optJSONObject(i));
+            }catch(Throwable ignored){}
+
+            JSONObject response=cloud.syncShadowDevice(
+                deviceActivation,
+                new JSONObject(),
+                memory,
+                manifest
+            );
+            deviceActivation.saveSyncSnapshot(response.toString());
+
+            JSONObject sync=response.optJSONObject("sync");
+            if(sync!=null){
+                JSONArray remoteMemory=sync.optJSONArray("memory_facts");
+                if(remoteMemory!=null&&remoteMemory.length()>0) pythonBridge.applySyncedMemory(remoteMemory.toString());
+            }
+        }catch(Throwable ignored){}
+    }
+
+    private void showDeviceLinkMenu(){
+        if(deviceActivation==null||!deviceActivation.isActivated()){
+            assistant("الجهاز لسه مش متفعّل على Shadow Cloud. وصّله بالإنترنت وافتح Shadow مرة.");
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("🔗 ربط Shadow بجهاز آخر")
+            .setMessage("اختار العملية:")
+            .setPositiveButton("إنشاء كود لفون جديد",(d,w)->startShadowLink())
+            .setNegativeButton("إدخال كود من فون آخر",(d,w)->askShadowLinkCode())
+            .show();
+    }
+
+    private void startShadowLink(){
+        new Thread(()->{
+            try{
+                JSONObject result=cloud.startShadowLink(deviceActivation);
+                String code=result.optString("code","");
+                String expires=result.optString("expires_at","");
+                runOnUiThread(()->new AlertDialog.Builder(this)
+                    .setTitle("كود ربط Shadow")
+                    .setMessage(code+"\n\nالكود صالح مرة واحدة ولمدة قصيرة حتى "+expires+" .\nخليه معاك على الفون الجديد.")
+                    .setPositiveButton("تمام",null)
+                    .show());
+            }catch(Throwable e){runOnUiThread(()->assistant("تعذر إنشاء كود الربط: "+e.getMessage()));}
+        }).start();
+    }
+
+    private void askShadowLinkCode(){
+        final EditText codeInput=new EditText(this);
+        codeInput.setHint("مثال: A1B2C3D4");
+        codeInput.setSingleLine(true);
+        new AlertDialog.Builder(this)
+            .setTitle("إدخال كود ربط Shadow")
+            .setView(codeInput)
+            .setPositiveButton("ربط الآن",(d,w)->completeShadowLink(codeInput.getText().toString().trim()))
+            .setNegativeButton("إلغاء",null)
+            .show();
+    }
+
+    private void completeShadowLink(String code){
+        new Thread(()->{
+            try{
+                JSONObject result=cloud.completeShadowLink(deviceActivation,code);
+                String token=result.optString("activation_token","").trim();
+                String instance=result.optString("instance_id","").trim();
+                if(token.isEmpty()||instance.isEmpty()) throw new IllegalStateException("link_activation_failed");
+                deviceActivation.saveActivation(instance,token);
+                syncShadowDevice();
+                JSONObject sync=new JSONObject(deviceActivation.syncSnapshot()).optJSONObject("sync");
+                int pending=sync==null?0:sync.optJSONArray("pending_gates")==null?0:sync.optJSONArray("pending_gates").length();
+                runOnUiThread(()->assistant("تم ربط الفون بنفس Shadow Instance ✓\nالجهاز اتعرّف، والحالة المشتركة اتسحبت.\nGates لسه ناقصة: "+pending));
+            }catch(Throwable e){runOnUiThread(()->assistant("ربط Shadow فشل: "+String.valueOf(e.getMessage())));}
+        }).start();
+    }
+
+    private void showAcceptanceGates(){
+        if(deviceActivation==null||!deviceActivation.isActivated()){
+            assistant("فعّل الجهاز/اربطه الأول عشان نشوف الـAcceptance Gates المشتركة.");
+            return;
+        }
+        new Thread(()->{
+            try{
+                JSONObject r=cloud.platformStatus().has("external_verification_gates") ? cloud.platformStatus() : new JSONObject();
+                JSONObject sync=new JSONObject(deviceActivation.syncSnapshot()).optJSONObject("sync");
+                JSONArray pending=sync==null?null:sync.optJSONArray("pending_gates");
+                StringBuilder b=new StringBuilder("REAL-WORLD ACCEPTANCE GATES\\n\\n");
+                if(pending==null||pending.length()==0) b.append("مفيش Gates معلقة في الـsync الحالي.\\n");
+                else for(int i=0;i<pending.length();i++){JSONObject g=pending.optJSONObject(i);if(g!=null)b.append("• ").append(g.optString("gate_id")).append(" — ").append(g.optString("status")).append("\\n");}
+                b.append("\\nالاختبارات الواقعية لازم تتعمل على الجهاز/البيئة الفعلية قبل تسجيلها Passed.");
+                String msg=b.toString();
+                runOnUiThread(()->assistant(msg));
+            }catch(Throwable e){runOnUiThread(()->assistant("تعذر قراءة Acceptance Gates: "+e.getMessage()));}
+        }).start();
+    }
+
     private boolean handleIdentityCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("تحقق من صوتي")||x.contains("تحقق بصوتي")||x.equals("verify my voice")||x.equals("voiceprint verify")){startVoiceprintVerification();return true;}if(x.contains("حالة الهوية")||x.contains("حاله الهويه")||x.equals("identity status")||x.equals("voice identity status")){assistant(identity.status());return true;}if(x.contains("اقفل الهوية")||x.contains("اقفل الهويه")||x.equals("lock identity")||x.equals("logout shadow")){identity.lock();assistant("تم قفل هوية الـMaster. الأوامر الحساسة هتحتاج كلمة السر تاني.");return true;}if(x.startsWith("عيّن كلمة السر:")||x.startsWith("عين كلمة السر:")||x.startsWith("عيّن كلمه السر:")||x.startsWith("عين كلمه السر:")||x.startsWith("set passphrase:")||x.startsWith("set password:")){String p=identity.extractPassphrase(s);if(identity.enroll(p)){assistant("تم تسجيل كلمة سر الـMaster محليًا بشكل آمن. مش هخزن الكلمة نفسها، فقط SHA-256.\nقول: كلمة السر: <الكلمة> عند طلب أمر حساس.");}else assistant("كلمة السر لازم تكون 6 أحرف/رموز على الأقل.");return true;}return false;}
     private void startVoiceprintVerification(){
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},MIC);return;}
