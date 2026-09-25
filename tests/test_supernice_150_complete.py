@@ -32,7 +32,7 @@ def test_optional_device_cores_never_block_startup():
             CoreRequest(f"CORE-{i:03d}", "health check", confirmed=True)
         )
         assert result.ok is True
-        assert result.status == "disabled_optional"
+        assert result.status == "disabled_out_of_scope"
         assert result.metadata["startup_blocking"] is False
 
 
