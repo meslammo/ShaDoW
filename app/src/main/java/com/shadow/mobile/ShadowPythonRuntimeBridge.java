@@ -117,7 +117,7 @@ public final class ShadowPythonRuntimeBridge {
             PyObject result=androidRuntime().callAttr("shadow_platform_status",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
             return result.toString();
         }catch(Throwable e){
-            return "{\\"phase_count\\":35,\\"core_count\\":150,\\"status\\":\\"runtime_unavailable\\"}";
+            return "{\"phase_count\":35,\"core_count\":150,\"status\":\"runtime_unavailable\"}";
         }
     }
 
@@ -127,7 +127,7 @@ public final class ShadowPythonRuntimeBridge {
             PyObject result=androidRuntime().callAttr("shadow_diagnostics",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
             return result.toString();
         }catch(Throwable e){
-            return "{\\"phase_count\\":35,\\"status\\":\\"runtime_unavailable\\"}";
+            return "{\"phase_count\":35,\"status\":\"runtime_unavailable\"}";
         }
     }
 
