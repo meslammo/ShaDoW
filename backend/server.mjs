@@ -230,6 +230,10 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
       status: pending ? 'action_pending' : 'completed',
       trace_id: createHash('sha256').update(message).digest('hex').slice(0, 16),
       startup_blocking: false,
+      phase_count: 35,
+      core_count: 150,
+      online_only_brain: true,
+      offline_ai_removed: true,
       stages: [
         { stage: 'understand', status: 'executed' },
         { stage: 'model_route', status: 'executed', provider: result.provider || null, model: result.model || null, attempts: result.attempts || [] },
