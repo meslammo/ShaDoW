@@ -7,7 +7,7 @@ def test_mod89_backend_streaming_route_and_memory_recall():
     activity = Path("app/src/main/java/com/shadow/mobile/JarvisMainActivity.java").read_text(encoding="utf-8")
     assert "export async function streamAgent" in router
     assert "async function memoryPrompt" in router
-    assert "streamAgent" in server
+    assert "streamUnifiedPipeline" in server
     assert "/v1/chat/stream" in server
     assert "'Content-Type': 'text/event-stream" in server
     assert "streamChat" in client
