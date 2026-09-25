@@ -23,7 +23,6 @@ public final class ShadowCloudClient {
 
     public CloudReply chat(String message)throws Exception{return chat(message,"none");}
     public CloudReply chat(String message,String reasoningEffort)throws Exception{
-        if(ShadowOnlineExecutionRouter.requiresLocalExecution(message)) throw new LocalExecutionRequiredException();
         return runChat(message, null, null, reasoningEffort);
     }
     public CloudReply continueAgent(String provider,String responseId,String toolCallId,String originalMessage,String output)throws Exception{return continueAgent(provider,responseId,toolCallId,originalMessage,output,"none");}
