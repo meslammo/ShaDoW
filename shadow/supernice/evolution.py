@@ -299,6 +299,118 @@ class SimulationEngine:
             })
         return result
 
+    def estimate_impact(self, actions: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+        items = self.preview(actions, confirmed=False)
+        risk = 0
+        for item in items:
+            if item["requires_confirmation"]:
+                risk += 2
+            if not item["allowed"]:
+                risk += 1
+        return {
+            "action_count": len(items),
+            "confirmation_count": sum(1 for x in items if x["requires_confirmation"]),
+            "blocked_count": sum(1 for x in items if not x["allowed"]),
+            "impact_score": risk,
+            "side_effects_executed": False,
+        }
+
+
+@dataclass
+class LongTaskRecord:
+    task_id: str
+    status: str = "created"
+    checkpoint_id: Optional[str] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class LongTaskManager:
+    def __init__(self, recovery: RecoveryManager) -> None:
+        self.recovery = recovery
+        self.tasks: dict[str, LongTaskRecord] = {}
+
+    def start(self, task_id: str, state: Mapping[str, Any]) -> LongTaskRecord:
+        checkpoint = self.recovery.checkpoint(task_id, state)
+        record = LongTaskRecord(task_id, "running", checkpoint)
+        self.tasks[task_id] = record
+        return record
+
+    def pause(self, task_id: str, state: Mapping[str, Any]) -> LongTaskRecord:
+        record = self.tasks.get(task_id)
+        if record is None:
+            raise KeyError("task_not_found")
+        record.checkpoint_id = self.recovery.checkpoint(task_id, state)
+        record.status = "paused"
+        return record
+
+    def resume(self, task_id: str) -> dict[str, Any]:
+        record = self.tasks.get(task_id)
+        if record is None or not record.checkpoint_id:
+            raise KeyError("task_checkpoint_not_found")
+        record.status = "running"
+        return self.recovery.resume(record.checkpoint_id)
+
+    def complete(self, task_id: str) -> LongTaskRecord:
+        record = self.tasks.get(task_id)
+        if record is None:
+            raise KeyError("task_not_found")
+        record.status = "completed"
+        return record
+
+    def cancel(self, task_id: str) -> LongTaskRecord:
+        record = self.tasks.get(task_id)
+        if record is None:
+            raise KeyError("task_not_found")
+        record.status = "cancelled"
+        return record
+
+
+@dataclass(frozen=True)
+class AutomationWorkflow:
+    name: str
+    trigger: str
+    steps: tuple[WorkflowStep, ...]
+    enabled: bool = True
+
+
+class AutomationEngine:
+    def __init__(self) -> None:
+        self._workflows: dict[str, AutomationWorkflow] = {}
+
+    def register(self, workflow: AutomationWorkflow) -> None:
+        if not workflow.name or not workflow.trigger:
+            raise ValueError("workflow name and trigger are required")
+        self._workflows[workflow.name] = workflow
+
+    def matching(self, trigger: str) -> list[AutomationWorkflow]:
+        return [w for w in self._workflows.values() if w.enabled and w.trigger == trigger]
+
+    def manifest(self) -> list[dict[str, Any]]:
+        return [
+            {"name": w.name, "trigger": w.trigger, "steps": [s.name for s in w.steps], "enabled": w.enabled}
+            for w in self._workflows.values()
+        ]
+
+
+class PatternEngine:
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+
+    def observe(self, pattern: str) -> int:
+        key = str(pattern or "").strip()
+        if not key:
+            return 0
+        self._counts[key] = self._counts.get(key, 0) + 1
+        return self._counts[key]
+
+    def suggestions(self, minimum_count: int = 2, limit: int = 5) -> list[dict[str, Any]]:
+        rows = [
+            {"pattern": k, "count": v}
+            for k, v in self._counts.items()
+            if v >= max(1, int(minimum_count))
+        ]
+        return sorted(rows, key=lambda x: (-x["count"], x["pattern"]))[:max(1, int(limit))]
+
 
 class Diagnostics:
     def __init__(self, workspace: str, tool_count: int) -> None:
@@ -332,6 +444,24 @@ class ContinuousVerifier:
         ok = predicate(expected, actual) if predicate else expected == actual
         return {"ok": bool(ok), "expected": expected, "actual": actual}
 
+    def loop(
+        self,
+        expected: Any,
+        observe: Callable[[int], Any],
+        *,
+        predicate: Optional[Callable[[Any, Any], bool]] = None,
+        max_rounds: int = 3,
+    ) -> dict[str, Any]:
+        checks: list[dict[str, Any]] = []
+        for round_no in range(1, max(1, min(int(max_rounds), 8)) + 1):
+            actual = observe(round_no)
+            check = self.verify(expected, actual, predicate=predicate)
+            check["round"] = round_no
+            checks.append(check)
+            if check["ok"]:
+                return {"ok": True, "rounds": checks}
+        return {"ok": False, "rounds": checks}
+
 
 class UnifiedControlPlane:
     """Cross-cutting execution services consumed by the unified orchestrator."""
@@ -352,6 +482,9 @@ class UnifiedControlPlane:
         self.devices = DeviceFederation()
         self.knowledge = KnowledgeGraph()
         self.recovery = RecoveryManager()
+        self.long_tasks = LongTaskManager(self.recovery)
+        self.automation = AutomationEngine()
+        self.patterns = PatternEngine()
         self.simulation = SimulationEngine(self.permissions)
         self.verifier = ContinuousVerifier()
         self.diagnostics_engine = Diagnostics(workspace, len(self.tool_registry._tools))
@@ -427,6 +560,49 @@ class UnifiedControlPlane:
 
     def simulate_actions(self, actions: Iterable[Mapping[str, Any]], *, confirmed: bool = False) -> list[dict[str, Any]]:
         return self.simulation.preview(actions, confirmed=confirmed)
+
+    def simulate_impact(self, actions: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+        return self.simulation.estimate_impact(actions)
+
+    def start_long_task(self, task_id: str, state: Mapping[str, Any]) -> dict[str, Any]:
+        record = self.long_tasks.start(task_id, state)
+        self.audit("long_task.started", metadata={"task_id": task_id})
+        return record.__dict__.copy()
+
+    def pause_long_task(self, task_id: str, state: Mapping[str, Any]) -> dict[str, Any]:
+        record = self.long_tasks.pause(task_id, state)
+        self.audit("long_task.paused", metadata={"task_id": task_id})
+        return record.__dict__.copy()
+
+    def resume_long_task(self, task_id: str) -> dict[str, Any]:
+        state = self.long_tasks.resume(task_id)
+        self.audit("long_task.resumed", metadata={"task_id": task_id})
+        return {"ok": True, "state": state, "task_id": task_id}
+
+    def complete_long_task(self, task_id: str) -> dict[str, Any]:
+        record = self.long_tasks.complete(task_id)
+        self.audit("long_task.completed", metadata={"task_id": task_id})
+        return record.__dict__.copy()
+
+    def register_automation(self, name: str, trigger: str, steps: Iterable[WorkflowStep], *, enabled: bool = True) -> dict[str, Any]:
+        workflow = AutomationWorkflow(name, trigger, tuple(steps), enabled)
+        self.automation.register(workflow)
+        return {"ok": True, "name": name, "trigger": trigger, "steps": [s.name for s in workflow.steps], "enabled": enabled}
+
+    def run_automation(self, trigger: str, *, initial: Optional[Mapping[str, Any]] = None) -> list[WorkflowResult]:
+        results = []
+        for workflow in self.automation.matching(trigger):
+            result = self.run_workflow(workflow.steps, initial=initial)
+            results.append(result)
+        return results
+
+    def observe_pattern(self, pattern: str) -> int:
+        count = self.patterns.observe(pattern)
+        self.audit("pattern.observed", metadata={"pattern": pattern, "count": count})
+        return count
+
+    def pattern_suggestions(self, minimum_count: int = 2, limit: int = 5) -> list[dict[str, Any]]:
+        return self.patterns.suggestions(minimum_count, limit)
 
     def diagnostics(self) -> dict[str, Any]:
         return self.diagnostics_engine.run()
@@ -583,6 +759,9 @@ class UnifiedControlPlane:
             "skills": len(self.skills._skills),
             "trusted_companions": len(self.companions.trusted()),
             "trusted_online_devices": len(self.devices.discover()),
+            "automation_workflows": len(self.automation._workflows),
+            "long_running_tasks": len(self.long_tasks.tasks),
+            "observed_patterns": len(self.patterns._counts),
             "capabilities": {
                 "learning": True,
                 "predictive_assistance": True,
