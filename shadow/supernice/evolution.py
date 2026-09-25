@@ -478,9 +478,8 @@ class UnifiedControlPlane:
         for spec in self.tool_registry._tools.values():
             self.executor.register(spec.name, spec.handler)
         self.skills = SkillRegistry()
-        self.companions = CompanionRegistry()
-        self.devices = DeviceFederation()
         self.knowledge = KnowledgeGraph()
+        self.external_device_control = False
         self.recovery = RecoveryManager()
         self.long_tasks = LongTaskManager(self.recovery)
         self.automation = AutomationEngine()
@@ -629,53 +628,13 @@ class UnifiedControlPlane:
             for item in hits
         ]
 
-    def delegate_companion(
-        self,
-        companion_id: str,
-        task: str,
-        handler: Optional[Callable[[str], Any]] = None,
-        *,
-        confirmed: bool = False,
-    ) -> dict[str, Any]:
-        record = self.companions.get(companion_id)
-        if record is None:
-            return {"ok": False, "status": "companion_not_found"}
-        if not record.trusted:
-            return {"ok": False, "status": "companion_not_trusted"}
-        if handler is None:
-            return {
-                "ok": True,
-                "status": "delegation_ready",
-                "companion_id": companion_id,
-                "task": str(task or ""),
-            }
-        try:
-            output = handler(str(task or ""))
-            self.audit("companion.delegated", outcome="ok", metadata={"companion_id": companion_id})
-            return {"ok": True, "status": "completed", "companion_id": companion_id, "output": output}
-        except Exception as exc:
-            self.audit("companion.failed", outcome="failed", metadata={"companion_id": companion_id, "error_type": type(exc).__name__})
-            return {"ok": False, "status": "companion_failed", "error_type": type(exc).__name__}
+    def delegate_companion(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        self.audit("companion.disabled", outcome="not_applicable", metadata={"reason": "ai_only_scope"})
+        return {"ok": False, "status": "disabled_by_scope", "device_control": False}
 
-    def spatial_observe(
-        self,
-        entity_id: str,
-        kind: str,
-        *,
-        relation: str = "near",
-        space_id: str = "space:default",
-        label: Optional[str] = None,
-        metadata: Optional[Mapping[str, Any]] = None,
-    ) -> dict[str, Any]:
-        sid = str(space_id or "space:default")
-        eid = str(entity_id or "").strip()
-        if not eid:
-            return {"ok": False, "status": "entity_required"}
-        self.knowledge.upsert_node(sid, "space", sid)
-        self.knowledge.upsert_node(eid, str(kind or "entity"), str(label or eid), dict(metadata or {}))
-        edge = self.knowledge.relate(sid, str(relation or "near"), eid)
-        self.audit("spatial.observed", metadata={"space_id": sid, "entity_id": eid, "relation": edge.relation})
-        return {"ok": True, "status": "observed", "space_id": sid, "entity_id": eid, "relation": edge.relation}
+    def spatial_observe(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        self.audit("spatial.disabled", outcome="not_applicable", metadata={"reason": "ai_only_scope"})
+        return {"ok": False, "status": "disabled_by_scope", "device_control": False}
 
     def backup_state(self, path: str | Path) -> dict[str, Any]:
         target = Path(path)
@@ -686,8 +645,6 @@ class UnifiedControlPlane:
             "memory": json.loads(self.memory.export()),
             "knowledge": self.knowledge.export(),
             "skills": self.skills.manifest(),
-            "companions": self.companions.snapshot(),
-            "devices": self.devices.snapshot(),
         }
         target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"ok": True, "path": str(target), "memory_items": len(payload["memory"])}
@@ -757,16 +714,16 @@ class UnifiedControlPlane:
             "knowledge_nodes": len(self.knowledge.nodes),
             "knowledge_edges": len(self.knowledge.edges),
             "skills": len(self.skills._skills),
-            "trusted_companions": len(self.companions.trusted()),
-            "trusted_online_devices": len(self.devices.discover()),
+            "external_device_control": False,
             "automation_workflows": len(self.automation._workflows),
             "long_running_tasks": len(self.long_tasks.tasks),
             "observed_patterns": len(self.patterns._counts),
             "capabilities": {
                 "learning": True,
                 "predictive_assistance": True,
-                "companion_delegation": True,
-                "spatial_world_model": True,
+                "agent_capability_layer": True,
+                "world_task_context_model": True,
+                "external_device_control": False,
                 "simulation": True,
                 "backup_restore": True,
                 "controlled_self_improvement": True,
