@@ -1,9 +1,8 @@
 """SHADOW Super Nice - full 12-step master pipeline.
 
 This layer composes the existing TwelveCoreRuntime + 150-Core runtime into a
-single deterministic execution contract. External AI providers, GitHub writes,
-and physical-device actions stay behind their governed adapters; this module
-never fabricates their success.
+single deterministic execution contract. External AI providers, GitHub writes, web access and software tools stay behind
+governed adapters; physical-device control is outside the active Shadow scope.
 """
 from __future__ import annotations
 
@@ -42,10 +41,8 @@ class SuperNiceMasterPipeline:
         development = bool(_DEV_RE.search(text))
         voice = bool(_VOICE_RE.search(text))
         image = bool(_IMAGE_RE.search(text))
-        device = False
         risky = bool(_RISKY_RE.search(text))
         if development: intent, selected = "development", "CORE-079"
-        # Device-control intent is intentionally not an active Shadow capability.
         elif fresh: intent, selected = "research", "CORE-064"
         elif image: intent, selected = "multimodal", "CORE-099"
         else: intent, selected = "conversation", "CORE-024"
