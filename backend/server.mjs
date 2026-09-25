@@ -152,7 +152,6 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
   if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
   if (message.length > 12000) return res.status(413).json({ ok: false, error: 'message_too_large' });
   const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
-  const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
   const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
   const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   res.statusCode = 200;
@@ -210,7 +209,6 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
     const usedWeb = Boolean(result.usedWeb);
     const pending = result.pendingAction || null;
     const development = /(github|git|repo|repository|code|coding|build|apk|test|commit|push|pr|كود|برمجة|جيت هب)/i.test(message);
-    const device = /(phone|mobile|android|device|screen|click|tap|type|open app|موبايل|تليفون|جهاز|الشاشة|اضغط|اكتب|افتح)/i.test(message);
     const fresh = /(latest|today|now|current|news|update|جديد|دلوقتي|حالي|آخر|اخر|النهارده|بحث|ابحث|دور)/i.test(message);
     const pipeline = {
       status: pending ? 'action_pending' : 'completed',
