@@ -4,6 +4,7 @@ def test_mod75_master_route_and_reasoning_contract():
     p = Path("app/src/main/java/com/shadow/mobile/JarvisMainActivity.java").read_text(encoding="utf-8")
     assert "ShadowMasterOrchestrator" in p
     assert "Think Hard" in p
+    assert "⚡ Full 35-Phase Master" in p
     assert "مش هيستخدم نسخة أوفلاين" in p
     assert "Deep Think" in p
     assert "reasoningEffort" in p
