@@ -215,14 +215,42 @@ def supernice_run(
     confirmed: bool = False,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    from shadow.supernice.master import run_master_pipeline
-    return run_master_pipeline(
+    """Run the unified 150-Core online-only orchestration loop.
+
+    This replaces the older wrapper-only 12-stage route while preserving the
+    public function name used by Android/Chaquopy.
+    """
+    _install_shadow_package_alias()
+    from shadow.supernice.orchestrator import Unified150Orchestrator
+
+    orchestrator = Unified150Orchestrator(home or os.getcwd())
+    ctx = dict(context or {})
+    ctx.update({
+        "authenticated": bool(authenticated),
+        "confirmed": bool(confirmed),
+        "source": str(ctx.get("source") or "android"),
+    })
+    result = orchestrator.run(
         str(request or ""),
-        home or os.getcwd(),
-        authenticated=bool(authenticated),
+        context=ctx,
         confirmed=bool(confirmed),
-        context=context if isinstance(context, dict) else {},
     )
+    return result.to_dict()
+
+
+def shadow_platform_status(home: Optional[str] = None) -> Dict[str, Any]:
+    _install_shadow_package_alias()
+    from shadow.supernice.orchestrator import Unified150Orchestrator
+    return Unified150Orchestrator(home or os.getcwd()).control.platform_status()
+
+
+def shadow_diagnostics(home: Optional[str] = None) -> Dict[str, Any]:
+    _install_shadow_package_alias()
+    from shadow.supernice.orchestrator import Unified150Orchestrator
+    orchestrator = Unified150Orchestrator(home or os.getcwd())
+    report = orchestrator.control.diagnostics()
+    report["reachability"] = orchestrator.audit_reachability(confirmed=True)
+    return report
 
 
 def final_status(home: Optional[str] = None) -> Dict[str, Any]:
