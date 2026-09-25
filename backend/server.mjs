@@ -5,7 +5,8 @@ import cors from 'cors';
 import { applyFiles, createPullRequest, runDevelopmentPipeline, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
-import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router.mjs';
+import { providerStatus, memoryStatus } from './ai-router.mjs';
+import { runUnifiedPipeline, streamUnifiedPipeline, platformContract } from './shadow-pipeline.mjs';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -128,6 +129,11 @@ app.get('/v1/platform/status', async (_req, res) => {
   }
 });
 
+app.get('/v1/pipeline/status', async (_req, res) => {
+  try { return res.json({ ok: true, ...(await platformContract()) }); }
+  catch { return res.status(503).json({ ok: false, error: 'pipeline_status_failed' }); }
+});
+
 app.post('/v1/chat', rateLimit, async (req, res) => {
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
@@ -139,8 +145,8 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const allowedProviders = ['openai', 'xai', 'grok', 'deepseek', 'mistral', 'anthropic', 'gemini'];
   const preferred = allowedProviders.includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
-    const result = await runAgent({ message, previousResponseId: previous, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
+    const result = await runUnifiedPipeline({ message, previousResponseId: previous, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [], trace: result.trace || null });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
     return res.status(503).json({ ok: false, error: 'agent_failed' });
@@ -164,7 +170,7 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
   if (typeof res.flushHeaders === 'function') res.flushHeaders();
   const send = (payload) => { if (!res.writableEnded) res.write('data: ' + JSON.stringify(payload) + '\n\n'); };
   try {
-    const result = await streamAgent({
+    const result = await streamUnifiedPipeline({
       message,
       previousResponseId: previous,
       reasoningEffort,
@@ -200,7 +206,7 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
     pipeline: { status: 'confirmation_required', stage: 'security_approval', authenticated, confirmed, startup_blocking: false },
   });
   try {
-    const result = await runAgent({
+    const result = await runUnifiedPipeline({
       message,
       preferredProvider: 'auto',
       reasoningEffort: String(req.body?.reasoning_effort || 'none').toLowerCase(),
@@ -354,7 +360,7 @@ app.post('/v1/development/plan', rateLimit, async (req, res) => {
   const project = typeof req.body?.project === 'string' ? req.body.project.slice(0, 12000) : '';
   if (!request) return res.status(400).json({ ok: false, error: 'request_required' });
   try {
-    const result = await runAgent({ message: `Create a safe software implementation plan only. Do not claim edits executed. Request: ${request}\nProject: ${project}`, preferredProvider: 'auto' });
+    const result = await runUnifiedPipeline({ message: `Create a safe software implementation plan only. Do not claim edits executed. Request: ${request}\nProject: ${project}`, preferredProvider: 'auto' });
     res.json({ ok: true, plan: result.answer, approval_required: true, execution_available: developmentStatus().configured });
   } catch { res.status(503).json({ ok: false, error: 'development_ai_unavailable' }); }
 });
@@ -522,4 +528,8 @@ app.post('/v1/speech', rateLimit, async (req, res) => {
   }
 });
 
-app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
+export { app };
+
+if (process.env.SHADOW_START_SERVER !== 'false') {
+  app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
+}
