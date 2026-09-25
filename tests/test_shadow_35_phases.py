@@ -209,3 +209,21 @@ def test_35_phase_roadmap_is_device_independent():
     assert "cross-device shadow" not in joined
     assert "federated device intelligence" not in joined
     assert "spatial world model" not in joined
+
+
+def test_production_backup_restore_round_trip(tmp_path):
+    source = UnifiedControlPlane(str(tmp_path / "source"))
+    memory_id = source.remember("approved production restore marker", tags=("backup-e2e",), source="test")
+    assert memory_id
+
+    backup = tmp_path / "shadow-backup.json"
+    saved = source.backup_state(backup)
+    assert saved["ok"] is True
+    assert backup.exists()
+
+    restored = UnifiedControlPlane(str(tmp_path / "restored"))
+    result = restored.restore_memory_from_backup(backup)
+    assert result["ok"] is True
+    assert result["restored_memory_items"] >= 1
+    assert restored.recall("production restore marker")
+    assert any(x["event"] == "backup.restored" for x in restored.audit_log.read())
