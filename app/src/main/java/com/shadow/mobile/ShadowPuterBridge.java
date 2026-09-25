@@ -51,8 +51,15 @@ public final class ShadowPuterBridge {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return false; }
             @Override public void onPageFinished(WebView view, String url) {
                 if (!ready) {
-                    ready = true;
-                    synchronized (readyLock) { readyLock.notifyAll(); }
+                    view.evaluateJavascript(
+                        "(typeof puter!=='undefined') ? '1' : '0'",
+                        value -> {
+                            if ("1".equals(value) || ""1"".equals(value)) {
+                                ready = true;
+                                synchronized (readyLock) { readyLock.notifyAll(); }
+                            }
+                        }
+                    );
                 }
             }
         });
@@ -129,7 +136,7 @@ public final class ShadowPuterBridge {
 
     private void evaluateChat(String id, String message, String model, String reasoningEffort, boolean stream) throws Exception {
         waitReady(15000);
-        String payload = "{\"message\":" + q(message) + ",\"model\":" + q(model == null || model.isEmpty() ? "gpt-5.6-luna" : model)
+        String payload = "{\"message\":" + q(message) + ",\"model\":" + q(model == null || model.isEmpty() ? "openai/gpt-5.6-luna" : model)
                 + ",\"reasoning_effort\":" + q(reasoningEffort == null ? "none" : reasoningEffort)
                 + ",\"stream\":" + stream + "}";
         eval("shadowChat(" + q(id) + "," + q(payload) + ");");
@@ -224,7 +231,7 @@ public final class ShadowPuterBridge {
         }
     }
 
-    private String pModel(String id) { return "gpt-5.6-luna"; }
+    private String pModel(String id) { return "openai/gpt-5.6-luna"; }
 
     /** Tiny self-contained JSON string escaper; avoids another runtime dependency. */
     private static final class JSONObjectStringQuote {
