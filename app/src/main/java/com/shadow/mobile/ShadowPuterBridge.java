@@ -157,12 +157,22 @@ public final class ShadowPuterBridge {
 
     public void show() {
         activity.runOnUiThread(() -> {
+            ViewGroup.LayoutParams lp = webView.getLayoutParams();
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            webView.setLayoutParams(lp);
             webView.setVisibility(View.VISIBLE);
             webView.bringToFront();
         });
     }
     public void hide() {
-        activity.runOnUiThread(() -> webView.setVisibility(View.GONE));
+        activity.runOnUiThread(() -> {
+            ViewGroup.LayoutParams lp = webView.getLayoutParams();
+            lp.width = 1;
+            lp.height = 1;
+            webView.setLayoutParams(lp);
+            webView.setVisibility(View.GONE);
+        });
     }
     public void destroy() {
         for (Pending p : pending.values()) { p.error = "bridge_destroyed"; p.latch.countDown(); }
@@ -178,10 +188,14 @@ public final class ShadowPuterBridge {
     }
 
     private final class JsApi {
+        @JavascriptInterface public void onNeedAuth() {
+            show();
+        }
         @JavascriptInterface public void onReady(boolean signed) {
             signedIn = signed;
             ready = true;
             synchronized (readyLock) { readyLock.notifyAll(); }
+            if (signed) hide();
         }
         @JavascriptInterface public void onChunk(String id, String text) {
             Pending p = pending.get(id); if (p == null) return;
