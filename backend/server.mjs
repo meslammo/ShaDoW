@@ -5,7 +5,8 @@ import cors from 'cors';
 import { applyFiles, createPullRequest, runDevelopmentPipeline, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
-import { runAgent, streamAgent, providerStatus, memoryStatus } from './ai-router.mjs';
+import { providerStatus, memoryStatus } from './ai-router.mjs';
+import { runUnifiedPipeline, streamUnifiedPipeline, platformContract } from './shadow-pipeline.mjs';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -44,7 +45,7 @@ app.get('/health', async (_req, res) => res.json({
   service: 'shadow-cloud',
   agent: 'unified-multi-ai',
   online: true,
-  providers: providerStatus(),
+  providers: Object.fromEntries(Object.entries(providerStatus()).filter(([name]) => name !== 'local')),
   memory: await memoryStatus(),
   capabilities: {
     web_search: true,
@@ -54,12 +55,16 @@ app.get('/health', async (_req, res) => res.json({
     github_read: true,
     github_write_gateway: githubOAuthStatus().configured,
     files: true,
-    android_action: true,
+    device_control: false,
     agent_loop: true,
     voiceprint_required: false,
     speech_to_text: Boolean(apiKey),
     vision: Boolean(apiKey),
     full_12_step_master: true,
+    unified_150_core: true,
+    phase_roadmap: 35,
+    online_only_brain: true,
+    unified_cloud_pipeline: true,
   },
   image_generation: Boolean(apiKey || geminiKey),
   tts: {
@@ -76,20 +81,73 @@ app.get('/health', async (_req, res) => res.json({
   voiceprint: { required: false, status: voiceprintStatus() },
 }));
 
+
+
+app.get('/v1/platform/status', async (_req, res) => {
+  try {
+    const memory = await memoryStatus();
+    const providers = providerStatus();
+    return res.json({
+      ok: true,
+      platform: 'SHADOW Long-Term Platform',
+      phase_count: 35,
+      core_count: 150,
+      online_only_brain: true,
+      offline_ai_removed: true,
+      architecture: 'Unified150Orchestrator + production Cloud Agent + governed tools',
+      memory,
+      providers: Object.fromEntries(Object.entries(providers).filter(([name]) => name !== 'local')),
+      capabilities: {
+        memory: true,
+        governance: true,
+        tools: Array.isArray(providers.tools) ? providers.tools : [],
+        streaming: true,
+        github: true,
+        development_agent: true,
+        android_client: true,
+        multimodal: true,
+        companions: false,
+        spatial: false,
+        external_device_control: false,
+        recovery: true,
+        skills: true,
+        simulation: true,
+        diagnostics: true,
+        controlled_self_improvement: true,
+      },
+      external_verification_gates: [
+        'real_provider_credentials',
+        'real_client_e2e',
+        'wake_word_and_barge_in',
+        'github_development_e2e',
+        
+        
+        'production_backup_restore',
+      ],
+    });
+  } catch (error) {
+    return res.status(503).json({ ok: false, error: 'platform_status_failed' });
+  }
+});
+
+app.get('/v1/pipeline/status', async (_req, res) => {
+  try { return res.json({ ok: true, ...(await platformContract()) }); }
+  catch { return res.status(503).json({ ok: false, error: 'pipeline_status_failed' }); }
+});
+
 app.post('/v1/chat', rateLimit, async (req, res) => {
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
   if (message.length > 12000) return res.status(413).json({ ok: false, error: 'message_too_large' });
   const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
-  const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
   const providerInput = String(req.body?.provider || '').toLowerCase();
   const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
   const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   const allowedProviders = ['openai', 'xai', 'grok', 'deepseek', 'mistral', 'anthropic', 'gemini'];
   const preferred = allowedProviders.includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
-    const result = await runAgent({ message, previousResponseId: previous, device, preferredProvider: preferred, reasoningEffort });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [] });
+    const result = await runUnifiedPipeline({ message, previousResponseId: previous, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true });
+    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [], trace: result.trace || null });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
     return res.status(503).json({ ok: false, error: 'agent_failed' });
@@ -101,7 +159,6 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
   if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
   if (message.length > 12000) return res.status(413).json({ ok: false, error: 'message_too_large' });
   const previous = typeof req.body?.previous_response_id === 'string' ? req.body.previous_response_id.trim() : '';
-  const device = typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '';
   const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
   const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
   res.statusCode = 200;
@@ -114,11 +171,12 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
   if (typeof res.flushHeaders === 'function') res.flushHeaders();
   const send = (payload) => { if (!res.writableEnded) res.write('data: ' + JSON.stringify(payload) + '\n\n'); };
   try {
-    const result = await streamAgent({
+    const result = await streamUnifiedPipeline({
       message,
       previousResponseId: previous,
-      device,
       reasoningEffort,
+      confirmed: req.body?.confirmed === true,
+      confirmedActions: Array.isArray(req.body?.confirmed_actions) ? req.body.confirmed_actions.map(String).slice(0, 32) : [],
       onDelta: (text) => send({ type: 'delta', text }),
       onPending: (data) => send({ type: 'pending_action', ...data }),
       onDone: (data) => send({ type: 'done', ...data }),
@@ -136,21 +194,6 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
   }
 });
 
-app.post('/v1/agent/continue', rateLimit, async (req, res) => {
-  const provider = String(req.body?.provider || '').toLowerCase();
-  const responseId = String(req.body?.response_id || '').trim();
-  const toolCallId = String(req.body?.tool_call_id || '').trim();
-  const output = typeof req.body?.output === 'string' ? req.body.output.slice(0, 20000) : JSON.stringify(req.body?.output ?? '');
-  const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
-  const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
-  if (!provider || !toolCallId) return res.status(400).json({ ok: false, error: 'tool_context_required' });
-  const original = String(req.body?.original_message || 'نفّذ الإجراء المطلوب واستكمل.');
-  try {
-    const result = await runAgent({ message: `${original}\n[DEVICE_TOOL_RESULT]\n${output}`, previousResponseId: responseId, preferredProvider: provider, reasoningEffort });
-    return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null });
-  } catch { return res.status(503).json({ ok: false, error: 'agent_continue_failed' }); }
-});
-
 app.post('/v1/master/run', rateLimit, async (req, res) => {
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   if (!message) return res.status(400).json({ ok: false, error: 'message_required' });
@@ -164,21 +207,25 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
     pipeline: { status: 'confirmation_required', stage: 'security_approval', authenticated, confirmed, startup_blocking: false },
   });
   try {
-    const result = await runAgent({
+    const result = await runUnifiedPipeline({
       message,
-      device: typeof req.body?.device === 'string' ? req.body.device.slice(0, 16000) : '',
       preferredProvider: 'auto',
       reasoningEffort: String(req.body?.reasoning_effort || 'none').toLowerCase(),
+      confirmed,
     });
     const usedWeb = Boolean(result.usedWeb);
     const pending = result.pendingAction || null;
     const development = /(github|git|repo|repository|code|coding|build|apk|test|commit|push|pr|كود|برمجة|جيت هب)/i.test(message);
-    const device = /(phone|mobile|android|device|screen|click|tap|type|open app|موبايل|تليفون|جهاز|الشاشة|اضغط|اكتب|افتح)/i.test(message);
     const fresh = /(latest|today|now|current|news|update|جديد|دلوقتي|حالي|آخر|اخر|النهارده|بحث|ابحث|دور)/i.test(message);
     const pipeline = {
       status: pending ? 'action_pending' : 'completed',
       trace_id: createHash('sha256').update(message).digest('hex').slice(0, 16),
       startup_blocking: false,
+      phase_count: 35,
+      core_count: 150,
+      online_only_brain: true,
+      offline_ai_removed: true,
+      external_device_control: false,
       stages: [
         { stage: 'understand', status: 'executed' },
         { stage: 'model_route', status: 'executed', provider: result.provider || null, model: result.model || null, attempts: result.attempts || [] },
@@ -186,7 +233,7 @@ app.post('/v1/master/run', rateLimit, async (req, res) => {
         { stage: 'memory', status: 'integrated' },
         { stage: 'web_discovery', status: fresh || usedWeb ? 'used' : 'not_required' },
         { stage: 'github_development', status: development ? 'routed' : 'not_required' },
-        { stage: 'phone_devices', status: device ? (pending ? 'action_pending' : 'client_adapter_ready') : 'not_required' },
+        { stage: 'capability_execution', status: 'software_only', device_control: false, external_devices: false },
         { stage: 'agent_loop', status: 'executed', bounded_rounds: 8 },
         { stage: 'security_approval', status: confirmed ? 'confirmed' : 'not_required' },
         { stage: 'execute', status: pending ? 'action_pending' : 'completed' },
@@ -315,7 +362,7 @@ app.post('/v1/development/plan', rateLimit, async (req, res) => {
   const project = typeof req.body?.project === 'string' ? req.body.project.slice(0, 12000) : '';
   if (!request) return res.status(400).json({ ok: false, error: 'request_required' });
   try {
-    const result = await runAgent({ message: `Create a safe software implementation plan only. Do not claim edits executed. Request: ${request}\nProject: ${project}`, preferredProvider: 'auto' });
+    const result = await runUnifiedPipeline({ message: `Create a safe software implementation plan only. Do not claim edits executed. Request: ${request}\nProject: ${project}`, preferredProvider: 'auto' });
     res.json({ ok: true, plan: result.answer, approval_required: true, execution_available: developmentStatus().configured });
   } catch { res.status(503).json({ ok: false, error: 'development_ai_unavailable' }); }
 });
@@ -483,4 +530,8 @@ app.post('/v1/speech', rateLimit, async (req, res) => {
   }
 });
 
-app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
+export { app };
+
+if (process.env.SHADOW_START_SERVER !== 'false') {
+  app.listen(port, '0.0.0.0', () => console.log(`SHADOW cloud backend listening on ${port}; agent=unified-multi-ai; providers=${JSON.stringify(providerStatus())}`));
+}

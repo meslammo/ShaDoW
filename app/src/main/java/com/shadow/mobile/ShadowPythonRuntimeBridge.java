@@ -110,6 +110,27 @@ public final class ShadowPythonRuntimeBridge {
         }
     }
 
+
+    /** EVO-35: expose the unified 35-phase platform contract to Android. */
+    public String platformStatus(){
+        try{
+            PyObject result=androidRuntime().callAttr("shadow_platform_status",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
+            return result.toString();
+        }catch(Throwable e){
+            return "{\"phase_count\":35,\"core_count\":150,\"status\":\"runtime_unavailable\"}";
+        }
+    }
+
+    /** EVO-35: run unified diagnostics plus 150-Core reachability from Android. */
+    public String platformDiagnostics(){
+        try{
+            PyObject result=androidRuntime().callAttr("shadow_diagnostics",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
+            return result.toString();
+        }catch(Throwable e){
+            return "{\"phase_count\":35,\"status\":\"runtime_unavailable\"}";
+        }
+    }
+
     /** MOD-58: identity-aware governance gate. */
     public String authorize(String request, boolean authenticated, boolean authorized, String source){
         try{

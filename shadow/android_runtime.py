@@ -215,14 +215,119 @@ def supernice_run(
     confirmed: bool = False,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    from shadow.supernice.master import run_master_pipeline
-    return run_master_pipeline(
+    """Run the unified 150-Core online-only orchestration loop.
+
+    This replaces the older wrapper-only 12-stage route while preserving the
+    public function name used by Android/Chaquopy.
+    """
+    _install_shadow_package_alias()
+    from shadow.supernice.orchestrator import Unified150Orchestrator
+
+    orchestrator = Unified150Orchestrator(home or os.getcwd())
+    ctx = dict(context or {})
+    ctx.update({
+        "authenticated": bool(authenticated),
+        "confirmed": bool(confirmed),
+        "source": str(ctx.get("source") or "android"),
+    })
+    result = orchestrator.run(
         str(request or ""),
-        home or os.getcwd(),
-        authenticated=bool(authenticated),
+        context=ctx,
         confirmed=bool(confirmed),
-        context=context if isinstance(context, dict) else {},
     )
+    return result.to_dict()
+
+
+def shadow_platform_status(home: Optional[str] = None) -> Dict[str, Any]:
+    _install_shadow_package_alias()
+    from shadow.supernice.orchestrator import Unified150Orchestrator
+    return Unified150Orchestrator(home or os.getcwd()).control.platform_status()
+
+
+def export_sync_memory(home: Optional[str] = None) -> list[dict[str, Any]]:
+    """Export only durable non-secret facts suitable for cross-device sync."""
+    _install_shadow_package_alias()
+    from shadow.supernice.evolution import UnifiedControlPlane
+    control = UnifiedControlPlane(home or os.getcwd())
+    allowed_kinds = {"profile", "approved_correction", "fact", "preference", "project"}
+    rows = []
+    for item in control.memory.all()[-100:]:
+        if item.kind not in allowed_kinds:
+            continue
+        text_value = str(item.text or "").strip()
+        lower = text_value.lower()
+        if not text_value or len(text_value) > 3000:
+            continue
+        if any(token in lower for token in (
+            "password", "passphrase", "api_key", "access_token", "secret",
+            "private_key", "credential", "github_token", "bearer",
+            "كلمة السر", "باسورد", "توكن", "مفتاح سري"
+        )):
+            continue
+        rows.append({
+            "id": item.id,
+            "text": text_value,
+            "kind": item.kind,
+            "tags": list(item.tags),
+        })
+    return rows
+
+
+def apply_synced_memory(facts: Any, home: Optional[str] = None) -> Dict[str, Any]:
+    """Import only sanitized, non-secret memory facts from a linked device."""
+    _install_shadow_package_alias()
+    from shadow.supernice.evolution import UnifiedControlPlane
+    if isinstance(facts, str):
+        try:
+            facts = json.loads(facts)
+        except Exception:
+            facts = []
+    if not isinstance(facts, list):
+        return {"ok": False, "status": "memory_facts_required", "imported": 0}
+    control = UnifiedControlPlane(home or os.getcwd())
+    existing_items = control.memory.all()
+    existing_ids = {str(item.id) for item in existing_items}
+    existing_texts = {str(item.text).strip() for item in existing_items}
+    imported = 0
+    blocked = 0
+    for item in facts[:100]:
+        if isinstance(item, dict):
+            text = str(item.get("text") or "").strip()
+            kind = str(item.get("kind") or "fact").strip() or "fact"
+            tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+        else:
+            text = str(item or "").strip()
+            kind = "fact"
+            tags = []
+        if not text or len(text) > 3000:
+            continue
+        if any(token in text.lower() for token in (
+            "password", "passphrase", "api_key", "access_token", "secret",
+            "private_key", "credential", "github_token", "bearer",
+            "كلمة السر", "باسورد", "توكن", "مفتاح سري"
+        )):
+            blocked += 1
+            continue
+        remote_id = str(item.get("id") or "").strip() if isinstance(item, dict) else ""
+        if (remote_id and remote_id in existing_ids) or text in existing_texts:
+            continue
+        control.memory.put(
+            text,
+            kind=kind,
+            tags=tuple(str(x)[:80] for x in tags[:12]),
+            source="cross-device-sync",
+        )
+        imported += 1
+    return {"ok": True, "status": "memory_sync_applied", "imported": imported, "blocked": blocked}
+
+
+def shadow_diagnostics(home: Optional[str] = None) -> Dict[str, Any]:
+    _install_shadow_package_alias()
+    from shadow.supernice.orchestrator import Unified150Orchestrator
+    orchestrator = Unified150Orchestrator(home or os.getcwd())
+    report = orchestrator.control.diagnostics()
+    report["reachability"] = orchestrator.audit_reachability(confirmed=True)
+    return report
 
 
 def final_status(home: Optional[str] = None) -> Dict[str, Any]:

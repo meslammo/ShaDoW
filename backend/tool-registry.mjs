@@ -76,6 +76,11 @@ async function fileRead(filePath) {
   return { path: path.relative(WORKSPACE, full), size: stat.size, content: (await fs.readFile(full, 'utf8')).slice(0, 200000) };
 }
 
+function mutationDenied(action, helpers) {
+  if (typeof helpers.authorizeMutation === 'function' && helpers.authorizeMutation(action) === true) return false;
+  return true;
+}
+
 async function fileWrite(filePath, content) {
   const full = safeWorkspacePath(filePath);
   const text = String(content || '');
@@ -96,7 +101,6 @@ export const TOOL_DEFINITIONS = [
   { type: 'function', name: 'memory_forget', description: 'Forget a matching durable memory fact.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { type: 'function', name: 'file_read', description: 'Read a file from the SHADOW workspace only.', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
   { type: 'function', name: 'file_write', description: 'Write a file into the SHADOW workspace. Use only after explicit authorization for mutations.', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'], additionalProperties: false } },
-  { type: 'function', name: 'android_action', description: 'Request an Android action that the client can execute and verify.', parameters: { type: 'object', properties: { action: { type: 'string' }, argument: { type: 'string' }, reason: { type: 'string' }, requires_confirmation: { type: 'boolean' } }, required: ['action'], additionalProperties: false } },
 ];
 
 export async function executeTool(name, args, helpers = {}) {
@@ -106,14 +110,19 @@ export async function executeTool(name, args, helpers = {}) {
   if (name === 'web_research') return { kind: 'result', value: await webResearch(args.query, args.limit) };
   if (name === 'github_read') return { kind: 'result', value: await helpers.githubRead(args.repo, args.path) };
   if (name === 'memory_search') return { kind: 'result', value: await helpers.memorySearch(args.query) };
-  if (name === 'memory_save') return { kind: 'result', value: await helpers.memorySave(args.fact, args.reason || '', args.evidence_level || 'fact', args.source || 'user') };
-  if (name === 'memory_forget') return { kind: 'result', value: await helpers.memoryForget(args.query) };
+  if (name === 'memory_save') {
+    if (mutationDenied('memory_save', helpers)) throw new Error('explicit_confirmation_required');
+    return { kind: 'result', value: await helpers.memorySave(args.fact, args.reason || '', args.evidence_level || 'fact', args.source || 'user') };
+  }
+  if (name === 'memory_forget') {
+    if (mutationDenied('memory_forget', helpers)) throw new Error('explicit_confirmation_required');
+    return { kind: 'result', value: await helpers.memoryForget(args.query) };
+  }
   if (name === 'file_read') return { kind: 'result', value: await fileRead(args.path) };
   if (name === 'file_write') {
-    if (args.requires_confirmation !== true && helpers.requireWriteApproval) throw new Error('explicit_confirmation_required');
+    if (mutationDenied('file_write', helpers) || (args.requires_confirmation !== true && helpers.requireWriteApproval)) throw new Error('explicit_confirmation_required');
     return { kind: 'result', value: await fileWrite(args.path, args.content) };
   }
-  if (name === 'android_action') return { kind: 'client_action', action: String(args.action || ''), argument: String(args.argument || ''), reason: String(args.reason || ''), requires_confirmation: Boolean(args.requires_confirmation) };
   throw new Error('unknown_tool');
 }
 
@@ -127,6 +136,6 @@ export function registryStatus() {
     github_read: true,
     files: true,
     memory: true,
-    android_action: true,
+    device_control: false,
   };
 }

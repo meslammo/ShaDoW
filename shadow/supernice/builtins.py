@@ -155,12 +155,12 @@ def make_builtin_handler(spec: CoreSpec):
             return CoreResult(
                 _spec.id,
                 True,
-                "disabled_optional",
+                "disabled_out_of_scope",
                 result={
                     "core": _spec.id,
                     "name": _spec.name,
                     "enabled": False,
-                    "reason": "hardware/companion integrations are optional and disabled by default",
+                    "reason": "external device integrations are outside active Shadow scope",
                 },
                 metadata={
                     "startup_blocking": False,

@@ -6,8 +6,9 @@ import java.util.Locale;
  * MOD-75: single Android-side master routing contract for the 12-Core runtime.
  *
  * Voice is only the transport. Every request is classified into one governed
- * route before execution: chat, local device, GitHub/development, image, or
- * system. This keeps the UI from becoming a second orchestration engine.
+ * AI route before execution: chat, GitHub/development, image, vision, or
+ * system. Shadow does not control or connect to phones, cars, home devices,
+ * companions, or spatial hardware.
  */
 public final class ShadowMasterOrchestrator {
     private final ShadowMasterEventBus eventBus;
@@ -77,10 +78,8 @@ public final class ShadowMasterOrchestrator {
         else if (isVision(x)) route = Route.VISION;
         else if (isGithub(x)) route = Route.GITHUB;
         else if (isDevelopment(x)) route = Route.DEVELOPMENT;
-        else if (isSpatial(x)) route = Route.SPATIAL;
-        else if (isCompanion(x)) route = Route.COMPANION;
         else if (isSystem(x)) route = Route.SYSTEM;
-        else if (isLocalDevice(x)) route = Route.LOCAL_DEVICE;
+        else if (isSpatial(x) || isCompanion(x) || isLocalDevice(x)) route = Route.CHAT;
         else route = Route.CHAT;
 
         boolean sensitive = isSensitive(x);

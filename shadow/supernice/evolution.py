@@ -1,21 +1,757 @@
-"""Bounded self-evolution: stage, test, approve, activate, rollback."""
+"""SHADOW long-term evolution control plane (phases 01-35).
+
+This module builds on the existing 150-Core runtime. It adds bounded,
+provider-neutral control primitives for memory, governance, tools, workflows,
+skills, companions/devices, simulation, diagnostics, recovery, knowledge
+graph, verification, and controlled self-improvement.
+
+Physical provider/device/companion integrations remain explicit adapters:
+software can be wired and tested without pretending hardware or credentials
+exist.
+"""
 from __future__ import annotations
-from dataclasses import dataclass
+
+from dataclasses import dataclass, field
 from hashlib import sha256
-from typing import Iterable
+import json
+import time
+from pathlib import Path
+from typing import Any, Callable, Iterable, Mapping, Optional
+
+from shadow.memory.persistent import PersistentMemory
+from shadow.security.permissions import PermissionManager, PermissionDecision
+from shadow.observability.audit import AuditLog
+from shadow.runtime.action_executor import ActionExecutor, ActionResult
+from shadow.tools.builtins import build_builtin_registry
+from .catalog import CORE_BY_ID
+
+
+@dataclass(frozen=True)
+class PhaseSpec:
+    number: int
+    name: str
+    goal: str
+    category: str
+    dependencies: tuple[int, ...] = ()
+    software_ready: bool = True
+    external_gate: bool = False
+
+
+PHASES_35: tuple[PhaseSpec, ...] = (
+    PhaseSpec(1, "Deep Integration", "Unify memory, governance, tools, brain, events and verification.", "foundation"),
+    PhaseSpec(2, "Real Online Backend E2E", "Exercise a real online provider through the governed loop.", "e2e", (1,), external_gate=True),
+    PhaseSpec(3, "Cloud Unified Runtime", "Expose one authoritative Cloud execution path.", "cloud", (1, 2), external_gate=True),
+    PhaseSpec(4, "Client Integration", "Expose Shadow through a client interface without making device control part of the AI architecture.", "client", (1, 3)),
+    PhaseSpec(5, "Real Client E2E", "Prove the complete AI client request/response path in a deployed client.", "e2e", (4,), external_gate=True),
+    PhaseSpec(6, "Voice + Hey Shadow", "Wake-word, STT/TTS, background conversation and barge-in.", "voice", (5,), external_gate=True),
+    PhaseSpec(7, "Online Context Intelligence", "Build richer online context across conversation, tasks, web and project state without device control.", "context", (2, 15)),
+    PhaseSpec(8, "Agent Capability Layer", "Register and govern software capabilities and specialized agent roles.", "agents", (7, 15, 23)),
+    PhaseSpec(9, "GitHub / Development Agent E2E", "Run the full governed development lifecycle.", "development", (3,), external_gate=True),
+    PhaseSpec(10, "Security / Governance Hardening", "Strengthen identity, permissions, sandboxing and secret boundaries.", "security", (1,)),
+    PhaseSpec(11, "Recovery / Reliability", "Retry, pause, resume, rollback and idempotency.", "reliability", (1, 10)),
+    PhaseSpec(12, "Production Hardening + First Release", "Regression, release evidence, backup and release process.", "release", (2, 5, 9, 10, 11)),
+    PhaseSpec(13, "Full 150-Core Real Coverage", "Give each core an appropriate real or adapter-level proof.", "cores", (12,), external_gate=True),
+    PhaseSpec(14, "Continuous Learning", "Learn only from approved corrections and bounded context.", "learning", (12,)),
+    PhaseSpec(15, "Advanced Agent Loop", "Decompose and execute multi-step tasks with resumable state.", "agents", (11, 14)),
+    PhaseSpec(16, "Multimodal Intelligence", "Unify text, voice, image, vision and OCR context.", "multimodal", (6, 15), external_gate=True),
+    PhaseSpec(17, "Cross-Session Shadow", "Transfer governed context between authorized sessions without device federation.", "continuity", (14, 15, 16)),
+    PhaseSpec(18, "Autonomous-but-Governed Operations", "Run long tasks inside explicit policy boundaries.", "automation", (10, 11, 15)),
+    PhaseSpec(19, "Shadow Intelligence Evolution", "Improve routing, planning, reasoning context and evaluation.", "intelligence", (14, 15)),
+    PhaseSpec(20, "Personal Knowledge Graph", "Model durable relationships between people, projects, devices and events.", "knowledge", (14,)),
+    PhaseSpec(21, "Predictive Assistance", "Detect patterns and suggest context-aware next actions.", "intelligence", (19, 20)),
+    PhaseSpec(22, "Real-World Automation", "Build trigger/condition/action workflows with verification.", "automation", (18, 21), external_gate=True),
+    PhaseSpec(23, "Shadow Skills Platform", "Install, version, sandbox and test capabilities.", "platform", (15, 22)),
+    PhaseSpec(24, "Multi-Agent / Companion Intelligence", "Coordinate specialized agents under Shadow governance.", "agents", (8, 15, 23), external_gate=True),
+    PhaseSpec(25, "Advanced Simulation & Sandbox", "Dry-run actions and estimate impact before execution.", "safety", (10, 15, 23)),
+    PhaseSpec(26, "Self-Diagnostics", "Detect, isolate and explain runtime failures.", "reliability", (11, 25)),
+    PhaseSpec(27, "Controlled Self-Improvement", "Propose, test and review changes before activation.", "development", (9, 23, 26), external_gate=True),
+    PhaseSpec(28, "Federated AI Skills", "Expose remote software skills and services as governed capability nodes.", "federation", (23, 24)),
+    PhaseSpec(29, "World & Task Context Model", "Fuse entities, projects, events, tools and time into an AI context model without spatial/device dependencies.", "context", (20, 21, 28)),
+    PhaseSpec(30, "Continuous Verification", "Verify throughout execution and re-plan on drift.", "verification", (11, 15, 25)),
+    PhaseSpec(31, "Shadow Operating Layer", "Provide one identity/context/permission plane over domains.", "platform", (23, 28, 30)),
+    PhaseSpec(32, "Shadow Ecosystem", "Support skills, companions, adapters and developer APIs.", "platform", (24, 31)),
+    PhaseSpec(33, "Global Reliability Layer", "Backup, failover, recovery and integrity at platform scale.", "reliability", (11, 31, 32), external_gate=True),
+    PhaseSpec(34, "Shadow 2.x Evolution", "Use production evidence to refactor without rebuilding from zero.", "evolution", (13, 19, 26, 33)),
+    PhaseSpec(35, "Shadow Long-Term Platform", "Operate as a durable personal AI platform with governed expansion.", "platform", (31, 32, 33, 34), external_gate=True),
+)
+
+
+@dataclass
+class WorkflowStep:
+    name: str
+    action: Callable[[dict[str, Any]], Any]
+
+
+@dataclass
+class WorkflowResult:
+    ok: bool
+    status: str
+    completed: list[str] = field(default_factory=list)
+    failed_step: Optional[str] = None
+    output: Any = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class KnowledgeNode:
+    node_id: str
+    kind: str
+    label: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class KnowledgeEdge:
+    source: str
+    relation: str
+    target: str
+
+
+@dataclass(frozen=True)
+class CompanionRecord:
+    companion_id: str
+    kind: str
+    capabilities: tuple[str, ...] = ()
+    trusted: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DeviceRecord:
+    device_id: str
+    kind: str
+    capabilities: tuple[str, ...] = ()
+    online: bool = False
+    trusted: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class MultimodalEnvelope:
+    text: str = ""
+    audio_ref: Optional[str] = None
+    image_ref: Optional[str] = None
+    vision: Optional[dict[str, Any]] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def as_context(self) -> dict[str, Any]:
+        return {
+            "text": self.text,
+            "audio_ref": self.audio_ref,
+            "image_ref": self.image_ref,
+            "vision": self.vision or {},
+            "multimodal": bool(self.audio_ref or self.image_ref or self.vision),
+            **self.metadata,
+        }
+
+
+class KnowledgeGraph:
+    def __init__(self) -> None:
+        self.nodes: dict[str, KnowledgeNode] = {}
+        self.edges: set[KnowledgeEdge] = set()
+
+    def upsert_node(self, node_id: str, kind: str, label: str, metadata: Mapping[str, Any] | None = None) -> KnowledgeNode:
+        node = KnowledgeNode(node_id, kind, label, dict(metadata or {}))
+        self.nodes[node_id] = node
+        return node
+
+    def relate(self, source: str, relation: str, target: str) -> KnowledgeEdge:
+        if source not in self.nodes or target not in self.nodes:
+            raise KeyError("both relation endpoints must exist")
+        edge = KnowledgeEdge(source, relation, target)
+        self.edges.add(edge)
+        return edge
+
+    def neighbors(self, node_id: str, relation: Optional[str] = None) -> list[str]:
+        return [
+            e.target for e in self.edges
+            if e.source == node_id and (relation is None or e.relation == relation)
+        ]
+
+    def export(self) -> dict[str, Any]:
+        return {
+            "nodes": [node.__dict__ for node in self.nodes.values()],
+            "edges": [edge.__dict__ for edge in sorted(self.edges, key=lambda x: (x.source, x.relation, x.target))],
+        }
+
+
+class SkillRegistry:
+    def __init__(self) -> None:
+        self._skills: dict[str, dict[str, Any]] = {}
+
+    def register(
+        self,
+        name: str,
+        handler: Callable[..., Any],
+        *,
+        version: str = "1.0.0",
+        permissions: Iterable[str] = (),
+        dependencies: Iterable[str] = (),
+    ) -> None:
+        if not name or not callable(handler):
+            raise ValueError("skill name and callable handler are required")
+        self._skills[name] = {
+            "name": name,
+            "version": version,
+            "handler": handler,
+            "permissions": tuple(permissions),
+            "dependencies": tuple(dependencies),
+            "enabled": True,
+        }
+
+    def disable(self, name: str) -> bool:
+        skill = self._skills.get(name)
+        if not skill:
+            return False
+        skill["enabled"] = False
+        return True
+
+    def enable(self, name: str) -> bool:
+        skill = self._skills.get(name)
+        if not skill:
+            return False
+        skill["enabled"] = True
+        return True
+
+    def invoke(self, name: str, **kwargs: Any) -> Any:
+        skill = self._skills.get(name)
+        if not skill or not skill["enabled"]:
+            raise LookupError("skill unavailable")
+        return skill["handler"](**kwargs)
+
+    def manifest(self) -> list[dict[str, Any]]:
+        return [{k: v for k, v in s.items() if k != "handler"} for s in self._skills.values()]
+
+
+class CompanionRegistry:
+    def __init__(self) -> None:
+        self._items: dict[str, CompanionRecord] = {}
+
+    def register(self, record: CompanionRecord) -> None:
+        self._items[record.companion_id] = record
+
+    def get(self, companion_id: str) -> Optional[CompanionRecord]:
+        return self._items.get(companion_id)
+
+    def trusted(self) -> list[CompanionRecord]:
+        return [x for x in self._items.values() if x.trusted]
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        return [x.__dict__ for x in self._items.values()]
+
+
+class DeviceFederation:
+    def __init__(self) -> None:
+        self._items: dict[str, DeviceRecord] = {}
+
+    def register(self, record: DeviceRecord) -> None:
+        self._items[record.device_id] = record
+
+    def discover(self, capability: Optional[str] = None) -> list[DeviceRecord]:
+        items = [x for x in self._items.values() if x.online and x.trusted]
+        if capability:
+            items = [x for x in items if capability in x.capabilities]
+        return items
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        return [x.__dict__ for x in self._items.values()]
+
+
+class RecoveryManager:
+    def __init__(self) -> None:
+        self._checkpoints: dict[str, dict[str, Any]] = {}
+
+    def checkpoint(self, request_id: str, state: Mapping[str, Any]) -> str:
+        stamp = f"{request_id}:{time.time_ns()}"
+        checkpoint_id = sha256(stamp.encode()).hexdigest()[:20]
+        self._checkpoints[checkpoint_id] = json.loads(json.dumps(dict(state), default=str))
+        return checkpoint_id
+
+    def resume(self, checkpoint_id: str) -> dict[str, Any]:
+        if checkpoint_id not in self._checkpoints:
+            raise KeyError("checkpoint_not_found")
+        return dict(self._checkpoints[checkpoint_id])
+
+    def rollback(self, checkpoint_id: str) -> dict[str, Any]:
+        state = self.resume(checkpoint_id)
+        return {"ok": True, "status": "rolled_back", "checkpoint_id": checkpoint_id, "state": state}
+
+    def discard(self, checkpoint_id: str) -> bool:
+        return self._checkpoints.pop(checkpoint_id, None) is not None
+
+
+class SimulationEngine:
+    """Side-effect-free planner for the same governance surface."""
+
+    def __init__(self, permissions: PermissionManager) -> None:
+        self.permissions = permissions
+
+    def preview(self, actions: Iterable[Mapping[str, Any]], *, confirmed: bool = False) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for action in actions:
+            capability = str(action.get("capability") or action.get("name") or "")
+            decision = self.permissions.decide(capability, confirmed=confirmed)
+            result.append({
+                "capability": capability,
+                "allowed": decision.allowed,
+                "requires_confirmation": decision.requires_confirmation,
+                "reason": decision.reason,
+            })
+        return result
+
+    def estimate_impact(self, actions: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+        items = self.preview(actions, confirmed=False)
+        risk = 0
+        for item in items:
+            if item["requires_confirmation"]:
+                risk += 2
+            if not item["allowed"]:
+                risk += 1
+        return {
+            "action_count": len(items),
+            "confirmation_count": sum(1 for x in items if x["requires_confirmation"]),
+            "blocked_count": sum(1 for x in items if not x["allowed"]),
+            "impact_score": risk,
+            "side_effects_executed": False,
+        }
+
+
+@dataclass
+class LongTaskRecord:
+    task_id: str
+    status: str = "created"
+    checkpoint_id: Optional[str] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class LongTaskManager:
+    def __init__(self, recovery: RecoveryManager) -> None:
+        self.recovery = recovery
+        self.tasks: dict[str, LongTaskRecord] = {}
+
+    def start(self, task_id: str, state: Mapping[str, Any]) -> LongTaskRecord:
+        checkpoint = self.recovery.checkpoint(task_id, state)
+        record = LongTaskRecord(task_id, "running", checkpoint)
+        self.tasks[task_id] = record
+        return record
+
+    def pause(self, task_id: str, state: Mapping[str, Any]) -> LongTaskRecord:
+        record = self.tasks.get(task_id)
+        if record is None:
+            raise KeyError("task_not_found")
+        record.checkpoint_id = self.recovery.checkpoint(task_id, state)
+        record.status = "paused"
+        return record
+
+    def resume(self, task_id: str) -> dict[str, Any]:
+        record = self.tasks.get(task_id)
+        if record is None or not record.checkpoint_id:
+            raise KeyError("task_checkpoint_not_found")
+        record.status = "running"
+        return self.recovery.resume(record.checkpoint_id)
+
+    def complete(self, task_id: str) -> LongTaskRecord:
+        record = self.tasks.get(task_id)
+        if record is None:
+            raise KeyError("task_not_found")
+        record.status = "completed"
+        return record
+
+    def cancel(self, task_id: str) -> LongTaskRecord:
+        record = self.tasks.get(task_id)
+        if record is None:
+            raise KeyError("task_not_found")
+        record.status = "cancelled"
+        return record
+
+
+@dataclass(frozen=True)
+class AutomationWorkflow:
+    name: str
+    trigger: str
+    steps: tuple[WorkflowStep, ...]
+    enabled: bool = True
+
+
+class AutomationEngine:
+    def __init__(self) -> None:
+        self._workflows: dict[str, AutomationWorkflow] = {}
+
+    def register(self, workflow: AutomationWorkflow) -> None:
+        if not workflow.name or not workflow.trigger:
+            raise ValueError("workflow name and trigger are required")
+        self._workflows[workflow.name] = workflow
+
+    def matching(self, trigger: str) -> list[AutomationWorkflow]:
+        return [w for w in self._workflows.values() if w.enabled and w.trigger == trigger]
+
+    def manifest(self) -> list[dict[str, Any]]:
+        return [
+            {"name": w.name, "trigger": w.trigger, "steps": [s.name for s in w.steps], "enabled": w.enabled}
+            for w in self._workflows.values()
+        ]
+
+
+class PatternEngine:
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+
+    def observe(self, pattern: str) -> int:
+        key = str(pattern or "").strip()
+        if not key:
+            return 0
+        self._counts[key] = self._counts.get(key, 0) + 1
+        return self._counts[key]
+
+    def suggestions(self, minimum_count: int = 2, limit: int = 5) -> list[dict[str, Any]]:
+        rows = [
+            {"pattern": k, "count": v}
+            for k, v in self._counts.items()
+            if v >= max(1, int(minimum_count))
+        ]
+        return sorted(rows, key=lambda x: (-x["count"], x["pattern"]))[:max(1, int(limit))]
+
+
+class Diagnostics:
+    def __init__(self, workspace: str, tool_count: int) -> None:
+        self.workspace = workspace
+        self.tool_count = tool_count
+
+    def run(self, *, include_filesystem: bool = True) -> dict[str, Any]:
+        workspace = Path(self.workspace)
+        writable = None
+        if include_filesystem:
+            try:
+                workspace.mkdir(parents=True, exist_ok=True)
+                probe = workspace / ".shadow" / ".diagnostic-probe"
+                probe.parent.mkdir(parents=True, exist_ok=True)
+                probe.write_text("ok", encoding="utf-8")
+                probe.unlink(missing_ok=True)
+                writable = True
+            except Exception:
+                writable = False
+        return {
+            "python_runtime": True,
+            "core_count": len(CORE_BY_ID),
+            "core_catalog_complete": len(CORE_BY_ID) == 150,
+            "tool_count": self.tool_count,
+            "workspace_writable": writable,
+        }
+
+
+class ContinuousVerifier:
+    def verify(self, expected: Any, actual: Any, *, predicate: Optional[Callable[[Any, Any], bool]] = None) -> dict[str, Any]:
+        ok = predicate(expected, actual) if predicate else expected == actual
+        return {"ok": bool(ok), "expected": expected, "actual": actual}
+
+    def loop(
+        self,
+        expected: Any,
+        observe: Callable[[int], Any],
+        *,
+        predicate: Optional[Callable[[Any, Any], bool]] = None,
+        max_rounds: int = 3,
+    ) -> dict[str, Any]:
+        checks: list[dict[str, Any]] = []
+        for round_no in range(1, max(1, min(int(max_rounds), 8)) + 1):
+            actual = observe(round_no)
+            check = self.verify(expected, actual, predicate=predicate)
+            check["round"] = round_no
+            checks.append(check)
+            if check["ok"]:
+                return {"ok": True, "rounds": checks}
+        return {"ok": False, "rounds": checks}
+
+
+class UnifiedControlPlane:
+    """Cross-cutting execution services consumed by the unified orchestrator."""
+
+    def __init__(self, workspace: str = ".") -> None:
+        self.workspace = workspace
+        memory_path = Path(workspace) / ".shadow" / "memory.jsonl"
+        audit_path = Path(workspace) / ".shadow" / "audit.jsonl"
+        self.memory = PersistentMemory(memory_path)
+        self.permissions = PermissionManager()
+        self.audit_log = AuditLog(audit_path)
+        self.tool_registry = build_builtin_registry(memory=self.memory)
+        self.executor = ActionExecutor(self.permissions)
+        for spec in self.tool_registry._tools.values():
+            self.executor.register(spec.name, spec.handler)
+        self.skills = SkillRegistry()
+        self.knowledge = KnowledgeGraph()
+        self.external_device_control = False
+        self.recovery = RecoveryManager()
+        self.long_tasks = LongTaskManager(self.recovery)
+        self.automation = AutomationEngine()
+        self.patterns = PatternEngine()
+        self.simulation = SimulationEngine(self.permissions)
+        self.verifier = ContinuousVerifier()
+        self.diagnostics_engine = Diagnostics(workspace, len(self.tool_registry._tools))
+
+    def recall(self, query: str, limit: int = 8) -> list[str]:
+        return [item.text for item in self.memory.search(query, limit)]
+
+    def remember(self, text: str, *, kind: str = "conversation", tags: Iterable[str] = (), source: str = "unified150") -> str:
+        item = self.memory.put(text, kind=kind, tags=tuple(tags), source=source)
+        return item.id
+
+    def governance(self, capability: str, *, confirmed: bool = False, automation_granted: bool = False) -> PermissionDecision:
+        return self.permissions.decide(capability, confirmed=confirmed, automation_granted=automation_granted)
+
+    def tool_schemas(self) -> list[dict[str, Any]]:
+        return list(self.tool_registry.openai_schemas())
+
+    def execute_tool(self, name: str, arguments: Mapping[str, Any], *, confirmed: bool = False, automation_granted: bool = False) -> dict[str, Any]:
+        args = dict(arguments)
+        args.pop("confirmed", None)
+        result: ActionResult = self.executor.execute(
+            name,
+            confirmed=confirmed,
+            automation_granted=automation_granted,
+            **args,
+        )
+        self.audit(
+            "tool.executed",
+            outcome="ok" if result.success else "failed",
+            metadata={
+                "tool": name,
+                "success": result.success,
+                "requires_confirmation": result.requires_confirmation,
+                **result.metadata,
+            },
+        )
+        return {
+            "success": result.success,
+            "output": result.output,
+            "requires_confirmation": result.requires_confirmation,
+            "metadata": result.metadata,
+        }
+
+    def audit(self, event: str, *, request_id: Optional[str] = None, outcome: str = "ok", metadata: Optional[Mapping[str, Any]] = None) -> None:
+        self.audit_log.record(
+            event,
+            request_id=request_id,
+            outcome=outcome,
+            metadata=dict(metadata or {}),
+        )
+
+    def run_workflow(self, steps: Iterable[WorkflowStep], *, initial: Optional[Mapping[str, Any]] = None) -> WorkflowResult:
+        state = dict(initial or {})
+        completed: list[str] = []
+        for step in steps:
+            try:
+                state[step.name] = step.action(dict(state))
+                completed.append(step.name)
+            except Exception as exc:
+                return WorkflowResult(False, "step_failed", completed, step.name, state, {"error_type": type(exc).__name__})
+        return WorkflowResult(True, "completed", completed, output=state)
+
+    def checkpoint(self, request_id: str, state: Mapping[str, Any]) -> str:
+        return self.recovery.checkpoint(request_id, state)
+
+    def resume(self, checkpoint_id: str) -> dict[str, Any]:
+        return self.recovery.resume(checkpoint_id)
+
+    def rollback(self, checkpoint_id: str) -> dict[str, Any]:
+        result = self.recovery.rollback(checkpoint_id)
+        self.audit("recovery.rollback", outcome="ok", metadata={"checkpoint_id": checkpoint_id})
+        return result
+
+    def simulate_actions(self, actions: Iterable[Mapping[str, Any]], *, confirmed: bool = False) -> list[dict[str, Any]]:
+        return self.simulation.preview(actions, confirmed=confirmed)
+
+    def simulate_impact(self, actions: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+        return self.simulation.estimate_impact(actions)
+
+    def start_long_task(self, task_id: str, state: Mapping[str, Any]) -> dict[str, Any]:
+        record = self.long_tasks.start(task_id, state)
+        self.audit("long_task.started", metadata={"task_id": task_id})
+        return record.__dict__.copy()
+
+    def pause_long_task(self, task_id: str, state: Mapping[str, Any]) -> dict[str, Any]:
+        record = self.long_tasks.pause(task_id, state)
+        self.audit("long_task.paused", metadata={"task_id": task_id})
+        return record.__dict__.copy()
+
+    def resume_long_task(self, task_id: str) -> dict[str, Any]:
+        state = self.long_tasks.resume(task_id)
+        self.audit("long_task.resumed", metadata={"task_id": task_id})
+        return {"ok": True, "state": state, "task_id": task_id}
+
+    def complete_long_task(self, task_id: str) -> dict[str, Any]:
+        record = self.long_tasks.complete(task_id)
+        self.audit("long_task.completed", metadata={"task_id": task_id})
+        return record.__dict__.copy()
+
+    def register_automation(self, name: str, trigger: str, steps: Iterable[WorkflowStep], *, enabled: bool = True) -> dict[str, Any]:
+        workflow = AutomationWorkflow(name, trigger, tuple(steps), enabled)
+        self.automation.register(workflow)
+        return {"ok": True, "name": name, "trigger": trigger, "steps": [s.name for s in workflow.steps], "enabled": enabled}
+
+    def run_automation(self, trigger: str, *, initial: Optional[Mapping[str, Any]] = None) -> list[WorkflowResult]:
+        results = []
+        for workflow in self.automation.matching(trigger):
+            result = self.run_workflow(workflow.steps, initial=initial)
+            results.append(result)
+        return results
+
+    def observe_pattern(self, pattern: str) -> int:
+        count = self.patterns.observe(pattern)
+        self.audit("pattern.observed", metadata={"pattern": pattern, "count": count})
+        return count
+
+    def pattern_suggestions(self, minimum_count: int = 2, limit: int = 5) -> list[dict[str, Any]]:
+        return self.patterns.suggestions(minimum_count, limit)
+
+    def diagnostics(self) -> dict[str, Any]:
+        return self.diagnostics_engine.run()
+
+    def learn_correction(self, correction: str, *, approved: bool = False) -> dict[str, Any]:
+        text = str(correction or "").strip()
+        if not text:
+            return {"ok": False, "status": "correction_required"}
+        decision = self.governance("memory.write", confirmed=approved)
+        if not decision.allowed:
+            return {"ok": False, "status": "approval_required", "reason": decision.reason}
+        item_id = self.remember(text, kind="approved_correction", tags=("learning", "approved"), source="owner-approved")
+        self.audit("learning.applied", outcome="ok", metadata={"memory_id": item_id})
+        return {"ok": True, "status": "learned", "memory_id": item_id}
+
+    def predict_assistance(self, query: str, limit: int = 3) -> list[dict[str, Any]]:
+        hits = self.memory.search(str(query or ""), max(1, min(int(limit), 10)))
+        return [
+            {
+                "suggestion": item.text,
+                "kind": item.kind,
+                "reason": "matched prior approved/runtime context",
+            }
+            for item in hits
+        ]
+
+    def delegate_companion(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        self.audit("companion.disabled", outcome="not_applicable", metadata={"reason": "ai_only_scope"})
+        return {"ok": False, "status": "disabled_by_scope", "device_control": False}
+
+    def spatial_observe(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        self.audit("spatial.disabled", outcome="not_applicable", metadata={"reason": "ai_only_scope"})
+        return {"ok": False, "status": "disabled_by_scope", "device_control": False}
+
+    def backup_state(self, path: str | Path) -> dict[str, Any]:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "version": "evo35",
+            "created_at": time.time(),
+            "memory": json.loads(self.memory.export()),
+            "knowledge": self.knowledge.export(),
+            "skills": self.skills.manifest(),
+        }
+        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "path": str(target), "memory_items": len(payload["memory"])}
+
+    def restore_memory_from_backup(self, path: str | Path) -> dict[str, Any]:
+        source = Path(path)
+        data = json.loads(source.read_text(encoding="utf-8"))
+        count = 0
+        for item in data.get("memory", []):
+            text = str(item.get("text") or "").strip()
+            if not text:
+                continue
+            self.memory.put(
+                text,
+                kind=str(item.get("kind") or "fact"),
+                tags=tuple(item.get("tags") or ()),
+                source=str(item.get("source") or "restore"),
+                item_id=str(item.get("id") or "") or None,
+            )
+            count += 1
+        self.audit("backup.restored", outcome="ok", metadata={"memory_items": count})
+        return {"ok": True, "restored_memory_items": count}
+
+    def phase_progress(self) -> dict[str, Any]:
+        implemented = [p.number for p in PHASES_35 if p.software_ready]
+        external = [p.number for p in PHASES_35 if p.external_gate]
+        return {
+            "phase_count": len(PHASES_35),
+            "implemented_contracts": len(implemented),
+            "external_verification_pending": len(external),
+            "implemented_phase_numbers": implemented,
+            "external_gate_phase_numbers": external,
+        }
+
+    def multimodal(self, *, text: str = "", audio_ref: Optional[str] = None, image_ref: Optional[str] = None, vision: Optional[Mapping[str, Any]] = None, metadata: Optional[Mapping[str, Any]] = None) -> MultimodalEnvelope:
+        return MultimodalEnvelope(text, audio_ref, image_ref, dict(vision or {}), dict(metadata or {}))
+
+    def roadmap(self) -> dict[str, Any]:
+        return {
+            "phase_count": len(PHASES_35),
+            "online_only_brain": True,
+            "offline_ai_removed": True,
+            "core_count": len(CORE_BY_ID),
+            "phases": [
+                {
+                    "number": p.number,
+                    "name": p.name,
+                    "goal": p.goal,
+                    "category": p.category,
+                    "dependencies": list(p.dependencies),
+                    "software_ready": p.software_ready,
+                    "external_gate": p.external_gate,
+                }
+                for p in PHASES_35
+            ],
+        }
+
+    def platform_status(self) -> dict[str, Any]:
+        report = self.roadmap()
+        code_ready = sum(1 for p in PHASES_35 if p.software_ready)
+        external = sum(1 for p in PHASES_35 if p.external_gate)
+        return {
+            **report,
+            "software_ready_phases": code_ready,
+            "external_verification_gates": external,
+            "phase_progress": self.phase_progress(),
+            "knowledge_nodes": len(self.knowledge.nodes),
+            "knowledge_edges": len(self.knowledge.edges),
+            "skills": len(self.skills._skills),
+            "external_device_control": False,
+            "automation_workflows": len(self.automation._workflows),
+            "long_running_tasks": len(self.long_tasks.tasks),
+            "observed_patterns": len(self.patterns._counts),
+            "capabilities": {
+                "learning": True,
+                "predictive_assistance": True,
+                "agent_capability_layer": True,
+                "world_task_context_model": True,
+                "external_device_control": False,
+                "simulation": True,
+                "backup_restore": True,
+                "controlled_self_improvement": True,
+            },
+            "diagnostics": self.diagnostics(),
+        }
+
+
+class SelfEvolution:
+    """Bounded self-evolution: propose, test, approve, activate, rollback."""
+
+    def propose(self, title: str, reason: str, files: Iterable[str], tests: Iterable[str]) -> EvolutionProposal:
+        files = tuple(files)
+        tests = tuple(tests)
+        pid = sha256("|".join((title, reason, *files, *tests)).encode()).hexdigest()[:16]
+        return EvolutionProposal(pid, title, reason, files, tests)
+
+    @staticmethod
+    def activation_allowed(proposal: EvolutionProposal, *, approved_by_master: bool, tests_passed: bool) -> bool:
+        return bool(approved_by_master and tests_passed)
+
 
 @dataclass(frozen=True)
 class EvolutionProposal:
-    proposal_id:str; title:str; reason:str
-    files:tuple[str,...]; test_commands:tuple[str,...]
-    rollback_required:bool=True; requires_approval:bool=True
-
-class SelfEvolution:
-    def propose(self,title:str,reason:str,files:Iterable[str],tests:Iterable[str])->EvolutionProposal:
-        files=tuple(files); tests=tuple(tests)
-        pid=sha256("|".join((title,reason,*files,*tests)).encode()).hexdigest()[:16]
-        return EvolutionProposal(pid,title,reason,files,tests)
-
-    @staticmethod
-    def activation_allowed(p:EvolutionProposal,*,approved_by_master:bool,tests_passed:bool)->bool:
-        return bool(approved_by_master and tests_passed and p.requires_approval)
+    proposal_id: str
+    title: str
+    reason: str
+    files: tuple[str, ...]
+    test_commands: tuple[str, ...]
+    rollback_required: bool = True
+    requires_approval: bool = True

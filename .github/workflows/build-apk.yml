@@ -1,6 +1,9 @@
 name: Build SHADOW APK — SHADOW Wake / Online Only
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - integration/150-online-brain-loop-2026-09-25
   pull_request:
     branches:
       - main
@@ -29,12 +32,16 @@ jobs:
           npm install --ignore-scripts
           node --check server.mjs
           node --check ai-router.mjs
+          node --check shadow-pipeline.mjs
           node --check external-providers.mjs
           node --check tool-registry.mjs
           node --check task-router.mjs
           node --check development-agent.mjs
           node --test test-external-providers.mjs
           node --test test-task-router.mjs
+          node --test test-tool-governance.mjs
+          node test-shadow-pipeline.mjs
+          node test-client-cloud-e2e.mjs
 
   build:
     needs: verify-backend

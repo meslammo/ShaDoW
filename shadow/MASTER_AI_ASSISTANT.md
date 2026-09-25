@@ -10,13 +10,13 @@ SHADOW is a personal AI assistant / orchestration layer for Mohamed. It is not o
 Primary operating rule:
 - **Online = primary path.**
 - **Online-only AI:** SHADOW requires a reachable cloud AI provider for conversational intelligence; no offline AI mode or fallback is exposed.
-- Phone is the first host; Watch, Car, Smart Home, PC, TV, IoT and future companions are extensions.
+- The current build is client-independent: Android is only a UI/transport surface; external device control is not part of Shadow.
 
 ## 2. Authority and Identity
 
 Authority hierarchy:
 
-**Mohamed → MASTER AUTHORITY → SHADOW → Companions / Devices**
+**Mohamed → MASTER AUTHORITY → SHADOW**
 
 Identity model:
 1. Voice identity identifies the speaker.
@@ -33,26 +33,26 @@ Other people must have independent identities and permissions. They never inheri
 Determines who is speaking and what they are allowed to do.
 - Inputs: voice, passphrase, identity context, session state.
 - Outputs: authenticated identity, authority level, permissions.
-- Current: Android GitHub OAuth storage exists; voiceprint/passphrase identity is **NOT IMPLEMENTED**.
+- Current: GitHub OAuth storage and online voice/passphrase identity gates exist; full biometric proof remains separate.
 
 ### Core 02 — Intent & Understanding
 Transforms language into `Intent + Goal + Constraints + Expected Result`.
-- Current: cloud chat understands language; deterministic action routing exists in Android.
+- Current: cloud chat understands language; deterministic client routing exists in Android.
 - Gap: a single formal intent schema is not yet the universal runtime contract.
 
 ### Core 03 — Planning
 Breaks a request into executable steps with dependencies, risks, and expected outcomes.
-- Current: development planning endpoint exists.
+- Current: development planning endpoint and unified planning/agent loop exist.
 - Gap: universal planner-to-executor loop is **PARTIALLY IMPLEMENTED**.
 
-### Core 04 — Tool / Companion Management
-Discovers, authenticates, trusts, permits, evaluates, promotes/demotes, and revokes tools/devices.
-- Current: architecture and remote capability surfaces exist.
-- Gap: full dynamic registry is **PARTIALLY IMPLEMENTED**.
+### Core 04 — Tool Management
+Discovers, authenticates, permits, evaluates, promotes/demotes, and revokes software tools/capabilities.
+- Current: governed software Skill/Tool Registry exists.
+- Gap: full dynamic software registry is **PARTIALLY IMPLEMENTED**.
 
 ### Core 05 — Execution
-Routes an intent to Cloud, Android local actions, GitHub, image generation, speech, or future companions.
-- Current: local execution bridge + cloud APIs + GitHub authorization bridge exist.
+Routes an intent to Cloud AI, web/software tools, GitHub, image generation, speech, memory, and governed software capabilities.
+- Current: cloud APIs + GitHub authorization bridge + governed software tools exist.
 - Critical requirement: Chat must never be treated as execution evidence.
 
 ### Core 06 — Verification
@@ -119,7 +119,7 @@ Coordinates all cores and maintains a single lifecycle state.
 
 Interrupts pause the active operation at a checkpoint. Resume reloads the checkpoint. Failure selects a bounded recovery path. High-risk requests stop at the governance gate until explicit confirmation is present.
 
-## 6. Online-Only Architecture\n\n```text\nPHONE\n  ↓\nMASTER ROUTE\n  ↓\nCLOUD AI / WEB / TOOLS\n  ↓\nEXECUTION\n  ↓\nVERIFICATION\n  ↓\nMEMORY / AUDIT\n```\n\nWhen all configured online AI providers fail, SHADOW reports the online failure and does not switch to a local AI/offline conversation engine. Local Android adapters remain execution components only; they are not a user-facing offline AI mode.\n\n## 7. Voice
+## 6. Online-Only Architecture\n\n```text\nCLIENT (Android/Web/Future UI)\n  ↓\nMASTER ROUTE\n  ↓\nCLOUD ONLINE AI / WEB / SOFTWARE TOOLS\n  ↓\nGOVERNANCE\n  ↓\nEXECUTION\n  ↓\nVERIFICATION\n  ↓\nMEMORY / AUDIT\n```\n\nWhen all configured online AI providers fail, SHADOW reports the online failure and does not switch to a local AI/offline conversation engine. Android is a client surface only. Shadow does not control the host phone or external hardware, and there is no offline AI mode.\n\n## 7. Voice
 
 Supported user controls:
 - `رد كتابة` / `من غير صوت` → text only.
@@ -132,15 +132,13 @@ Voice configuration:
 
 Custom uploaded voice / biometric voice identity remains **NOT PROVEN COMPLETE**.
 
-## 8. Android Architecture
+## 8. Client Architecture — Android is UI/Transport Only
 
 Primary components:
 - `JarvisMainActivity` — UI, state indicators, command routing, voice controls.
-- `ShadowCore` — governed local execution/runtime adapters used by the online master route.
-- `ShadowPhoneController` — deterministic phone actions.
+- `ShadowCore` — client-side runtime surface; no external device-control capability is active.
 - `ShadowCloudClient` — Cloud API gateway.
 - `ShadowGithubAuth` — encrypted GitHub token storage through Android Keystore.
-- `ShadowRemoteController` — remote capability surface.
 - CI — release build and runtime checks.
 
 Required routing rule:
@@ -149,7 +147,7 @@ Required routing rule:
 
 Examples:
 - Chat → Cloud Chat.
-- Phone action → Phone Controller.
+- Software capability/action → governed Cloud/Tool execution.
 - GitHub request → GitHub Authorization / Development Agent.
 - Image → Image API.
 - Voice → Speech API.
@@ -165,9 +163,9 @@ Current contract:
 `Input → Identity → Understanding → Master Route → Planning → Route Handler → Verification → Response`
 
 Implemented in the Android app:
-- `ShadowMasterOrchestrator` classifies requests into Chat, Local Device, GitHub/Development, Image, or System.
+- `ShadowMasterOrchestrator` classifies requests into Chat, GitHub/Development, Image/Vision, and System; device-like requests are not active routes.
 - GitHub/development requests are isolated from normal Chat routing.
-- Local-device requests stay on the governed local execution path.
+- Device-control requests are not part of the active Shadow route; the app remains a client surface.
 - Voice and text enter the same request route.
 - Android TTS is the default client response path; cloud TTS is not called for every answer by default.
 
@@ -177,7 +175,7 @@ Still required for full 12-Core completion:
 - Wake-word device accuracy validation can be performed later; it is not a build/routing prerequisite.
 - Universal verification/evidence adapters.
 - Universal rollback/recovery adapters.
-- Full Companion/Device/Spatial integration under the same bus.
+- Device/Car/Smart-Home/Companion/Spatial integration is outside the active Shadow scope.
 
 ## 9. Cloud Backend
 
@@ -303,24 +301,16 @@ Target proof:
 
 End-to-end status: **NEEDS VERIFICATION / BLOCKED until OAuth Client ID is configured and the complete flow is tested.**
 
-## 14. Companion Architecture
+## 14. External Device/Companion Architecture — Deferred
 
-Supported target categories:
-- Phone
-- Watch
-- Car
-- Smart Home
-- PC
-- TV
-- IoT
-- Future Devices
+Previous target categories (phone, watch, car, smart home, PC, TV, IoT, future devices) are not part of the current build.
 
 Lifecycle:
 `Discover → Authenticate → Trust → Permission → Use → Evaluate → Promote/Demote → Revoke`
 
 Companion Registry stores identity, capabilities, health, trust and permissions. Capability Registry describes what each companion can actually do.
 
-Full dynamic registry: **PARTIALLY IMPLEMENTED**.
+Status: **OUT OF CURRENT SCOPE**.
 
 ## 15. Web Discovery
 
@@ -392,7 +382,7 @@ Infinite loops are prohibited by retry budgets and progress checks.
 | Android UI | IMPLEMENTED | CI + device test | continue device validation |
 | Online primary path | IMPLEMENTED | backend health + device test | monitor |
 | Offline AI | REMOVED | N/A | online-only provider path |
-| Local phone actions | PARTIALLY IMPLEMENTED | device E2E | add governed adapters |
+| External device control | OUT OF SCOPE | N/A | no device integration in current build |
 | Governance | IMPLEMENTED | runtime/CI tests | expand evidence adapters |
 | Cloud Chat | IMPLEMENTED | Railway + API response | billing/credits must remain valid |
 | Web search | IMPLEMENTED | live API test | verify fresh-source behavior |
@@ -406,7 +396,7 @@ Infinite loops are prohibited by retry budgets and progress checks.
 | PR/CI/merge automation | PARTIALLY IMPLEMENTED | E2E test | implement controlled PR lifecycle |
 | Voiceprint identity | NOT IMPLEMENTED | real biometric/voiceprint test | design secure verifier |
 | Custom uploaded voice | NOT IMPLEMENTED / NEEDS VERIFICATION | real TTS integration | integrate only after provider support is verified |
-| Companion Registry | PARTIALLY IMPLEMENTED | registry E2E | implement persistent registry |
+| Companion / spatial control | OUT OF SCOPE | N/A | defer until after AI platform completion |
 | Web Tool Discovery | PARTIALLY IMPLEMENTED | sandbox test | implement promotion policy |
 | Universal rollback | PARTIALLY IMPLEMENTED | failure injection | build adapters |
 
@@ -492,8 +482,8 @@ Goal: verified discovery and reuse of external resources.
 ### Phase 6 — Tool Registry
 Goal: lifecycle management and promotion/demotion.
 
-### Phase 7 — Companion Registry
-Goal: trusted multi-device orchestration.
+### Phase 7 — Software Capability Registry
+Goal: governed software tools and skills.
 
 ### Phase 8 — Voice Identity + Passphrase
 Goal: secure primary identity.
@@ -501,8 +491,8 @@ Goal: secure primary identity.
 ### Phase 9 — Custom Voice
 Goal: integrate a supported custom voice without weakening identity security.
 
-### Phase 10 — Watch / Car / Smart Home
-Goal: companion execution with explicit permissions.
+### Phase 10 — AI Reliability & Long-Running Tasks
+Goal: robust governed long-running software tasks.
 
 ### Phase 11 — Advanced Memory + Learning
 Goal: evidence-based, bounded personal learning.
@@ -512,15 +502,15 @@ Definition of Done: all critical flows pass device and cloud E2E tests with evid
 
 ## 22. What SHADOW Is Today vs What SHADOW Must Become
 
-**Today:** a real Android + Cloud foundation with online-only AI, governance primitives, phone execution, GitHub OAuth code, and a guarded Development Agent.
+**Today:** a real client + Cloud foundation with online-only AI, governance primitives, software tools, GitHub OAuth code, and a guarded Development Agent.
 
-**Must become:** a unified personal AI operating/orchestration layer with proven identity, universal intent routing, verified execution, governed memory, dynamic tools/companions, complete GitHub self-development, web discovery, recovery, and multi-device control. The user-facing assistant identity is SHADOW; legacy Jarvis-named implementation classes are internal compatibility code only.
+**Must become:** a unified personal AI operating/orchestration layer with proven identity, universal intent routing, verified execution, governed memory, dynamic software tools/skills, complete GitHub self-development, web discovery, recovery, automation, and multimodal intelligence. External device control is not required for this platform milestone. The user-facing assistant identity is SHADOW; legacy Jarvis-named implementation classes are internal compatibility code only.
 
 ## 23. Next Immediate Action
 
 **Fix GitHub Routing → Complete OAuth → Prove End-to-End Self-Development.**
 
-The immediate implementation must never hide a GitHub failure behind Chat. If OAuth is unavailable, SHADOW must say so explicitly and remain fail-closed.
+The immediate implementation must never hide a GitHub failure behind Chat. If OAuth is unavailable, SHADOW must say so explicitly and remain fail-closed. External device integration is not an implementation prerequisite.
 
 
 ## MOD-75.27 — Master Lifecycle Wiring
@@ -538,3 +528,8 @@ The Android master route now publishes lifecycle events to a bounded event bus. 
 - Shared assets: `melspectrogram.onnx` + `embedding_model.onnx`.
 - The build fetches the wake assets at pinned commits and prints SHA-256 hashes.
 - Physical microphone validation is a later device test and does not block build, routing, or integration.
+
+
+## Current Scope Decision — AI First
+
+The current Shadow build is intentionally independent of external devices. Phone-control, car-control, smart-home control, wearable/companion control, and spatial-hardware integrations are removed from the active architecture so they cannot delay completion of the online AI platform. Android remains only a client surface for interaction, voice, images, status, and authentication.

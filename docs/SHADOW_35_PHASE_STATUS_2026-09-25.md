@@ -1,0 +1,86 @@
+# SHADOW 35-Phase Status — 2026-09-25
+
+## Scope
+
+This status tracks the 35-phase SHADOW roadmap on top of the existing 150-Core architecture.
+No Core definitions are added here and the offline conversational AI path is not restored.
+
+### Status vocabulary
+
+- IMPLEMENTED — software contract/code exists and is covered by automated tests.
+- Device integrations are **out of scope** for the current Shadow build. Android is treated as a client surface only.
+- IMPLEMENTED + E2E GATE — software is wired, but real provider/device/environment proof is still required.
+- FOUNDATION — shared framework is present and feeds later phases.
+
+| # | Phase | Status | Evidence / remaining gate |
+|---:|---|---|---|
+| 01 | Deep Integration | IMPLEMENTED | Unified150Orchestrator + persistent memory + governance + governed tools + verification + audit |
+| 02 | Real Online Backend E2E | IMPLEMENTED + E2E GATE | Opt-in live-provider test requires provider credentials |
+| 03 | Cloud Unified Runtime | IMPLEMENTED + E2E GATE | Cloud /v1/master/run uses production agent/tool path; live deployment proof remains |
+| 04 | Client Integration | IMPLEMENTED | Client bridge exposes unified 150-Core run/status/diagnostics; no device-control dependency |
+| 05 | Real Client E2E | IMPLEMENTED + E2E GATE | Requires deployed client validation; this is client validation, not device-control validation |
+| 06 | Voice + Hey Shadow | IMPLEMENTED + E2E GATE | Voice/wake/streaming client path exists; client-level validation remains |
+| 07 | Online Context Intelligence | IMPLEMENTED | Online conversation/task/web/project context is software-only |
+| 08 | Agent Capability Layer | IMPLEMENTED | Software skills/agent capabilities are governed inside Shadow |
+| 09 | GitHub / Development Agent E2E | IMPLEMENTED + E2E GATE | Development pipeline exists; authenticated full lifecycle proof remains |
+| 10 | Security / Governance Hardening | IMPLEMENTED | Fail-closed permissions and secret filtering are wired |
+| 11 | Recovery / Reliability | IMPLEMENTED | Checkpoints, safe failures and recovery primitives are wired |
+| 12 | Production Hardening + First Release | IMPLEMENTED + E2E GATE | Release/backup evidence remains |
+| 13 | Full 150-Core Real Coverage | IMPLEMENTED + E2E GATE | 150 catalog + runtime + smoke; real per-adapter evidence remains |
+| 14 | Continuous Learning | IMPLEMENTED | Approved/context memory write path is present |
+| 15 | Advanced Agent Loop | IMPLEMENTED | Bounded tool rounds + workflow primitives |
+| 16 | Multimodal Intelligence | IMPLEMENTED + E2E GATE | Text/voice/image paths; client-level validation remains |
+| 17 | Cross-Session Shadow | IMPLEMENTED | Authorized session continuity without device federation |
+| 18 | Autonomous-but-Governed Operations | IMPLEMENTED | Workflow/checkpoint/governance boundaries; real long-running operations remain |
+| 19 | Shadow Intelligence Evolution | IMPLEMENTED | Routing/planning/evaluation contracts |
+| 20 | Personal Knowledge Graph | IMPLEMENTED | KnowledgeGraph nodes/relations/export |
+| 21 | Predictive Assistance | IMPLEMENTED + E2E GATE | Context-ranked suggestion API; production behavior still needs real usage validation |
+| 22 | Real-World Automation | IMPLEMENTED + E2E GATE | Workflow engine exists; live external automation proof remains |
+| 23 | Shadow Skills Platform | IMPLEMENTED | Versioned SkillRegistry with enable/disable/invocation |
+| 24 | Multi-Agent Intelligence | IMPLEMENTED | Specialized software agents/skills under Shadow governance |
+| 25 | Advanced Simulation & Sandbox | IMPLEMENTED | Permission-aware dry-run/simulation |
+| 26 | Self-Diagnostics | IMPLEMENTED | Runtime/workspace/core/tool diagnostics |
+| 27 | Controlled Self-Improvement | IMPLEMENTED + E2E GATE | Proposal/test/approval contract exists; real PR lifecycle proof remains |
+| 28 | Federated AI Skills | IMPLEMENTED | Remote software skills/services as governed capability nodes |
+| 29 | World & Task Context Model | IMPLEMENTED | Entities, projects, events, tools and time; no spatial hardware dependency |
+| 30 | Continuous Verification | IMPLEMENTED | ContinuousVerifier plus execution verification |
+| 31 | Shadow Operating Layer | IMPLEMENTED | Unified identity/context/permission/control-plane surface |
+| 32 | Shadow Ecosystem | IMPLEMENTED | Skills + software-integration adapter boundaries |
+| 33 | Global Reliability Layer | IMPLEMENTED + E2E GATE | Recovery primitives exist; production backup/failover/restore proof remains |
+| 34 | Shadow 2.x Evolution | IMPLEMENTED | Bounded self-evolution proposal/activation contract |
+| 35 | Shadow Long-Term Platform | IMPLEMENTED + E2E GATE | Platform contract exists; final real-world acceptance requires external gates |
+
+## Current architectural loop
+
+```text
+Mohamed
+  -> Identity / Governance
+  -> Unified150Orchestrator
+  -> 150-Core Runtime
+  -> Online Brain
+  -> Memory + Tools
+  -> Execute
+  -> Verify
+  -> Audit
+  -> Recovery / Learning
+  -> Deliver
+```
+
+## External acceptance gates
+
+These are not claims of completion until executed in the corresponding real environment:
+
+1. Live online-provider request with real secret.
+2. Deployed client request/response E2E.
+3. Voice/wake/streaming validation in the chosen client surface.
+4. Authenticated GitHub write/PR/CI lifecycle.
+5. Production backup/failover/restore.
+
+## Invariants
+
+- 150 Core catalog remains intact.
+- Twelve-Core root remains preserved.
+- Conversational AI is online-only.
+- Phone/car/home/companion/spatial device control is not part of Shadow's current active architecture.
+- Sensitive actions fail closed without the required authorization.
+- No API keys, tokens or private credentials are committed.
