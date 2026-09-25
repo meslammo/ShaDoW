@@ -111,6 +111,22 @@ public final class ShadowPythonRuntimeBridge {
     }
 
 
+    /** EVO-35: export non-secret durable memory facts for cross-device sync. */
+    public String exportSyncMemory(){
+        try{
+            PyObject result=androidRuntime().callAttr("export_sync_memory",context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
+            return result.toString();
+        }catch(Throwable e){ return "[]"; }
+    }
+
+    /** EVO-35: import sanitized durable memory received from a linked Shadow device. */
+    public String applySyncedMemory(String factsJson){
+        try{
+            PyObject result=androidRuntime().callAttr("apply_synced_memory",factsJson==null?"[]":factsJson,context.getFilesDir().getAbsolutePath()+"/shadow_workspace");
+            return result.toString();
+        }catch(Throwable e){ return "{\"ok\":false,\"status\":\"memory_sync_failed\"}"; }
+    }
+
     /** EVO-35: expose the unified 35-phase platform contract to Android. */
     public String platformStatus(){
         try{
