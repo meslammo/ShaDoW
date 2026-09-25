@@ -28,6 +28,7 @@ public final class ShadowDeviceActivation {
     private static final String KEY_INSTANCE = "instance_id";
     private static final String KEY_DEVICE = "device_id";
     private static final String KEY_TOKEN = "activation_token_enc";
+    private static final String KEY_SYNC = "last_sync_snapshot";
     private static final String KEY_ALIAS = "SHADOW_DEVICE_ACTIVATION_V1";
     private final Context context;
     private final SharedPreferences prefs;
@@ -63,8 +64,17 @@ public final class ShadowDeviceActivation {
 
     public String activationToken() { return readToken(); }
 
+    public void saveSyncSnapshot(String json) {
+        if (json == null || json.trim().isEmpty()) return;
+        prefs.edit().putString(KEY_SYNC, json).apply();
+    }
+
+    public String syncSnapshot() {
+        return prefs.getString(KEY_SYNC, "");
+    }
+
     public void clear() {
-        prefs.edit().remove(KEY_INSTANCE).remove(KEY_TOKEN).apply();
+        prefs.edit().remove(KEY_INSTANCE).remove(KEY_TOKEN).remove(KEY_SYNC).apply();
     }
 
     private String readToken() {
