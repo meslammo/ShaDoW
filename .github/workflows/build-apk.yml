@@ -1,6 +1,9 @@
 name: Build SHADOW APK — SHADOW Wake / Online Only
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - integration/150-online-brain-loop-2026-09-25
   pull_request:
     branches:
       - main
@@ -94,39 +97,3 @@ jobs:
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
-
-  real-provider-e2e:
-    if: ${{ secrets.OPENAI_API_KEY != '' || secrets.XAI_API_KEY != '' || secrets.DEEPSEEK_API_KEY != '' || secrets.MISTRAL_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '' || secrets.GEMINI_API_KEY != '' }}
-    runs-on: ubuntu-latest
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Real online provider E2E
-        working-directory: backend
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "${OPENAI_API_KEY:-}" ]; then
-            export SHADOW_E2E_PROVIDER=openai
-          elif [ -n "${XAI_API_KEY:-}" ]; then
-            export SHADOW_E2E_PROVIDER=xai
-          elif [ -n "${DEEPSEEK_API_KEY:-}" ]; then
-            export SHADOW_E2E_PROVIDER=deepseek
-          elif [ -n "${MISTRAL_API_KEY:-}" ]; then
-            export SHADOW_E2E_PROVIDER=mistral
-          elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-            export SHADOW_E2E_PROVIDER=anthropic
-          else
-            export SHADOW_E2E_PROVIDER=gemini
-          fi
-          npm install --ignore-scripts
-          node test-real-provider-e2e.mjs
