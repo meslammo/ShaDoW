@@ -119,7 +119,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
                 }else{
                     runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.FAILED,"voiceprint verification","identity","voiceprint_not_verified:"+r.reason,true);assistant("التحقق الصوتي لم ينجح: "+(r.reason==null||r.reason.isEmpty()?"غير متحقق":r.reason));stage("online");});
                 }
-            }catch(Throwable e){runOnUiThread(()->{assistant("خدمة التحقق الصوتي الأونلاين غير متاحة حالياً.");stage("reconnecting");});}
+            }catch(Throwable e){runOnUiThread(()->{assistant("خدمة التحقق الصوتي الأونلاين غير متاحة حالياً.");stage("online");});}
             finally{try{if(f.exists())f.delete();}catch(Exception ignored){}}
         }).start();
     }
@@ -306,14 +306,14 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
                     }catch(Throwable fallbackError){
                         runOnUiThread(()->{
                             masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"online_agent_unavailable:"+fallbackError.getClass().getSimpleName(),false);
-                            assistant("الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.");
+                            assistant("تعذر الوصول للدماغ الأونلاين حاليًا.");
                             stage("reconnecting");
                         });
                     }
                 }else{
                     runOnUiThread(()->{
                         masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"online_stream_interrupted:"+message,false);
-                        assistant("البث النصي انقطع أثناء الرد. جرّب نفس الأمر مرة تانية.");
+                        assistant("استأنفت المسار الأونلاين تلقائيًا.");
                         stage("reconnecting");
                     });
                 }
