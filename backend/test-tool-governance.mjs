@@ -56,3 +56,14 @@ assert.equal(safeAndroid.kind, 'client_action');
 assert.equal(safeAndroid.requires_confirmation, false);
 
 console.log('tool-governance: ok');
+
+
+await assert.rejects(
+  () => executeTool('android_action', { action: 'open_settings' }, {
+    ...helpers,
+    authorizeMutation: () => true,
+  }),
+  /unknown_tool/,
+);
+
+console.log('device-control: disabled');
