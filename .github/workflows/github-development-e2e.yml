@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SHADOW_GITHUB_TOKEN: ${{ github.token }}
+      SHADOW_GITHUB_PR_TOKEN: ${{ secrets.SHADOW_GITHUB_PR_TOKEN || '' }}
       SHADOW_GITHUB_REPO: meslammo/ShaDoW
       GITHUB_RUN_ID: ${{ github.run_id }}
     steps:
