@@ -95,4 +95,5 @@ app.get('/v1/platform/status', async (_req, res) => {
       online_only_brain: true,
       offline_ai_removed: true,
       external_device_control: false,
+      external_device_control: false,
       offline_ai_removed: true,
