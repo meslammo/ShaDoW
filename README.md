@@ -45,10 +45,11 @@ Reasoning UI: Think Hard / Deep Think uses a black background with red controls/
 See shadow/MASTER_AI_ASSISTANT.md and docs/SUPER_NICE_150_CORE.md for the capability and release contracts.
 
 ## MOD-78 — Full 12-Step Master Pipeline
-The Android and cloud surfaces now expose one explicit 12-stage execution contract: Understand -> Model Route -> Voice/Multimodal -> Memory -> Web Discovery -> GitHub/Development -> Phone/Devices -> Agent Loop -> Security/Approval -> Execute -> Verify -> Deliver.
+The Android and cloud surfaces now expose a unified 35-phase platform contract built on the existing 150-Core runtime. The execution loop preserves the 12-Core root and follows: Understand -> Route -> Memory -> Online Brain -> Governance -> Tools/Execution -> Verify -> Audit -> Recovery/Delivery.
 
-- Android menu: **⚡ Full 12-Step Master**.
-- Python: `supernice_run(...)` / `run_master_pipeline(...)`.
+- Android menu: **⚡ Full 35-Phase Master**.
+- Platform status: **GET /v1/platform/status**.
+- Python: `supernice_run(...)` / unified `Unified150Orchestrator`.
 - Cloud: POST `/v1/master/run`.
 - Cloud STT: POST `/v1/transcribe`.
 - Cloud vision: POST `/v1/vision`.
