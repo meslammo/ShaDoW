@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - integration/150-online-brain-loop-2026-09-25:
+      - integration/150-online-brain-loop-2026-09-25
 
 permissions:
   contents: read
