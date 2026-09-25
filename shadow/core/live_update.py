@@ -79,7 +79,9 @@ class LiveUpdateManager:
                 dst = self.root / rel
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 if dst.exists():
-                    shutil.copy2(dst, backup / rel)
+                    backup_file = backup / rel
+                    backup_file.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dst, backup_file)
                 shutil.copy2(src, dst)
         except Exception as exc:
             self.rollback(backup, check.files)
