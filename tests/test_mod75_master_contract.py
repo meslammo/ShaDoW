@@ -88,8 +88,10 @@ def test_mod87_github_priority_and_sensitive_pause_events():
     github_pos = orchestrator.find("else if (isGithub(x))")
     development_pos = orchestrator.find("else if (isDevelopment(x))")
     assert github_pos >= 0 and development_pos > github_pos
-    assert "sensitive_identity_required" in activity
+    assert "sensitive_identity_required" not in activity
     assert "user_cancelled_action" in activity
+    assert "كلمة السر:" not in activity
+    assert "set password:" not in activity.lower()
 
 def test_mod88_launcher_is_shadow_named():
     main = Path("app/src/main/java/com/shadow/mobile/MainActivity.java").read_text(encoding="utf-8")

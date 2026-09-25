@@ -8,7 +8,7 @@ import java.util.*;
 
 /** MOD-58/70.2: governed local execution/runtime layer used by the online master route. */
 public final class ShadowCore {
-    public static final String VERSION = "0.55.0";
+    public static final String VERSION = "0.56.0";
     private final Activity activity;
     private final SharedPreferences prefs;
     private final ShadowGovernanceRuntime governance;
@@ -60,7 +60,7 @@ public final class ShadowCore {
         if (isAny(x, "memory", "ذاكرة", "الذاكرة", "history", "سجل")) return memory();
         if (isAny(x, "time", "الوقت", "الساعة")) return "SHADOW\n\nالوقت الآن: " + new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
         if (isAny(x, "date", "التاريخ", "النهارده", "اليوم")) return "SHADOW\n\nالتاريخ: " + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم أونلاين.\nCore: ONLINE\nExecution: GOVERNED LOCAL + PYTHON 12-CORE\nIdentity: " + (masterAuthenticated ? "MASTER AUTHENTICATED" : "UNVERIFIED") + "\nMemory: ACTIVE\nVoice: AVAILABLE";
+        if (isAny(x, "hello", "hi", "سلام", "اهلا", "أهلا", "مرحبا")) return "SHADOW\n\nأهلاً محمد.\nأنا معاك وجاهز نتكلم أونلاين.\nCore: ONLINE\nExecution: GOVERNED LOCAL + UNIFIED 150-CORE\nIdentity: OWNER SESSION + "\nMemory: ACTIVE\nVoice: AVAILABLE";
         if (starts(x, "احسب ") || starts(x, "calculate ") || looksLikeMath(request)) {
             String expression = request.replaceFirst("(?i)^احسب\\s*", "").replaceFirst("(?i)^calculate\\s*", "").trim();
             try { return "CALCULATOR\n\n" + format(eval(expression)); }
@@ -70,7 +70,7 @@ public final class ShadowCore {
         return null;
     }
 
-    private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE\nExecution   GOVERNED NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nIdentity    PASSphrase + 12-CORE GATE\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     ONLINE REQUIRED\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
+    private String status() { return "SHADOW SYSTEM STATUS\n\nVersion     " + VERSION + "\nCore        ONLINE\nExecution   GOVERNED NATIVE + EMBEDDED PYTHON\nMemory      ACTIVE\nVoice       ANDROID STT/TTS\nIdentity    OWNER SESSION • PASSPHRASE DISABLED\nPhone       CONTROL READY\nHome        ADAPTER READY\nCar         ADAPTER READY\nGateway     ONLINE REQUIRED\nSecurity    FAIL-CLOSED\nDevice      " + BuildInfo.summary(activity); }
     private String home() { return "HOME CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Home موجودة داخل التطبيق. عند إضافة Smart Home endpoint فعلي، يتم توصيله عبر نفس الـdomain."; }
     private String car() { return "CAR CORE\n\nDomain: ACTIVE\nAdapter: READY\nConnection: NOT CONNECTED\nEndpoint: NOT CONFIGURED\nControls: FAIL-CLOSED\n\nواجهة Car موجودة داخل التطبيق. عند إضافة Car/Vespa API أو tracker فعلي، يتم توصيله عبر نفس الـdomain."; }
     private String device() { return "DEVICE\n\n" + BuildInfo.summary(activity); }
