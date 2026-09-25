@@ -15,61 +15,18 @@ import java.nio.charset.StandardCharsets;
 public final class ShadowCloudClient {
     private static final String PREFS = "shadow_cloud";
     private static final String RESPONSE_ID = "previous_response_id";
-    private final Context context; private final String baseUrl;
-    public ShadowCloudClient(Context context){this.context=context.getApplicationContext();this.baseUrl=BuildConfig.SHADOW_BACKEND_URL.replaceAll("/+$","");}
+    private final Context context; private final String baseUrl; private final ShadowPuterBridge puter;
+    public ShadowCloudClient(Context context){this.context=context.getApplicationContext();this.baseUrl=BuildConfig.SHADOW_BACKEND_URL.replaceAll("/+$","");this.puter=new ShadowPuterBridge(context);}
     public boolean isConfigured(){return baseUrl.startsWith("https://")&&!baseUrl.contains("REPLACE_WITH");}
-    public String getBaseUrl(){return baseUrl;}
-    public boolean health(){if(!isConfigured())return false;HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/health").openConnection();c.setRequestMethod("GET");c.setConnectTimeout(5000);c.setReadTimeout(7000);return c.getResponseCode()==200;}catch(Exception ignored){return false;}finally{if(c!=null)c.disconnect();}}
+    public String getBaseUrl(){return baseUrl;} public boolean onlineBrainReady(){return puter.isReady();}
+    public boolean health(){if(!isConfigured())return puter.isReady();HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/health").openConnection();c.setRequestMethod("GET");c.setConnectTimeout(5000);c.setReadTimeout(7000);return c.getResponseCode()==200;}catch(Exception ignored){return false;}finally{if(c!=null)c.disconnect();}}
 
     public CloudReply chat(String message)throws Exception{return chat(message,"none");}
     public CloudReply chat(String message,String reasoningEffort)throws Exception{
         try {
             if (isConfigured()) return runChat(message, null, null, reasoningEffort);
         } catch (Exception ignored) {}
-        return pollinationsChat(message);
-    }
-
-    private CloudReply pollinationsChat(String message)throws Exception{
-        String prompt = message == null ? "" : message.trim();
-        if (prompt.isEmpty()) throw new IllegalArgumentException("message_required");
-        String[] models = new String[]{"openai","mistral","gemini-fast"};
-        Exception last = null;
-        for (String model : models) {
-            try {
-                JSONObject body = new JSONObject();
-                body.put("model", model);
-                body.put("private", true);
-                body.put("messages", new JSONArray()
-                        .put(new JSONObject().put("role","system").put("content",
-                                "You are SHADOW, a helpful online AI assistant. Reply naturally in Egyptian Arabic when appropriate. Do not claim actions you did not verify."))
-                        .put(new JSONObject().put("role","user").put("content", prompt)));
-                JSONObject out = postAbsoluteJson("https://text.pollinations.ai/openai", body, 90000);
-                String answer = out.optString("answer","").trim();
-                if (answer.isEmpty()) {
-                    JSONArray choices = out.optJSONArray("choices");
-                    if (choices != null && choices.length() > 0) {
-                        JSONObject msg = choices.optJSONObject(0);
-                        if (msg != null) answer = msg.optJSONObject("message") == null ? "" : msg.optJSONObject("message").optString("content","").trim();
-                    }
-                }
-                if (!answer.isEmpty()) return new CloudReply(answer,"","pollinations",model,false,null);
-            } catch(Exception e) { last=e; }
-        }
-        try {
-            String url = "https://text.pollinations.ai/" + java.net.URLEncoder.encode(prompt, "UTF-8")
-                    + "?model=openai&private=true";
-            HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
-            c.setRequestMethod("GET");c.setConnectTimeout(8000);c.setReadTimeout(90000);
-            c.setRequestProperty("Accept","text/plain");
-            int code=c.getResponseCode();
-            String answer=read(code>=200&&code<300?c.getInputStream():c.getErrorStream()).trim();
-            c.disconnect();
-            if(code>=200&&code<300&&!answer.isEmpty()) return new CloudReply(answer,"","pollinations","openai",false,null);
-            throw new IllegalStateException("pollinations_http_"+code);
-        } catch(Exception e) {
-            if(last!=null) e=last;
-            throw e;
-        }
+        return puter.chatBlocking(message,"gpt-5.6-luna",reasoningEffort);
     }
 
     private JSONObject postAbsoluteJson(String url,JSONObject body,int timeout)throws Exception{
@@ -116,14 +73,26 @@ public final class ShadowCloudClient {
         public StreamDone(String r,String p,String m,boolean w){responseId=r;provider=p;model=m;usedWeb=w;}
     }
     public void streamChat(String message,String reasoningEffort,StreamListener listener)throws Exception{
+        final boolean[] seen = {false};
+        StreamListener proxy = listener == null ? null : new StreamListener(){
+            public void onDelta(String text){ if(text!=null&&!text.isEmpty())seen[0]=true; listener.onDelta(text); }
+            public void onDone(StreamDone done){ listener.onDone(done); }
+            public void onPending(PendingAction action,String provider,String responseId){ listener.onPending(action,provider,responseId); }
+        };
         try{
             if(isConfigured()){
-                streamChatBackend(message,reasoningEffort,listener);
+                streamChatBackend(message,reasoningEffort,proxy);
                 return;
             }
-        }catch(Exception ignored){}
-        CloudReply fallback=pollinationsChat(message);
-        if(listener!=null){listener.onDelta(fallback.answer);listener.onDone(new StreamDone("",fallback.provider,fallback.model,false));}
+        }catch(Exception backendError){
+            // Preserve the conversation and switch to the direct online brain without
+            // exposing reconnect/offline status to the user.
+        }
+        puter.streamChat(message,"gpt-5.6-luna",reasoningEffort,proxy == null ? new StreamListener(){
+            public void onDelta(String t){}
+            public void onDone(StreamDone d){}
+            public void onPending(PendingAction a,String p,String r){}
+        }:proxy);
     }
 
     private void streamChatBackend(String message,String reasoningEffort,StreamListener listener)throws Exception{
@@ -205,7 +174,7 @@ public final class ShadowCloudClient {
     }
     public void applyDevelopment(String githubToken,String branch,String commitMessage,JSONArray files)throws Exception{JSONObject body=new JSONObject();body.put("approved",true);body.put("github_token",githubToken);body.put("branch",branch);body.put("commit_message",commitMessage);body.put("files",files);JSONObject r=postJson("/v1/development/apply",body,60000);if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","github_write_failed"));}
     private JSONObject postJson(String path,JSONObject body,int timeout)throws Exception{if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+path).openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(timeout);c.setRequestProperty("Content-Type","application/json; charset=utf-8");c.setRequestProperty("Accept","application/json");byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());return new JSONObject(json==null?"{}":json);}finally{if(c!=null)c.disconnect();}}
-    public String generateImage(String prompt)throws Exception{JSONObject result=postJson("/v1/images",new JSONObject().put("prompt",prompt).put("size","1024x1024"),120000);if(!result.optBoolean("ok",false))throw new IllegalStateException(result.optString("error","image_generation_failed"));String data=result.optString("image_base64","").trim();if(data.isEmpty())throw new IllegalStateException("empty_image");return data;}
+    public String generateImage(String prompt)throws Exception{try{JSONObject result=postJson("/v1/images",new JSONObject().put("prompt",prompt).put("size","1024x1024"),120000);if(!result.optBoolean("ok",false))throw new IllegalStateException(result.optString("error","image_generation_failed"));String data=result.optString("image_base64","").trim();if(data.isEmpty())throw new IllegalStateException("empty_image");return data;}catch(Exception ignored){return puter.generateImage(prompt,"gpt-image-2");}}
     public byte[] synthesizeSpeech(String text)throws Exception{JSONObject body=new JSONObject().put("input",text);HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+"/v1/speech").openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(60000);c.setRequestProperty("Content-Type","application/json; charset=utf-8");byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();if(code<200||code>=300)throw new IllegalStateException("speech_failed_"+code);return readBytes(c.getInputStream());}finally{if(c!=null)c.disconnect();}}
     /** MOD-78: cloud speech-to-text path. Provider credentials stay server-side. */
     public String transcribeSpeech(byte[] audio,String contentType)throws Exception{
@@ -225,9 +194,13 @@ public final class ShadowCloudClient {
         body.put("image_base64",android.util.Base64.encodeToString(image,android.util.Base64.NO_WRAP));
         body.put("content_type",mimeType==null?"image/jpeg":mimeType);
         body.put("prompt",prompt==null||prompt.trim().isEmpty()?"حلل الصورة بدقة واذكر ما يمكن التحقق منه فقط.":prompt);
-        JSONObject r=postJson("/v1/vision",body,90000);
-        if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","vision_failed"));
-        return r.optString("answer","").trim();
+        try{
+            JSONObject r=postJson("/v1/vision",body,90000);
+            if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","vision_failed"));
+            return r.optString("answer","").trim();
+        }catch(Exception ignored){
+            return puter.analyzeImage(image,mimeType,prompt);
+        }
     }
 
     /** EVO-35: query the unified 35-phase platform contract. */
@@ -258,7 +231,7 @@ public final class ShadowCloudClient {
         return r.toString();
     }
 
-    public void resetConversation(){prefs().edit().remove(RESPONSE_ID).apply();}
+    public void resetConversation(){prefs().edit().remove(RESPONSE_ID).apply();puter.resetConversation();}
 
     private android.content.SharedPreferences prefs(){return context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);}
     private static String read(InputStream stream)throws Exception{if(stream==null)return"";StringBuilder b=new StringBuilder();try(BufferedReader r=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null)b.append(line);}return b.toString();}
