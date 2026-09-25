@@ -49,13 +49,14 @@ def test_unified_orchestrator_joins_request_to_online_brain_governance_execution
     assert result.metadata["audit"] == "CORE-140"
 
 
-def test_unified_orchestrator_refuses_to_fake_online_brain(tmp_path):
+def test_unified_orchestrator_fails_closed_when_online_brain_is_unavailable(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     orchestrator = Unified150Orchestrator(str(tmp_path))
     result = orchestrator.run("عايز إجابة أونلاين")
 
     assert result.ok is False
-    assert result.status == "online_brain_required"
+    assert result.status == "online_brain_failed"
     assert any(
-        event.stage == "online_brain" and event.status == "adapter_pending"
+        event.stage == "online_brain" and event.status == "failed"
         for event in result.events
     )
