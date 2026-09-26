@@ -1,4 +1,4 @@
-name: Build SHADOW APK — SHADOW Wake / Online Only
+name: Build SHADOW APK — MOD-101 Unified Multi-Engine
 on:
   workflow_dispatch:
   push:
@@ -41,6 +41,7 @@ jobs:
           node --test test-external-providers.mjs
           node --test test-task-router.mjs
           node --test test-tool-governance.mjs
+          node --test test-device-action.mjs
           node test-shadow-pipeline.mjs
           node test-client-cloud-e2e.mjs
 
@@ -95,7 +96,7 @@ jobs:
           sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-MOD76-ONLINE-ONLY-candidate-apk
+          name: SHADOW-MOD101-UNIFIED-MULTI-ENGINE-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256

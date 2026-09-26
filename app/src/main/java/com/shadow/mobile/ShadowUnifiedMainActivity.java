@@ -125,18 +125,13 @@ public class ShadowUnifiedMainActivity extends Activity implements TextToSpeech.
 
     private void runCloud(String s){
         try{
-            ShadowCloudClient.CloudReply r=cloud.chat(s); online=true; runOnUiThread(()->{assistant(r.answer);speakNow(r.answer);stage("done");});
+            ShadowCloudClient.CloudReply r=cloud.chat(s);
+            online=true;
+            runOnUiThread(()->{assistant(r.answer);speakNow(r.answer);stage("done");});
         }catch(Throwable e){
             online=false;
-            String answerValue;
-            try{
-                String fallback=core.handle(s,identity.isAuthenticated(),true,"android-unified");
-                answerValue=(fallback==null||fallback.trim().isEmpty())?"الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.":fallback;
-            }catch(Throwable ignored){
-                answerValue="الأونلاين مش متاح دلوقتي، وSHADOW مش هيستخدم نسخة أوفلاين أو إجابة محلية بدل الذكاء السحابي.";
-            }
-            final String answer=answerValue;
-            runOnUiThread(()->{assistant(answer);speakNow(answer);stage("done");});
+            final String answer="تعذر الوصول للدماغ الأونلاين حاليًا. جرّب الأمر مرة تانية.";
+            runOnUiThread(()->{assistant(answer);stage("reconnecting");});
         }
     }
 
