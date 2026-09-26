@@ -20,6 +20,9 @@ on:
       - 'build.gradle*'
       - 'gradle.properties'
 
+permissions:
+  contents: write
+
 jobs:
   verify-backend:
     runs-on: ubuntu-latest
@@ -101,3 +104,12 @@ jobs:
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
+
+      - name: Publish verified APK as GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="shadow-mod102-${GITHUB_RUN_ID}"
+          TITLE="SHADOW MOD-102 APK ${GITHUB_SHA::7}"
+          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TITLE" --notes "Verified APK build for SHADOW MOD-102. Commit: $GITHUB_SHA" --latest
