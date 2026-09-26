@@ -102,3 +102,17 @@ jobs:
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
+
+      - name: Publish artifact link to PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          ARTIFACT_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[] | select(.name=="SHADOW-MOD102-NEXO-AGENT-apk") | .id' | head -n 1)
+          test -n "$ARTIFACT_ID"
+          URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts/$ARTIFACT_ID"
+          gh pr comment "${{ github.event.pull_request.number }}" --body "✅ **SHADOW MOD-102 APK build successful**
+Artifact: $URL
+Commit: $GITHUB_SHA
+APK SHA256: $(cat app/build/outputs/apk/release/apk.sha256 | cut -d' ' -f1)"
