@@ -167,17 +167,7 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
 
         if(plan.route==ShadowMasterOrchestrator.Route.GITHUB){handleGithubCommand(request);return;}
         if(plan.route==ShadowMasterOrchestrator.Route.DEVELOPMENT){
-            stage("planning");
-            new Thread(()->{
-                final String devPlan;
-                try{devPlan=developmentAgent.plan(routedRequest);}
-                catch(Throwable e){runOnUiThread(()->assistant("Development Agent تعذر تشغيله الآن."));return;}
-                runOnUiThread(()->{
-                    masterEvent(ShadowMasterEventBus.Type.PLAN_READY,routedRequest,routedPlan.routeName(),"development_plan_ready",true);
-                    masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"plan_only",true);
-                    assistant("🧠 Development Plan\n\n"+devPlan);stage("done");speak(devPlan);
-                });
-            }).start();
+            runDevelopmentCloud(routedRequest,routedPlan);
             return;
         }
         if(plan.route==ShadowMasterOrchestrator.Route.SPATIAL){
@@ -321,11 +311,92 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         system("SHADOW • تشغيل المسار الموحد للـ35 مرحلة أونلاين…");
         new Thread(()->{
             try{
-                final String result=cloud.runMasterPipeline(task,identity!=null&&identity.isAuthenticated(),false);
+                final String result=cloud.runMasterPipeline(task,identity!=null&&identity.isAuthenticated(),false,githubAuth==null?"":githubAuth.loadToken());
                 runOnUiThread(()->{assistant(result);stage("done");});
             }catch(Throwable e){
                 runOnUiThread(()->{
                     assistant("المسار الأونلاين الكامل متاح لكن الطلب فشل: "+String.valueOf(e.getMessage())+"\n\nلن يتم تشغيل AI أوفلاين بدلًا منه.");
+                    stage("reconnecting");
+                });
+            }
+        }).start();
+    }
+
+    /** MOD-102: real cloud Development Agent loop — inspect first, then explicit approval before mutation. */
+    private void runDevelopmentCloud(String request,ShadowMasterOrchestrator.Plan plan){
+        stage("planning");
+        new Thread(()->{
+            try{
+                final String token=githubAuth==null?"":githubAuth.loadToken();
+                final String prompt=
+                    "Analyze and prepare this SHADOW/NEXO development task. "
+                  + "Use github_read on the relevant allowed repository before making any claims. "
+                  + "Do not mutate files in this analysis pass because execution approval has not been granted. "
+                  + "Return a concrete change plan with affected paths, risks, tests and expected verification.\n\n"
+                  + request;
+                final String raw=cloud.runMasterPipeline(prompt,identity!=null&&identity.isAuthenticated(),false,token);
+                final org.json.JSONObject json=new org.json.JSONObject(raw);
+                final String answer=json.optString("answer","").trim();
+                final String shown=answer.isEmpty()?raw:answer;
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.PLAN_READY,request,plan.routeName(),"cloud_development_analysis_ready",!shown.isEmpty());
+                    assistant("🧠 Development Analysis\n\n"+shown);
+                    stage("approval");
+                    if(token.isEmpty()){
+                        assistant("التحليل خلص. لتعديل NEXO فعليًا لازم GitHub يكون متوصل أولًا.");
+                        stage("done");
+                        if(voiceOutput)speak(shown);
+                        return;
+                    }
+                    new AlertDialog.Builder(this)
+                        .setTitle("تأكيد تطوير NEXO")
+                        .setMessage("SHADOW خلص تحليل المهمة. الموافقة دي هتسمح له بتعديل الملفات المسموح بها على branch منفصل ثم التحقق من النتيجة.")
+                        .setPositiveButton("تنفيذ", (dialog,which)->runDevelopmentApproved(request,plan))
+                        .setNegativeButton("إلغاء", (dialog,which)->{masterEvent(ShadowMasterEventBus.Type.PAUSED,request,plan.routeName(),"development_cancelled",false);stage("done");})
+                        .show();
+                });
+            }catch(Throwable e){
+                final String detail=String.valueOf(e.getMessage()==null?"development_cloud_failed":e.getMessage());
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"development_analysis_failed:"+detail,false);
+                    assistant("تعذر تشغيل Development Agent الأونلاين: "+detail);
+                    stage("reconnecting");
+                });
+            }
+        }).start();
+    }
+
+    /** MOD-102: explicit execution pass after the user approves the analyzed development task. */
+    private void runDevelopmentApproved(String request,ShadowMasterOrchestrator.Plan plan){
+        stage("executing");
+        new Thread(()->{
+            try{
+                final String token=githubAuth==null?"":githubAuth.loadToken();
+                if(token.isEmpty()){runOnUiThread(()->{assistant("GitHub غير متوصل؛ لم يتم تعديل أي ملف.");stage("done");});return;}
+                final String prompt=
+                    "Execution is explicitly approved by Mohamed. "
+                  + "Now execute this SHADOW/NEXO development task against the allowed repository. "
+                  + "Read the current files first, make only the necessary source changes, create/update a feature branch "
+                  + "rather than main, run the available CI verification, and report the exact commit/branch/result. "
+                  + "Do not modify or expose secrets. If a required verification cannot run, state that precisely.\n\n"
+                  + request;
+                final String raw=cloud.runMasterPipeline(prompt,true,true,token);
+                final org.json.JSONObject json=new org.json.JSONObject(raw);
+                final String answer=json.optString("answer","").trim();
+                final String shown=answer.isEmpty()?raw:answer;
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.ACTION_EXECUTED,request,plan.routeName(),"cloud_development_execution_returned",!shown.isEmpty());
+                    masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"cloud_development_verified",!shown.isEmpty());
+                    masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"cloud_development_completed",!shown.isEmpty());
+                    assistant("✅ Development Result\n\n"+shown);
+                    stage("done");
+                    if(voiceOutput)speak(shown);
+                });
+            }catch(Throwable e){
+                final String detail=String.valueOf(e.getMessage()==null?"development_execution_failed":e.getMessage());
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"cloud_development_execution_failed:"+detail,false);
+                    assistant("التنفيذ الفعلي لم يكتمل: "+detail);
                     stage("reconnecting");
                 });
             }

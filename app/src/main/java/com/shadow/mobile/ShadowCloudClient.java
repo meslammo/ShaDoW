@@ -204,13 +204,18 @@ public final class ShadowCloudClient {
         }finally{if(c!=null)c.disconnect();}
     }
 
-    /** EVO-35: cloud entry point for the governed unified master execution contract. */
+    /** MOD-102: cloud entry point for the governed unified master execution contract. */
     public String runMasterPipeline(String request,boolean authenticated,boolean confirmed)throws Exception{
+        return runMasterPipeline(request,authenticated,confirmed,"");
+    }
+    /** MOD-102: pass the encrypted-on-device GitHub token to the server only for the active request. */
+    public String runMasterPipeline(String request,boolean authenticated,boolean confirmed,String githubToken)throws Exception{
         JSONObject body=new JSONObject();
         body.put("message",request==null?"":request);
         body.put("authenticated",authenticated);
         body.put("confirmed",confirmed);
-        JSONObject r=postJson("/v1/master/run",body,90000);
+        if(githubToken!=null&&!githubToken.trim().isEmpty()) body.put("github_token",githubToken.trim());
+        JSONObject r=postJson("/v1/master/run",body,120000);
         if(!r.optBoolean("ok",false)&&!"confirmation_required".equals(r.optString("error","")))throw new IllegalStateException(r.optString("error","master_pipeline_failed"));
         return r.toString();
     }
