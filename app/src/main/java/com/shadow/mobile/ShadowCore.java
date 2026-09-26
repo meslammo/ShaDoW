@@ -28,21 +28,10 @@ public final class ShadowCore {
         String request = raw == null ? "" : raw.trim();
         if (request.isEmpty()) return "SHADOW\n\nاكتب أمراً أو استخدم الصوت.";
 
-        // MOD-70.2: the embedded Python runtime is preferred, but temporary
-        // runtime startup failure must not disable safe native Android actions.
-        // The native governance layer remains mandatory; sensitive actions
-        // still require the identity/authorization state.
-        String pythonGate = pythonCore.authorize(request, masterAuthenticated, authorized, source);
-        if (pythonGate.startsWith("BLOCK|")) {
-            String[] parts = pythonGate.split("\\|", 7);
-            String risk = parts.length > 1 ? parts[1] : "UNKNOWN";
-            String reason = parts.length > 2 ? parts[2] : "governance_blocked";
-            String identity = parts.length > 4 ? parts[4] : "identity=unverified";
-            boolean runtimeUnavailable = "runtime_unavailable".equals(reason);
-            if (!runtimeUnavailable) {
-                return "SHADOW GOVERNANCE\n\n12-Core Runtime blocked this local action.\nRisk: " + risk + "\nReason: " + reason + "\n" + identity + "\n\nالتنفيذ المحلي متوقف لحين استيفاء التأكيد/التفويض.";
-            }
-        }
+        // FIX-01: Master authentication is no longer a runtime gate.
+        // Local execution starts directly at the native governance layer.
+        // Existing risk/confirmation checks below remain active.
+        // masterAuthenticated/authorized stay only for source compatibility.
 
         String gate = governance.authorize(request);
         if (gate != null) return gate;
