@@ -8,7 +8,8 @@ assert.equal(classifyTask('اعمل فيديو قصير'), 'video');
 assert.equal(classifyTask('ترجم الكلام للإنجليزية'), 'language');
 assert.equal(classifyTask('ازيك يا Shadow'), 'chat');
 
-assert.notEqual(providerOrderFor('ازيك', true)[0], 'local');
+assert.equal(providerOrderFor('ازيك', true)[0], 'openai');
+assert.equal(providerOrderFor('ابني APK بعد إصلاح الكود', true)[0], 'openai');
 assert.equal(providerOrderFor('ازيك', true).includes('local'), false);
 assert.equal(normalizeEffortForProvider('gemini', 'xhigh'), 'medium');
 assert.equal(normalizeEffortForProvider('xai', 'low'), 'low');
