@@ -5,7 +5,7 @@ import cors from 'cors';
 import { applyFiles, createPullRequest, runDevelopmentPipeline, status as developmentStatus } from './development-agent.mjs';
 import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAuthStatus } from './github-oauth.mjs';
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
-import { providerStatus, memoryStatus } from './ai-router.mjs';
+import { providerStatus, memoryStatus, continueAgent } from './ai-router.mjs';
 import { runUnifiedPipeline, streamUnifiedPipeline, platformContract } from './shadow-pipeline.mjs';
 
 const app = express();
@@ -213,6 +213,45 @@ app.post('/v1/chat/stream', rateLimit, async (req, res) => {
     send({ type: 'error', error: String(error?.message || 'agent_failed') });
     send({ type: 'eof' });
     if (!res.writableEnded) res.end();
+  }
+});
+
+app.post('/v1/agent/continue', rateLimit, async (req, res) => {
+  const provider = typeof req.body?.provider === 'string' ? req.body.provider.trim().toLowerCase() : 'auto';
+  const responseId = typeof req.body?.response_id === 'string' ? req.body.response_id.trim() : '';
+  const toolCallId = typeof req.body?.tool_call_id === 'string' ? req.body.tool_call_id.trim() : '';
+  const originalMessage = typeof req.body?.original_message === 'string' ? req.body.original_message.trim() : '';
+  const output = typeof req.body?.output === 'string' ? req.body.output.trim() : '';
+  const reasoningEffort = String(req.body?.reasoning_effort || 'none').toLowerCase();
+  if (!originalMessage || !output) return res.status(400).json({ ok: false, error: 'continuation_payload_required' });
+  if (originalMessage.length > 12000 || output.length > 12000) return res.status(413).json({ ok: false, error: 'continuation_payload_too_large' });
+  try {
+    const result = await continueAgent({
+      provider,
+      responseId,
+      toolCallId,
+      originalMessage,
+      output,
+      reasoningEffort,
+      confirmed: true,
+      confirmedActions: ['device_action'],
+    });
+    return res.json({
+      ok: Boolean(result?.answer || result?.pendingAction),
+      answer: result?.answer || '',
+      response_id: result?.responseId || null,
+      provider: result?.provider || null,
+      model: result?.model || null,
+      used_web_search: Boolean(result?.usedWeb),
+      pending_action: result?.pendingAction || null,
+    });
+  } catch (error) {
+    console.error('Agent continuation failed', String(error?.message || error));
+    return res.status(503).json({
+      ok: false,
+      error: 'agent_continuation_failed',
+      detail: String(error?.message || 'continuation_unavailable').slice(0, 180),
+    });
   }
 });
 
