@@ -79,7 +79,8 @@ public final class ShadowMasterOrchestrator {
         else if (isGithub(x)) route = Route.GITHUB;
         else if (isDevelopment(x)) route = Route.DEVELOPMENT;
         else if (isSystem(x)) route = Route.SYSTEM;
-        else if (isSpatial(x) || isCompanion(x) || isLocalDevice(x)) route = Route.CHAT;
+        else if (isSpatial(x) || isCompanion(x)) route = Route.CHAT;
+        else if (isLocalDevice(x)) route = Route.LOCAL_DEVICE;
         else route = Route.CHAT;
 
         boolean sensitive = isSensitive(x);
