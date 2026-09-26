@@ -83,7 +83,8 @@ public final class ShadowMasterOrchestrator {
         else route = Route.CHAT;
 
         boolean sensitive = isSensitive(x);
-        boolean confirmation = sensitive && !authenticated;
+        // Development/GitHub mutations use an explicit UI approval gate; device/other sensitive routes still require identity authentication.
+        boolean confirmation = sensitive && !authenticated && route != Route.GITHUB && route != Route.DEVELOPMENT;
         Stage first = confirmation ? Stage.AUTHENTICATING
                 : (route == Route.CHAT ? Stage.UNDERSTANDING : Stage.PLANNING);
 
