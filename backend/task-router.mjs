@@ -10,17 +10,19 @@ export function classifyTask(message = '') {
 }
 
 export const TASK_PROVIDER_ORDER = Object.freeze({
-  chat: ['gemini','mistral','deepseek','openai','xai','anthropic','pollinations'],
-  research: ['gemini','xai','openai','deepseek','mistral','anthropic'],
-  code: ['xai','openai','anthropic','mistral','gemini','deepseek'],
-  vision: ['gemini','openai','mistral','anthropic','xai'],
-  language: ['gemini','mistral','anthropic','openai','deepseek','xai','pollinations'],
-  video: ['gemini','xai','openai','pollinations'],
+  chat: ['openai','xai','anthropic','gemini','deepseek','mistral','pollinations'],
+  research: ['openai','xai','gemini','deepseek','anthropic','mistral'],
+  code: ['openai','xai','anthropic','deepseek','mistral','gemini'],
+  vision: ['openai','gemini','anthropic','xai','mistral'],
+  language: ['openai','anthropic','gemini','mistral','deepseek','xai','pollinations'],
+  video: ['openai','gemini','xai','pollinations'],
 });
 
-export function providerOrderFor(message, _freeFirst = true) {
+export function providerOrderFor(message, _freeFirst = false) {
   const task = classifyTask(message);
-  return [...(TASK_PROVIDER_ORDER[task] || TASK_PROVIDER_ORDER.chat)];
+  const ordered = [...(TASK_PROVIDER_ORDER[task] || TASK_PROVIDER_ORDER.chat)];
+  const primary = String(process.env.SHADOW_PRIMARY_PROVIDER || 'openai').toLowerCase();
+  return [primary, ...ordered.filter(provider => provider !== primary)];
 }
 
 export function normalizeEffortForProvider(provider, effort = 'none') {
