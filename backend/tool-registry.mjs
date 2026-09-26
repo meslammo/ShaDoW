@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { applyFiles, createPullRequest } from './development-agent.mjs';
+import { workspaceExec, workspaceWrite, workspaceClonePublicRepo } from './workspace-agent.mjs';
 
 const WORKSPACE = path.resolve(process.env.SHADOW_WORKSPACE_DIR || '/data/shadow-workspace');
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -101,6 +103,11 @@ export const TOOL_DEFINITIONS = [
   { type: 'function', name: 'memory_forget', description: 'Forget a matching durable memory fact.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { type: 'function', name: 'file_read', description: 'Read a file from the SHADOW workspace only.', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
   { type: 'function', name: 'file_write', description: 'Write a file into the SHADOW workspace. Use only after explicit authorization for mutations.', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'], additionalProperties: false } },
+  { type: 'function', name: 'workspace_write', description: 'Create or replace source files in the private SHADOW workspace for an approved software task.', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'], additionalProperties: false } },
+  { type: 'function', name: 'workspace_exec', description: 'Run a safe allowlisted build/test command in the private SHADOW workspace. No shell is used and destructive commands are blocked.', parameters: { type: 'object', properties: { command: { type: 'string' }, args: { type: 'array', items: { type: 'string' } }, cwd: { type: 'string' }, timeout_ms: { type: 'integer', minimum: 1000, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
+  { type: 'function', name: 'workspace_clone_public_repo', description: 'Clone a public GitHub repository into the private SHADOW workspace using a shallow clone.', parameters: { type: 'object', properties: { repo: { type: 'string' }, destination: { type: 'string' } }, required: ['repo'], additionalProperties: false } },
+  { type: 'function', name: 'github_write_files', description: 'Apply generated files to the configured SHADOW GitHub repository. Requires explicit confirmation because it creates or updates repository content.', parameters: { type: 'object', properties: { branch: { type: 'string' }, commit_message: { type: 'string' }, files: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path','content'], additionalProperties: false } } }, required: ['files'], additionalProperties: false } },
+  { type: 'function', name: 'github_open_pr', description: 'Open a GitHub pull request for an existing development branch after changes have been verified. Requires explicit confirmation.', parameters: { type: 'object', properties: { branch: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' }, draft: { type: 'boolean' } }, required: ['branch','title'], additionalProperties: false } },
 ];
 
 export async function executeTool(name, args, helpers = {}) {
@@ -119,6 +126,17 @@ export async function executeTool(name, args, helpers = {}) {
     return { kind: 'result', value: await helpers.memoryForget(args.query) };
   }
   if (name === 'file_read') return { kind: 'result', value: await fileRead(args.path) };
+  if (name === 'workspace_write') return { kind: 'result', value: await workspaceWrite(args.path, args.content) };
+  if (name === 'workspace_exec') return { kind: 'result', value: await workspaceExec({ command: args.command, args: args.args || [], cwd: args.cwd || '.', timeoutMs: args.timeout_ms || 120000 }) };
+  if (name === 'workspace_clone_public_repo') return { kind: 'result', value: await workspaceClonePublicRepo(args.repo, args.destination) };
+  if (name === 'github_write_files') {
+    if (mutationDenied('github_write_files', helpers)) throw new Error('explicit_confirmation_required');
+    return { kind: 'result', value: await applyFiles({ branch: args.branch || 'shadow-agent-work', message: args.commit_message || 'SHADOW agent change', files: args.files || [], token: String(helpers.githubWriteToken || '').trim() }) };
+  }
+  if (name === 'github_open_pr') {
+    if (mutationDenied('github_open_pr', helpers)) throw new Error('explicit_confirmation_required');
+    return { kind: 'result', value: await createPullRequest({ branch: args.branch, title: args.title, body: args.body || '', draft: args.draft !== false, token: String(helpers.githubWriteToken || '').trim() }) };
+  }
   if (name === 'file_write') {
     if (mutationDenied('file_write', helpers) || (args.requires_confirmation !== true && helpers.requireWriteApproval)) throw new Error('explicit_confirmation_required');
     return { kind: 'result', value: await fileWrite(args.path, args.content) };
@@ -137,5 +155,8 @@ export function registryStatus() {
     files: true,
     memory: true,
     device_control: false,
+    workspace_execution: true,
+    github_write: true,
+    github_pull_request: true,
   };
 }
