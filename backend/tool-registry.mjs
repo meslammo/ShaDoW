@@ -95,6 +95,7 @@ export const TOOL_DEFINITIONS = [
   { type: 'function', name: 'web_search', description: 'Search the public web for current information.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { type: 'function', name: 'web_fetch', description: 'Fetch a public HTTP(S) web page without accessing private hosts.', parameters: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'], additionalProperties: false } },
   { type: 'function', name: 'web_research', description: 'Search, fetch and rank a small set of public sources for research.', parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['query'], additionalProperties: false } },
+  { type: 'function', name: 'device_action', description: 'Execute a safe phone-local action through the Android SHADOW client. Use this for phone controls or opening an installed app. Put the exact natural-language command in command. Never use this tool for web research, coding, or cloud-only answers. Potentially sensitive actions such as calls, messages, payments, deletion, or account changes require explicit user confirmation.', parameters: { type: 'object', properties: { command: { type: 'string' }, reason: { type: 'string' } }, required: ['command'], additionalProperties: false } },
   { type: 'function', name: 'github_read', description: 'Read public GitHub repository metadata or a file.', parameters: { type: 'object', properties: { repo: { type: 'string' }, path: { type: 'string' } }, required: ['repo'], additionalProperties: false } },
   { type: 'function', name: 'memory_search', description: 'Search durable non-secret memory.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { type: 'function', name: 'memory_save', description: 'Save a useful non-secret fact or preference with provenance.', parameters: { type: 'object', properties: { fact: { type: 'string' }, reason: { type: 'string' }, evidence_level: { type: 'string', enum: ['fact','evidence','interpretation','conclusion'] }, source: { type: 'string' } }, required: ['fact'], additionalProperties: false } },
@@ -109,6 +110,20 @@ export async function executeTool(name, args, helpers = {}) {
   if (name === 'web_fetch') return { kind: 'result', value: await webFetch(args.url) };
   if (name === 'web_research') return { kind: 'result', value: await webResearch(args.query, args.limit) };
   if (name === 'github_read') return { kind: 'result', value: await helpers.githubRead(args.repo, args.path) };
+  if (name === 'device_action') {
+    const command = String(args?.command || '').trim();
+    if (!command) throw new Error('device_command_required');
+    if (command.length > 500) throw new Error('device_command_too_large');
+    const sensitive = /(delete|wipe|format|purchase|buy|pay|transfer|call|message|sms|حذف|امسح|فورمات|شراء|ادفع|حوّل|اتصل|رسالة|مكالمة)/i.test(command);
+    return {
+      kind: 'client_action',
+      value: { action: command, reason: String(args?.reason || '').slice(0, 500), requires_confirmation: sensitive },
+      action: command,
+      argument: '',
+      reason: String(args?.reason || (sensitive ? 'الإجراء ده يحتاج تأكيد قبل التنفيذ.' : 'تنفيذ إجراء محلي على الهاتف.')).slice(0, 500),
+      requires_confirmation: sensitive,
+    };
+  }
   if (name === 'memory_search') return { kind: 'result', value: await helpers.memorySearch(args.query) };
   if (name === 'memory_save') {
     if (mutationDenied('memory_save', helpers)) throw new Error('explicit_confirmation_required');
@@ -134,6 +149,7 @@ export function registryStatus() {
     web_fetch: true,
     web_research: true,
     github_read: true,
+    device_action: true,
     files: true,
     memory: true,
     device_control: false,
