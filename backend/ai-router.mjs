@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
-import { anthropicAgent, externalProviderStatus, geminiAgent, localProviderStatus, mistralAgent } from './external-providers.mjs';
+import { anthropicAgent, externalProviderStatus, geminiAgent, mistralAgent } from './external-providers.mjs';
 import { normalizeEffortForProvider, providerOrderFor } from './task-router.mjs';
 
 const { Pool } = pg;
@@ -23,7 +23,6 @@ const cfg = {
   anthropicModel: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5').trim(),
   geminiKey: (process.env.GEMINI_API_KEY || '').trim(),
   geminiModel: (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
-  localModel: (process.env.SHADOW_LOCAL_AI_MODEL || 'local-model').trim(),
   memoryDir: (process.env.SHADOW_MEMORY_DIR || '/data/shadow-memory').trim(),
   databaseUrl: (process.env.DATABASE_URL || '').trim(),
   pollinationsKey: (process.env.POLLINATIONS_API_KEY || '').trim(),
@@ -203,6 +202,7 @@ const helperSet = {
   memorySave: saveMemory,
   memoryForget: forgetMemory,
   requireWriteApproval: true,
+  githubWriteToken: String(process.env.SHADOW_GITHUB_TOKEN || '').trim(),
 };
 async function runTool(name, args, executionContext = {}) {
   try {
@@ -581,7 +581,6 @@ export function providerStatus() {
     pollinations: { configured: Boolean(cfg.pollinationsEnabled && cfg.pollinationsKey), model: cfg.pollinationsModel, authenticated: Boolean(cfg.pollinationsKey) },
     xai: { configured: Boolean(cfg.xaiKey), model: cfg.xaiModel },
     deepseek: { configured: Boolean(cfg.deepseekKey), model: cfg.deepseekModel },
-    local: localProviderStatus(),
     ...externalProviderStatus(),
     routing: 'task-aware provider routing',
     default_models: {
@@ -591,7 +590,6 @@ export function providerStatus() {
       mistral: cfg.mistralModel,
       anthropic: cfg.anthropicModel,
       gemini: cfg.geminiModel,
-      local: cfg.localModel,
       pollinations: cfg.pollinationsModel,
     },
     tools: TOOL_DEFINITIONS.map(x => x.name),
