@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-const WORKSPACE = path.resolve(process.env.SHADOW_WORKSPACE_DIR || '/data/shadow-workspace');
+const WORKSPACE = path.resolve(process.env.SHADOW_WORKSPACE_DIR || path.join(process.cwd(), '.shadow-workspace'));
 const MAX_OUTPUT = 120_000;
 const DEFAULT_TIMEOUT = 120_000;
 const MAX_TIMEOUT = 300_000;
