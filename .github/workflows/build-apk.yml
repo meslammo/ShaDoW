@@ -1,6 +1,7 @@
 name: Build SHADOW APK — MOD-102 NEXO Agent + Multi-Engine
 # MOD-101D: CI trigger aligned with the current online-only runtime contract.
 on:
+  # MOD-102 artifact verification build branch.
   workflow_dispatch:
   push:
     branches:
