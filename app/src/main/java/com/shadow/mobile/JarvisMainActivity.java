@@ -244,85 +244,35 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
         bottom();
     }
     private void runStreamChat(String request,ShadowMasterOrchestrator.Plan plan){
+        // HOTFIX-101C: verified JSON chat transport is primary until the deployed SSE
+        // adapter is returning a real event stream. Never leave the user with a blank UI.
         stage("online");
         new Thread(()->{
-            final StringBuilder transcript=new StringBuilder();
-            final TextView[] streamView=new TextView[1];
-            final boolean[] streamed={false};
             try{
-                cloud.streamChat(request,reasoningEffort,new ShadowCloudClient.StreamListener(){
-                    public void onDelta(String delta){
-                        if(delta==null||delta.isEmpty())return;
-                        streamed[0]=true;
-                        transcript.append(delta);
-                        runOnUiThread(()->{
-                            if(streamView[0]==null)streamView[0]=beginStreamingAssistant();
-                            appendStreamingAssistant(streamView[0],delta);
-                            stage("analyzing");
-                        });
+                final ShadowCloudClient.CloudReply reply=cloud.chat(request,reasoningEffort);
+                cloudOnline=true;
+                runOnUiThread(()->{
+                    if(reply.pendingAction!=null){
+                        masterEvent(ShadowMasterEventBus.Type.ACTION_REQUESTED,request,plan.routeName(),"online_action_pending",true);
+                        handlePendingAction(request,reply);
+                        return;
                     }
-                    public void onDone(ShadowCloudClient.StreamDone done){
-                         cloudOnline=true;
-                         String streamedAnswer=transcript.toString().trim();
-                         if(streamedAnswer.isEmpty() && done!=null && done.text!=null && !done.text.trim().isEmpty()){
-                             streamedAnswer=done.text.trim();
-                         }
-                         final String answer=streamedAnswer;
-                         runOnUiThread(()->{
-                            masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"online_stream_completed",!answer.isEmpty());
-                            masterEvent(ShadowMasterEventBus.Type.MEMORY_WRITE,request,plan.routeName(),"conversation_response",true);
-                            masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"online_stream_chat_completed",!answer.isEmpty());
-                            if(!answer.isEmpty()){
-                                if(streamView[0]==null)assistant(answer);
-                                speak(answer);
-                            }
-                            stage("online");
-                        });
-                    }
-                    public void onPending(ShadowCloudClient.PendingAction action,String provider,String responseId){
-                        cloudOnline=true;
-                        runOnUiThread(()->{
-                            if(streamView[0]!=null&&!transcript.toString().trim().isEmpty())streamView[0].append("\n");
-                            ShadowCloudClient.CloudReply pendingReply=new ShadowCloudClient.CloudReply(transcript.toString().trim(),responseId,provider,"",false,action);
-                            masterEvent(ShadowMasterEventBus.Type.ACTION_REQUESTED,request,plan.routeName(),"online_stream_action_pending",true);
-                            handlePendingAction(request,pendingReply);
-                        });
-                    }
+                    final String answer=reply.answer==null?"":reply.answer.trim();
+                    masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"online_response_received",!answer.isEmpty());
+                    masterEvent(ShadowMasterEventBus.Type.MEMORY_WRITE,request,plan.routeName(),"conversation_response",true);
+                    masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"online_chat_completed",!answer.isEmpty());
+                    if(answer.isEmpty()) assistant("وصل الطلب لكن مفيش رد من المحرك الأونلاين.");
+                    else { assistant(answer); speak(answer); }
+                    stage("online");
                 });
-            }catch(Throwable cloudError){
+            }catch(Throwable e){
                 cloudOnline=false;
-                final String message=String.valueOf(cloudError.getMessage()==null?"online_service_unavailable":cloudError.getMessage());
-                if(!streamed[0]){
-                    try{
-                        final ShadowCloudClient.CloudReply fallback=cloud.chat(request,reasoningEffort);
-                        cloudOnline=true;
-                        runOnUiThread(()->{
-                            if(fallback.pendingAction!=null){
-                                masterEvent(ShadowMasterEventBus.Type.ACTION_REQUESTED,request,plan.routeName(),"online_stream_fallback_action_pending",true);
-                                handlePendingAction(request,fallback);
-                                return;
-                            }
-                            masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,plan.routeName(),"online_fallback_response_received",!fallback.answer.isEmpty());
-                            masterEvent(ShadowMasterEventBus.Type.MEMORY_WRITE,request,plan.routeName(),"conversation_response",true);
-                            masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,plan.routeName(),"online_chat_completed",!fallback.answer.isEmpty());
-                            assistant(fallback.answer);
-                            speak(fallback.answer);
-                            stage("online");
-                        });
-                    }catch(Throwable fallbackError){
-                        runOnUiThread(()->{
-                            masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"online_agent_unavailable:"+fallbackError.getClass().getSimpleName(),false);
-                            assistant("تعذر الوصول للدماغ الأونلاين حاليًا.");
-                            stage("reconnecting");
-                        });
-                    }
-                }else{
-                    runOnUiThread(()->{
-                        masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"online_stream_interrupted:"+message,false);
-                        assistant("استأنفت المسار الأونلاين تلقائيًا.");
-                        stage("reconnecting");
-                    });
-                }
+                final String detail=String.valueOf(e.getMessage()==null?"online_service_unavailable":e.getMessage());
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.FAILED,request,plan.routeName(),"online_request_failed:"+detail,false);
+                    assistant("تعذر الوصول للدماغ الأونلاين حاليًا. جرّب الأمر مرة تانية.");
+                    stage("reconnecting");
+                });
             }
         }).start();
     }
