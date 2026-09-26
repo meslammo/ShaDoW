@@ -50,7 +50,6 @@ jobs:
           node test-client-cloud-e2e.mjs
 
   build:
-    needs: verify-backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
