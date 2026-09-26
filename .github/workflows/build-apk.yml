@@ -41,6 +41,7 @@ jobs:
           node --test test-external-providers.mjs
           node --test test-task-router.mjs
           node --test test-tool-governance.mjs
+          node --test test-device-action.mjs
           node test-shadow-pipeline.mjs
           node test-client-cloud-e2e.mjs
 
