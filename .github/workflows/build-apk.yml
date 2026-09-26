@@ -1,4 +1,5 @@
 name: Build SHADOW APK — MOD-101 Unified Multi-Engine
+# MOD-101D: CI trigger aligned with the current online-only runtime contract.
 on:
   workflow_dispatch:
   push:
