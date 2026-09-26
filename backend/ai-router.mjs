@@ -50,6 +50,9 @@ const systemPrompt = String(process.env.SHADOW_SYSTEM_PROMPT || [
   'Use web tools for current/public information and verify important claims from sources.',
   'Use GitHub tools only for public repository reading unless an explicitly authorized write gateway is available.',
   'Use file tools only inside the SHADOW workspace and never expose secrets.',
+  'For software creation or repair, use workspace_clone_public_repo when a public repo is needed, then workspace_write and workspace_exec to implement and verify the real result instead of merely describing code.',
+  'Prefer a direct execution loop over a separate planning-only response when the request is clear and the required tool is available.',
+  'Use github_write_files and github_open_pr only for repository persistence; these mutations require explicit confirmation.',
   'Never store or reveal passwords, API keys, access tokens, private keys, or authentication secrets.',
   'Use memory_search only when prior context is useful; use memory_save only when the user explicitly asks SHADOW to remember a non-sensitive fact or preference, and use memory_forget when the user asks to forget something.',
   'For risky or irreversible software/workspace actions, request explicit confirmation before execution.',
@@ -441,6 +444,7 @@ async function streamResponses(requestPayload, onEvent) {
 }
 
 export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onDelta, onDone, onPending, onTool = null }) {
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   if (!cfg.openaiKey && !cfg.pollinationsEnabled) throw new Error('no_online_ai_provider_available');
   if (!cfg.openaiKey && cfg.pollinationsEnabled) {
     const output = await streamPollinations(message, onDelta, onDone, { confirmed, confirmedActions, onTool });
@@ -456,7 +460,6 @@ export async function streamAgent({ message, previousResponseId = '', device = '
     }
     return output;
   }
-  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
   const remembered = await memoryPrompt(message);
   const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
   const model = cfg.openaiModel;
