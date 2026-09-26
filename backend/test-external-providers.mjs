@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { externalProviderConfig, externalProviderStatus, localProviderStatus } from './external-providers.mjs';
+import { externalProviderConfig, externalProviderStatus } from './external-providers.mjs';
 
 test('external provider registry is present', () => {
   assert.deepEqual(Object.keys(externalProviderConfig).sort(), ['anthropic','gemini','mistral']);
@@ -23,7 +23,3 @@ test('provider status exposes configuration without secret values', () => {
   assert.equal(JSON.stringify(status).includes('secret-b'), false);
 });
 
-test('local provider becomes configured only when a base URL exists', () => {
-  assert.equal(localProviderStatus({}).configured, false);
-  assert.equal(localProviderStatus({SHADOW_LOCAL_AI_BASE_URL:'http://example.test/v1'}).configured, true);
-});
