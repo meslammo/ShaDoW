@@ -78,9 +78,10 @@ def test_mod86_route_mapping_is_ai_only():
         assert ('is' not in route) or route in orchestrator
     assert "verification" in cycle
 
-def test_mod86_device_like_requests_cannot_enter_local_device_route():
-    source = orchestrator = Path("app/src/main/java/com/shadow/mobile/ShadowMasterOrchestrator.java").read_text(encoding="utf-8")
-    assert "else if (isSpatial(x) || isCompanion(x) || isLocalDevice(x)) route = Route.CHAT;" in source
+def test_mod86_local_device_requests_use_the_explicit_local_route():
+    source = Path("app/src/main/java/com/shadow/mobile/ShadowMasterOrchestrator.java").read_text(encoding="utf-8")
+    assert "else if (isSpatial(x) || isCompanion(x)) route = Route.CHAT;" in source
+    assert "else if (isLocalDevice(x)) route = Route.LOCAL_DEVICE;" in source
 
 def test_mod87_github_priority_and_sensitive_pause_events():
     orchestrator = Path("app/src/main/java/com/shadow/mobile/ShadowMasterOrchestrator.java").read_text(encoding="utf-8")
