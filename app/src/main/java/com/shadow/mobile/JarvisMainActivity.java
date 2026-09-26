@@ -139,7 +139,51 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
     private boolean handleReasoningCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.equals("think hard")||x.equals("thinkhard")||x.equals("فكر بعمق")||x.equals("تفكير عميق")){setReasoning(true,"high");assistant("🧠 Think Hard اتفعل — الموديل هيستخدم reasoning أعلى، والواجهة بقت Black/Red.");return true;}if(x.equals("deep think")||x.equals("deep thinking")||x.equals("تفكير عميق جدا")||x.equals("تفكير عميق جدًا")){setReasoning(true,"xhigh");assistant("🔴 Deep Think اتفعل — أعلى reasoning متاح للمسار الحالي، والواجهة Black/Red.");return true;}if(x.equals("stop thinking")||x.equals("إيقاف التفكير")||x.equals("الغاء التفكير")||x.equals("إلغاء التفكير")){setReasoning(false,"none");assistant("تم إيقاف وضع التفكير العميق.");return true;}return false;}
     private boolean handleOutputCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.equals("رد كتابة")||x.equals("رد كتابه")||x.equals("من غير صوت")||x.equals("بدون صوت")||x.equals("text only")||x.equals("text response")){voiceOutput=false;assistant("تم — هرد كتابة فقط من دلوقتي.");stage("done");return true;}if(x.equals("رد صوتي")||x.equals("شغل الصوت")||x.equals("شغّل الصوت")||x.equals("voice on")||x.equals("voice response")){voiceOutput=true;assistant("تم — الصوت اتفعّل.");speak("تم — الصوت اتفعّل.");stage("done");return true;}return false;}
     private boolean isGithubCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);boolean github=x.contains("github")||x.contains("git hub")||x.contains("جيت هاب")||x.contains("جيتهاب")||x.contains("github.com")||x.contains("meslammo/shadow");if(!github)return false;return x.contains("authorization")||x.contains("authorize")||x.contains("auth")||x.contains("اربط")||x.contains("ابدأ")||x.contains("ابدء")||x.contains("connect")||x.contains("ربط")||x.contains("حالة")||x.contains("status")||x.contains("افصل")||x.contains("disconnect")||x.contains("تطوير")||x.contains("عدل")||x.contains("عدّل")||x.contains("نفذ")||x.contains("نفّذ")||x.contains("development")||x.contains("develop")||x.contains("repo")||x.contains("repository")||x.contains("فرع")||x.contains("branch");}
-    private void handleGithubCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("حالة")||x.equals("github status")){assistant(githubAuth.isConnected()?"GitHub متوصل بالفعل ومفتاح التفويض محفوظ بشكل مشفّر على الجهاز.":"GitHub مش متوصل. قول: اربط جيت هاب.");return;}if(x.contains("افصل")||x.contains("disconnect github")){githubAuth.disconnect();assistant("تم فصل GitHub من Shadow.");return;}connectGithub();}
+    private boolean isDevelopmentMutation(String s){
+        String x=s==null?"":s.trim().toLowerCase(Locale.ROOT);
+        return x.contains("عدل")||x.contains("عدّل")||x.contains("نفذ")||x.contains("نفّذ")||x.contains("بناء")||x.contains("build")||x.contains("commit")||x.contains("push")||x.contains("write")||x.contains("modify")||x.contains("fix")||x.contains("repair")||x.contains("deploy")||x.contains("merge")||x.contains("تعديل");
+    }
+    private void confirmAndRunMaster(String request,String route){
+        runOnUiThread(()->new AlertDialog.Builder(this)
+            .setTitle("تأكيد تنفيذ التعديل")
+            .setMessage("Shadow هيقرأ المشروع وينفذ التغييرات المطلوبة على GitHub ثم يتحقق من النتيجة.\n\nالموافقة تسمح بالتعديل فقط.")
+            .setPositiveButton("تنفيذ",(d,w)->{
+                masterEvent(ShadowMasterEventBus.Type.APPROVAL_REQUIRED,request,route,"github_development_execution_confirmed",true);
+                runMasterAgent(request,true,route);
+            })
+            .setNegativeButton("إلغاء",(d,w)->{
+                masterEvent(ShadowMasterEventBus.Type.PAUSED,request,route,"user_cancelled_development",false);
+                assistant("تم إلغاء التنفيذ.");
+                stage("online");
+            }).show());
+    }
+    private void runMasterAgent(String request,boolean confirmed,String route){
+        stage(confirmed?"executing":"analyzing");
+        new Thread(()->{
+            try{
+                String raw=cloud.runMasterPipeline(request,identity!=null&&identity.isAuthenticated(),confirmed,githubAuth==null?"":githubAuth.loadToken());
+                org.json.JSONObject obj=new org.json.JSONObject(raw);
+                String answer=obj.optString("answer","").trim();
+                if(answer.isEmpty()) answer="Shadow خلّص المسار لكن مفيش رد نصي.";
+                final String out=answer;
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,request,route,"master_agent_result",true);
+                    masterEvent(ShadowMasterEventBus.Type.COMPLETED,request,route,"master_agent_completed",true);
+                    assistant(out);
+                    if(!out.isEmpty())speak(out);
+                    stage("online");
+                });
+            }catch(Throwable e){
+                final String msg=String.valueOf(e.getMessage()==null?"master_agent_failed":e.getMessage());
+                runOnUiThread(()->{
+                    masterEvent(ShadowMasterEventBus.Type.FAILED,request,route,msg,false);
+                    assistant("تعذر تشغيل Agent التنفيذي حاليًا: "+msg);
+                    stage("reconnecting");
+                });
+            }
+        }).start();
+    }
+    private void handleGithubCommand(String s){String x=s.trim().toLowerCase(Locale.ROOT);if(x.contains("حالة")||x.equals("github status")){assistant(githubAuth.isConnected()?"GitHub متوصل بالفعل ومفتاح التفويض محفوظ بشكل مشفّر على الجهاز.":"GitHub مش متوصل. قول: اربط جيت هاب.");return;}if(x.contains("افصل")||x.contains("disconnect github")){githubAuth.disconnect();assistant("تم فصل GitHub من Shadow.");return;}if(githubAuth.isConnected()&&isDevelopmentMutation(s)){confirmAndRunMaster(s,"github");return;}connectGithub();}
     private void connectGithub(){stage("authenticating");system("SHADOW • GitHub intent detected — Chat route blocked. بيجهّز تفويض GitHub…");new Thread(()->{try{ShadowCloudClient.GithubDevice d=cloud.startGithubDevice();runOnUiThread(()->{try{String uri=d.verificationUriComplete.isEmpty()?d.verificationUri:d.verificationUriComplete;startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(uri)));}catch(Exception ignored){}new AlertDialog.Builder(this).setTitle("ربط GitHub بـ SHADOW").setMessage("افتح GitHub ووافق على التفويض.\n\nالكود: "+d.userCode+"\n\nبعد الموافقة اضغط تم.").setPositiveButton("تم",(dialog,which)->pollGithub(d)).setNegativeButton("إلغاء",(dialog,which)->stage("online")).show();});}catch(Exception e){runOnUiThread(()->{assistant("GitHub route وصل للـAuthorization لكن التفويض نفسه غير متاح: "+e.getMessage());stage("online");});}}).start();}
     private void pollGithub(ShadowCloudClient.GithubDevice d){stage("authenticating");new Thread(()->{try{long deadline=System.currentTimeMillis()+Math.max(60_000L,d.expiresIn*1000L);int wait=Math.max(2,d.interval);while(System.currentTimeMillis()<deadline){ShadowCloudClient.GithubPoll p=cloud.pollGithubDevice(d.deviceCode);if("authorized".equals(p.status)){githubAuth.saveToken(p.accessToken);runOnUiThread(()->{assistant("تم ربط GitHub بـ SHADOW ✓\nالتفويض محفوظ على الجهاز بشكل مشفّر.\nدلوقتي Shadow يقدر يستخدم صلاحية GitHub اللي وافقت عليها لتنفيذ مهام التطوير بعد التأكيد.");stage("online");});return;}if("denied".equals(p.status)||"expired".equals(p.status)||"error".equals(p.status)){String msg="expired".equals(p.status)?"انتهى كود التفويض.":"denied".equals(p.status)?"تم رفض تفويض GitHub.":"تفويض GitHub فشل.";runOnUiThread(()->{assistant(msg);stage("online");});return;}Thread.sleep(wait*1000L);if("slow_down".equals(p.status))wait+=5;}runOnUiThread(()->{assistant("انتهى وقت انتظار تفويض GitHub. جرّب: اربط جيت هاب.");stage("online");});}catch(Exception e){runOnUiThread(()->{assistant("حصل خطأ أثناء ربط GitHub: "+e.getMessage());stage("online");});}}).start();}
     private void handlePendingAction(String original, ShadowCloudClient.CloudReply reply){final ShadowCloudClient.PendingAction pa=reply.pendingAction;if(pa==null)return;final String command=(pa.action+" "+pa.argument).trim();Runnable execute=()->{stage("executing");String result;try{result=ShadowDeviceExecution.execute(this,command);}catch(Throwable e){result="تعذر التنفيذ: "+e.getClass().getSimpleName();}final String verified=(result==null||result.trim().isEmpty())?"لم يرجع الجهاز نتيجة مؤكدة لتنفيذ الإجراء.":result;masterEvent(ShadowMasterEventBus.Type.ACTION_EXECUTED,original,"local-device",verified,result!=null&&!result.trim().isEmpty());stage("verifying");new Thread(()->{try{ShadowCloudClient.CloudReply next=cloud.continueAgent(reply.provider,reply.responseId,pa.toolCallId,original,verified,reasoningEffort);runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.VERIFICATION_RESULT,original,"local-device","tool_result_returned",!verified.isEmpty());masterEvent(ShadowMasterEventBus.Type.COMPLETED,original,"local-device","agent_continued",true);assistant(next.answer.isEmpty()?verified:next.answer);if(!next.answer.isEmpty())speak(next.answer);stage("online");if(next.pendingAction!=null)handlePendingAction(original,next);});}catch(Exception e){runOnUiThread(()->{masterEvent(ShadowMasterEventBus.Type.FAILED,original,"local-device","agent_continue_failed:"+e.getClass().getSimpleName(),false);assistant(verified);if(!verified.isEmpty())speak(verified);stage("reconnecting");});}}).start();};
@@ -166,17 +210,11 @@ public class JarvisMainActivity extends Activity implements TextToSpeech.OnInitL
 
         if(plan.route==ShadowMasterOrchestrator.Route.GITHUB){handleGithubCommand(request);return;}
         if(plan.route==ShadowMasterOrchestrator.Route.DEVELOPMENT){
-            stage("planning");
-            new Thread(()->{
-                final String devPlan;
-                try{devPlan=developmentAgent.plan(routedRequest);}
-                catch(Throwable e){runOnUiThread(()->assistant("Development Agent تعذر تشغيله الآن."));return;}
-                runOnUiThread(()->{
-                    masterEvent(ShadowMasterEventBus.Type.PLAN_READY,routedRequest,routedPlan.routeName(),"development_plan_ready",true);
-                    masterEvent(ShadowMasterEventBus.Type.COMPLETED,routedRequest,routedPlan.routeName(),"plan_only",true);
-                    assistant("🧠 Development Plan\n\n"+devPlan);stage("done");speak(devPlan);
-                });
-            }).start();
+            if(isDevelopmentMutation(routedRequest)){
+                confirmAndRunMaster(routedRequest,routedPlan.routeName());
+            }else{
+                runMasterAgent(routedRequest,false,routedPlan.routeName());
+            }
             return;
         }
         if(plan.route==ShadowMasterOrchestrator.Route.SPATIAL){
