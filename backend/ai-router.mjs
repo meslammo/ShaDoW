@@ -440,31 +440,31 @@ async function streamResponses(requestPayload, onEvent) {
   try { reader.releaseLock(); } catch {}
 }
 
-export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onDelta, onDone, onPending, onTool = null }) {
-  if (!cfg.openaiKey && !cfg.pollinationsEnabled) throw new Error('no_online_ai_provider_available');
-  if (!cfg.openaiKey && cfg.pollinationsEnabled) {
-    const output = await streamPollinations(message, onDelta, onDone, { confirmed, confirmedActions, onTool });
-    if (output.pendingAction && onPending) {
-      onPending({
-        responseId: output.responseId || null,
-        provider: output.provider,
-        model: output.model,
-        reasoningEffort: normalizedEffort,
-        usedWeb: false,
-        pendingAction: output.pendingAction,
-      });
-    }
-    return output;
-  }
-  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
+async function streamOpenAIProvider({
+  message,
+  previousResponseId = '',
+  reasoningEffort = 'none',
+  confirmed = false,
+  confirmedActions = [],
+  onDelta,
+  onDone,
+  onPending,
+  onTool = null,
+}) {
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort))
+    ? String(reasoningEffort) : 'none';
   const remembered = await memoryPrompt(message);
-  const memoryBlock = remembered ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered : '';
+  const memoryBlock = remembered
+    ? '\n\nRelevant SHADOW memory (use only when relevant; never invent or expose sensitive data):\n' + remembered
+    : '';
+  const isXai = false;
   const model = cfg.openaiModel;
   let previous = previousResponseId || undefined;
   let input = message;
   let usedWeb = false;
+  let finalText = '';
 
-  for (let round = 0; round < 8; round++) {
+  for (let round = 0; round < 8; round += 1) {
     const calls = new Map();
     let responseId = previous || null;
     const payload = {
@@ -479,7 +479,8 @@ export async function streamAgent({ message, previousResponseId = '', device = '
     await streamResponses(previous ? { ...payload, previous_response_id: previous } : payload, async (event) => {
       const type = String(event?.type || '');
       if (type === 'response.output_text.delta' && typeof event.delta === 'string') {
-        if (onDelta) onDelta(event.delta);
+        finalText += event.delta;
+        onDelta?.(event.delta);
       } else if (type === 'response.output_item.added' && event.item?.type === 'function_call') {
         const item = event.item;
         const id = String(item.id || item.call_id || '');
@@ -501,21 +502,41 @@ export async function streamAgent({ message, previousResponseId = '', device = '
     });
 
     if (!calls.size) {
-      if (onDone) onDone({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb });
-      return { responseId, provider: 'openai', model, usedWeb };
+      const done = {
+        responseId,
+        provider: 'openai',
+        model,
+        text: finalText.trim(),
+        reasoningEffort: normalizedEffort,
+        usedWeb,
+      };
+      onDone?.(done);
+      return { ...done, answer: finalText.trim(), pendingAction: null };
     }
 
     const outputs = [];
     for (const call of calls.values()) {
       let args = {};
-      try { args = JSON.parse(call.arguments || '{}'); } catch {}
+      try { args = JSON.parse(call.arguments || '{}'); } catch { throw new Error('invalid_tool_arguments:' + call.name); }
       const result = await runTool(call.name, args, { confirmed, confirmedActions, onTool });
       if (result.kind === 'client_action') {
         const pendingAction = { ...result, toolCallId: call.call_id };
-        if (onPending) onPending({ responseId, provider: 'openai', model, reasoningEffort: normalizedEffort, usedWeb, pendingAction });
-        return { responseId, provider: 'openai', model, usedWeb, pendingAction };
+        const pending = {
+          responseId,
+          provider: 'openai',
+          model,
+          reasoningEffort: normalizedEffort,
+          usedWeb,
+          pendingAction,
+        };
+        onPending?.(pending);
+        return { ...pending, answer: finalText.trim() };
       }
-      outputs.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result.value) });
+      outputs.push({
+        type: 'function_call_output',
+        call_id: call.call_id,
+        output: JSON.stringify(result.value),
+      });
     }
 
     previous = responseId || undefined;
@@ -523,6 +544,140 @@ export async function streamAgent({ message, previousResponseId = '', device = '
   }
   throw new Error('agent_loop_limit');
 }
+
+function providerConfigured(provider) {
+  switch (provider) {
+    case 'openai': return Boolean(cfg.openaiKey);
+    case 'xai': return Boolean(cfg.xaiKey);
+    case 'deepseek': return Boolean(cfg.deepseekKey);
+    case 'mistral': return Boolean(cfg.mistralKey);
+    case 'anthropic': return Boolean(cfg.anthropicKey);
+    case 'gemini': return Boolean(cfg.geminiKey);
+    case 'pollinations': return Boolean(cfg.pollinationsEnabled && cfg.pollinationsKey);
+    default: return false;
+  }
+}
+
+async function streamProviderWithFallback({
+  message,
+  previousResponseId = '',
+  reasoningEffort = 'none',
+  confirmed = false,
+  confirmedActions = [],
+  onDelta,
+  onDone,
+  onPending,
+  onTool = null,
+}) {
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort))
+    ? String(reasoningEffort) : 'none';
+  const order = providerOrderFor(message);
+  const attempts = [];
+  let emitted = false;
+
+  for (const provider of order) {
+    if (!providerConfigured(provider)) {
+      attempts.push({ provider, reason: 'not_configured' });
+      continue;
+    }
+    try {
+      const emit = (text) => {
+        if (text) emitted = true;
+        onDelta?.(text);
+      };
+
+      let output;
+      if (provider === 'openai') {
+        output = await streamOpenAIProvider({
+          message,
+          previousResponseId,
+          reasoningEffort: normalizedEffort,
+          confirmed,
+          confirmedActions,
+          onDelta: emit,
+          onDone,
+          onPending,
+          onTool,
+        });
+      } else if (provider === 'pollinations') {
+        output = await streamPollinations(message, emit, null, { confirmed, confirmedActions, onTool });
+        if (output.pendingAction) {
+          onPending?.({
+            responseId: output.responseId || null,
+            provider: output.provider,
+            model: output.model,
+            reasoningEffort: normalizedEffort,
+            usedWeb: false,
+            pendingAction: output.pendingAction,
+          });
+        } else {
+          onDone?.({
+            responseId: output.responseId || null,
+            provider: output.provider,
+            model: output.model,
+            text: output.answer || '',
+            reasoningEffort: normalizedEffort,
+            usedWeb: Boolean(output.usedWeb),
+          });
+        }
+      } else {
+        output = await runAgent({
+          message,
+          previousResponseId,
+          preferredProvider: provider,
+          reasoningEffort: normalizedEffort,
+          confirmed,
+          confirmedActions,
+          onTool,
+        });
+        if (output.answer) emit(output.answer);
+        if (output.pendingAction) {
+          onPending?.({
+            responseId: output.responseId || null,
+            provider: output.provider,
+            model: output.model,
+            reasoningEffort: normalizedEffort,
+            usedWeb: Boolean(output.usedWeb),
+            pendingAction: output.pendingAction,
+          });
+        } else {
+          onDone?.({
+            responseId: output.responseId || null,
+            provider: output.provider,
+            model: output.model,
+            text: output.answer || '',
+            reasoningEffort: normalizedEffort,
+            usedWeb: Boolean(output.usedWeb),
+          });
+        }
+      }
+
+      return { ...output, attempts, reasoningEffort: normalizedEffort };
+    } catch (e) {
+      attempts.push({ provider, reason: String(e?.message || e), http: e?.http || null });
+      if (emitted) throw e;
+    }
+  }
+
+  const error = new Error('no_online_ai_provider_available');
+  error.attempts = attempts;
+  throw error;
+}
+
+export async function streamAgent({ message, previousResponseId = '', device = '', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onDelta, onDone, onPending, onTool = null }) {
+  return streamProviderWithFallback({
+    message,
+    previousResponseId,
+    reasoningEffort,
+    confirmed,
+    confirmedActions,
+    onDelta,
+    onDone,
+    onPending,
+    onTool,
+  });
+}
+
 
 export async function runAgent({ message, previousResponseId = '', device = '', preferredProvider = 'auto', reasoningEffort = 'none', confirmed = false, confirmedActions = [], onTool = null }) {
   const normalizedEffort = ['none','minimal','low','medium','high','xhigh'].includes(String(reasoningEffort)) ? String(reasoningEffort) : 'none';
@@ -570,6 +725,146 @@ export async function runAgent({ message, previousResponseId = '', device = '', 
   error.attempts = attempts;
   throw error;
 }
+async function continueResponsesProvider({
+  provider,
+  responseId,
+  toolCallId,
+  originalMessage,
+  output,
+  reasoningEffort = 'none',
+  confirmed = true,
+  confirmedActions = [],
+  onTool = null,
+}) {
+  const normalizedProvider = provider === 'grok' ? 'xai' : provider;
+  if (!['openai','xai'].includes(normalizedProvider)) throw new Error('continuation_provider_not_supported');
+  if (!responseId || !toolCallId) throw new Error('continuation_ids_required');
+
+  const normalizedEffort = ['none','minimal','low','medium','high','xhigh','max'].includes(String(reasoningEffort))
+    ? String(reasoningEffort) : 'none';
+  const model = normalizedProvider === 'xai' ? cfg.xaiModel : cfg.openaiModel;
+  const remembered = await memoryPrompt(originalMessage);
+  const memoryBlock = remembered
+    ? '\n\nRelevant SHADOW memory (use only when relevant):\n' + remembered
+    : '';
+  let previous = responseId;
+  let input = [{
+    type: 'function_call_output',
+    call_id: toolCallId,
+    output: String(output || '').slice(0, 12000),
+  }];
+  let usedWeb = false;
+
+  for (let round = 0; round < 8; round += 1) {
+    const payload = {
+      model,
+      instructions: systemPrompt + memoryBlock + '\n\nA client-side action was already executed. Continue from its verified result; do not repeat the same action unless a new tool call is necessary.',
+      previous_response_id: previous,
+      input,
+      tools: normalizedProvider === 'xai'
+        ? [{ type: 'web_search' }, { type: 'x_search' }, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')]
+        : [{ type: 'web_search_preview' }, ...TOOL_DEFINITIONS.filter(x => x.name !== 'file_write')],
+      store: true,
+    };
+    if (normalizedProvider === 'openai' && normalizedEffort !== 'none') {
+      payload.reasoning = { effort: normalizedEffort };
+    }
+
+    const body = await callResponses(normalizedProvider, payload);
+    usedWeb ||= webUsed(body);
+    const calls = callsOf(body);
+    if (!calls.length) {
+      return {
+        provider: normalizedProvider,
+        model,
+        answer: textOf(body),
+        responseId: body.id || previous,
+        usedWeb,
+        pendingAction: null,
+        reasoningEffort: normalizedEffort,
+      };
+    }
+
+    const outputs = [];
+    for (const call of calls) {
+      let args = {};
+      try { args = typeof call.arguments === 'string' ? JSON.parse(call.arguments || '{}') : (call.arguments || {}); }
+      catch { throw new Error('invalid_tool_arguments:' + call.name); }
+      const result = await runTool(call.name, args, { confirmed, confirmedActions, onTool });
+      if (result.kind === 'client_action') {
+        return {
+          provider: normalizedProvider,
+          model,
+          answer: textOf(body),
+          responseId: body.id || previous,
+          usedWeb,
+          pendingAction: { ...result, toolCallId: call.call_id || call.id || '' },
+          reasoningEffort: normalizedEffort,
+        };
+      }
+      outputs.push({
+        type: 'function_call_output',
+        call_id: call.call_id || call.id,
+        output: JSON.stringify(result.value),
+      });
+    }
+
+    previous = body.id || previous;
+    input = outputs;
+  }
+  throw new Error('continuation_loop_limit');
+}
+
+export async function continueAgent({
+  provider = 'auto',
+  responseId = '',
+  toolCallId = '',
+  originalMessage = '',
+  output = '',
+  reasoningEffort = 'none',
+  confirmed = true,
+  confirmedActions = [],
+} = {}) {
+  const requestedProvider = String(provider || 'auto').toLowerCase();
+  const normalizedProvider = requestedProvider === 'grok' ? 'xai' : requestedProvider;
+
+  if (['openai','xai'].includes(normalizedProvider) && responseId && toolCallId) {
+    try {
+      return await continueResponsesProvider({
+        provider: normalizedProvider,
+        responseId,
+        toolCallId,
+        originalMessage,
+        output,
+        reasoningEffort,
+        confirmed,
+        confirmedActions,
+      });
+    } catch (primaryError) {
+      // Fall through to a fresh online turn; never silently use offline AI.
+      if (!providerConfigured(normalizedProvider)) {
+        // Continue below with automatic multi-engine routing.
+      }
+    }
+  }
+
+  const continuationMessage =
+    'A phone-local action for the user request was already executed and its verified result is below. ' +
+    'Do not repeat or invent the action. Return the final user-facing answer, incorporating the verified result. ' +
+    '\nOriginal request: ' + String(originalMessage || '').slice(0, 4000) +
+    '\nVerified device result: ' + String(output || '').slice(0, 4000);
+
+  const preferred = providerConfigured(normalizedProvider) ? normalizedProvider : 'auto';
+  const result = await runAgent({
+    message: continuationMessage,
+    preferredProvider: preferred,
+    reasoningEffort,
+    confirmed: true,
+    confirmedActions: ['device_action'],
+  });
+  return result;
+}
+
 
 export async function memoryStatus() {
   const ready = await ensureDb();
