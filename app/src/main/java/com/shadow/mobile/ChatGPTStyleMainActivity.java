@@ -25,6 +25,7 @@ import android.widget.PopupWindow;
 import android.widget.ScrollView;
 import android.widget.Space;
 import android.widget.TextView;
+import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.widget.Toast;
 
@@ -40,6 +41,8 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
     private static final int FILE_PICK = 1201;
     private static final int CAMERA_PICK = 1202;
     private static final int AUDIO_PICK = 1203;
+    private static final int VOICE_PICK = 1204;
+    private static final int PHOTO_PICK = 1205;
 
     private final int BG = Color.rgb(247, 247, 248);
     private final int SURFACE = Color.WHITE;
@@ -201,7 +204,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
         });
         plus.setOnClickListener(v -> attachmentMenu(plus));
         sendButton.setOnClickListener(v -> send());
-        mic.setOnClickListener(v -> Toast.makeText(this, "الصوت متاح من مسار الميكروفون الموجود في Shadow.", Toast.LENGTH_SHORT).show());
+        mic.setOnClickListener(v -> startVoiceInput());
         input.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_UP && "Message SHADOW".equals(input.getText().toString())) {
                 input.setText("");
@@ -368,7 +371,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);
             i.setType("image/*");
-            startActivityForResult(i, FILE_PICK);
+            startActivityForResult(i, PHOTO_PICK);
         } else if (item.contains("Camera")) {
             try {
                 startActivityForResult(new Intent(MediaStore.ACTION_IMAGE_CAPTURE), CAMERA_PICK);
@@ -389,20 +392,98 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
         }
     }
 
+    private void startVoiceInput() {
+        try {
+            Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-EG");
+            i.putExtra(RecognizerIntent.EXTRA_PROMPT, "اتكلم مع SHADOW");
+            startActivityForResult(i, VOICE_PICK);
+        } catch (Throwable e) {
+            Toast.makeText(this, "ميزة التعرف الصوتي غير متاحة على الجهاز حاليًا.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private byte[] readUriBytes(Uri uri) throws Exception {
+        try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            if (in == null) throw new IllegalStateException("file_open_failed");
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            return out.toByteArray();
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK || data == null) return;
+
+        if (requestCode == VOICE_PICK) {
+            java.util.ArrayList<String> matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            if (matches != null && !matches.isEmpty()) {
+                input.setText(matches.get(0));
+                input.setSelection(input.length());
+                send();
+            }
+            return;
+        }
+
+        if (requestCode == CAMERA_PICK) {
+            Object raw = data.getExtras() == null ? null : data.getExtras().get("data");
+            if (raw instanceof android.graphics.Bitmap) {
+                android.graphics.Bitmap bitmap = (android.graphics.Bitmap) raw;
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, out);
+                analyzeSelectedImage(out.toByteArray(), "image/jpeg", "حلل الصورة بدقة، واذكر فقط ما يمكن التحقق منه.");
+            }
+            return;
+        }
+
         Uri uri = data.getData();
         if (uri == null) return;
+
         if (requestCode == AUDIO_PICK) {
-            input.setText("حلّل الملف الصوتي الذي اخترته.");
+            io.submit(() -> {
+                try {
+                    byte[] bytes = readUriBytes(uri);
+                    final String text = cloud.transcribeSpeech(bytes, getContentResolver().getType(uri));
+                    main.post(() -> {
+                        input.setText(text);
+                        input.setSelection(input.length());
+                        assistantWithActions("تم تحويل الملف الصوتي إلى نص بواسطة مسار الصوت الأونلاين.");
+                    });
+                } catch (Throwable e) {
+                    main.post(() -> assistantWithActions("تعذر تحويل الملف الصوتي أونلاين: " + String.valueOf(e.getMessage())));
+                }
+            });
+        } else if (requestCode == PHOTO_PICK) {
+            io.submit(() -> {
+                try {
+                    byte[] bytes = readUriBytes(uri);
+                    final String answer = cloud.analyzeImage(bytes, getContentResolver().getType(uri), "حلل الصورة بدقة، واذكر فقط ما يمكن التحقق منه.");
+                    main.post(() -> assistantWithActions(answer));
+                } catch (Throwable e) {
+                    main.post(() -> assistantWithActions("تعذر تحليل الصورة أونلاين: " + String.valueOf(e.getMessage())));
+                }
+            });
         } else if (requestCode == FILE_PICK) {
-            input.setText("حلّل الملف الذي اخترته، واذكر نوعه وما يمكن التحقق منه فقط.");
-        } else if (requestCode == CAMERA_PICK) {
-            input.setText("حلّل الصورة التي التقطتها بدقة.");
+            input.setText("حلّل الملف المرفق: " + (getContentResolver().getType(uri) == null ? "ملف غير معروف" : getContentResolver().getType(uri)));
+            input.setSelection(input.length());
+            Toast.makeText(this, "تم تجهيز الملف داخل المحادثة.", Toast.LENGTH_SHORT).show();
         }
-        Toast.makeText(this, "تم تجهيز المرفق داخل المحادثة.", Toast.LENGTH_SHORT).show();
+    }
+
+    private void analyzeSelectedImage(byte[] bytes, String mime, String prompt) {
+        io.submit(() -> {
+            try {
+                final String answer = cloud.analyzeImage(bytes, mime, prompt);
+                main.post(() -> assistantWithActions(answer));
+            } catch (Throwable e) {
+                main.post(() -> assistantWithActions("تعذر تحليل الصورة أونلاين: " + String.valueOf(e.getMessage())));
+            }
+        });
     }
 
     private void send() {
