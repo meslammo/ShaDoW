@@ -726,7 +726,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
 
     private void bottom() {
         messages.post(() -> {
-            View p = messages.getParent();
+            android.view.ViewParent p = messages.getParent();
             if (p instanceof ScrollView) ((ScrollView)p).fullScroll(View.FOCUS_DOWN);
         });
     }
