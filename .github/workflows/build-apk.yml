@@ -1,10 +1,11 @@
-name: Build SHADOW APK — MOD-102 NEXO Agent + Multi-Engine
+name: Build SHADOW APK — MOD-110 Online Brain Release
 # MOD-101D: CI trigger aligned with the current online-only runtime contract.
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - feature/shadow-local-model
       - integration/150-online-brain-loop-2026-09-25
   pull_request:
     branches:
