@@ -134,6 +134,11 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
         search.setTextDirection(View.TEXT_DIRECTION_LTR);
         search.setGravity(Gravity.CENTER);
         top.addView(search, new LinearLayout.LayoutParams(dp(46), dp(50)));
+
+        TextView more = tv("⋮", 27);
+        more.setTextDirection(View.TEXT_DIRECTION_LTR);
+        more.setGravity(Gravity.CENTER);
+        top.addView(more, new LinearLayout.LayoutParams(dp(42), dp(50)));
         page.addView(top);
 
         View divider = new View(this);
@@ -202,6 +207,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
             input.requestFocus();
             input.setHint("ابحث أو اكتب لـ SHADOW...");
         });
+        more.setOnClickListener(v -> mainMenu());
         plus.setOnClickListener(v -> attachmentMenu(plus));
         sendButton.setOnClickListener(v -> send());
         mic.setOnClickListener(v -> startVoiceInput());
@@ -334,6 +340,74 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
         if (parent == null) return;
         if (parent.getChildCount() > 1) parent.removeViewAt(parent.getChildCount() - 1);
         parent.removeView(overlay);
+    }
+
+    private void mainMenu() {
+        PopupWindow p = new PopupWindow(this);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(8), dp(8), dp(8), dp(8));
+        box.setBackground(rounded(SURFACE, 18));
+
+        String[] items = {
+                "🎙 SHADOW Deep Male — Original",
+                "♀ SHADOW Warm Female — Original",
+                "○ SHADOW Neutral — Original",
+                "🧠 Think mode",
+                "⚙ Diagnostics"
+        };
+        for (String item : items) {
+            TextView row = drawerItem(item, 14);
+            box.addView(row, new LinearLayout.LayoutParams(dp(245), dp(46)));
+            row.setOnClickListener(v -> {
+                p.dismiss();
+                if (item.contains("Deep Male")) {
+                    setVoiceProfile("deep_male");
+                    Toast.makeText(this, "Voice profile: SHADOW Deep Male — Original", Toast.LENGTH_SHORT).show();
+                } else if (item.contains("Warm Female")) {
+                    setVoiceProfile("warm_female");
+                    Toast.makeText(this, "Voice profile: SHADOW Warm Female — Original", Toast.LENGTH_SHORT).show();
+                } else if (item.contains("Neutral")) {
+                    setVoiceProfile("neutral");
+                    Toast.makeText(this, "Voice profile: SHADOW Neutral — Original", Toast.LENGTH_SHORT).show();
+                } else if (item.contains("Think")) {
+                    input.setText("فكّر بعمق وراجع الافتراضات قبل الإجابة.");
+                    input.requestFocus();
+                } else {
+                    io.submit(() -> {
+                        try {
+                            String json = cloud.platformStatus();
+                            main.post(() -> assistantWithActions("Diagnostics الحالية:\n" + json));
+                        } catch (Throwable e) {
+                            main.post(() -> assistantWithActions("تعذر جلب Diagnostics: " + String.valueOf(e.getMessage())));
+                        }
+                    });
+                }
+            });
+        }
+        p.setContentView(box);
+        p.setWidth(dp(260));
+        p.setHeight(dp(255));
+        p.setBackgroundDrawable(rounded(SURFACE, 18));
+        p.setOutsideTouchable(true);
+        p.setFocusable(true);
+        p.showAtLocation(root, Gravity.RIGHT | Gravity.TOP, dp(8), dp(58));
+    }
+
+    private void setVoiceProfile(String profile) {
+        if (tts == null) return;
+        try {
+            if ("deep_male".equals(profile)) {
+                tts.setPitch(.72f);
+                tts.setSpeechRate(.92f);
+            } else if ("warm_female".equals(profile)) {
+                tts.setPitch(1.08f);
+                tts.setSpeechRate(.98f);
+            } else {
+                tts.setPitch(.90f);
+                tts.setSpeechRate(.95f);
+            }
+        } catch (Throwable ignored) {}
     }
 
     private void attachmentMenu(View anchor) {
