@@ -10,7 +10,7 @@
         <intent><action android:name="android.speech.RecognitionService" /></intent>
     </queries>
     <application android:name="com.chaquo.python.android.PyApplication" android:theme="@style/AppTheme" android:label="SHADOW" android:icon="@drawable/shadow_logo" android:roundIcon="@drawable/shadow_logo" android:allowBackup="false" android:supportsRtl="true" android:usesCleartextTraffic="false">
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity android:name=".ChatGPTStyleMainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
