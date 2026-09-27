@@ -1,0 +1,17 @@
+__DOMAIN__ {
+    encode gzip zstd
+
+    @health path /health
+    handle @health {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+    @chat path /v1/chat/completions
+    handle @chat {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+    handle {
+        respond "SHADOW Brain online" 200
+    }
+}
