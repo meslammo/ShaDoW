@@ -1,0 +1,27 @@
+services:
+  shadow-brain:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: shadow-brain
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /opt/shadow-brain/models:/models
+    command:
+      - -m
+      - /models/Qwen3-4B-Q4_K_M.gguf
+      - --jinja
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "8192"
+      - --n-predict
+      - "2048"
+      - --parallel
+      - "1"
+      - --api-key
+      - ${SHADOW_BRAIN_API_KEY}
