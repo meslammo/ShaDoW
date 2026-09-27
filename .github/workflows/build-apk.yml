@@ -1,5 +1,5 @@
-name: Build SHADOW APK — MOD-116 ChatGPT UI + Brain
-# MOD-101D: CI trigger aligned with the current online-only runtime contract.
+name: Build SHADOW APK — MOD-117 Brain + Image Evolution v49
+# MOD-117: APK follows the Hatchable v49 online Brain/Image runtime.
 on:
   workflow_dispatch:
   push:
@@ -100,7 +100,7 @@ jobs:
           sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-MOD116-UI-BRAIN-V44-apk
+          name: SHADOW-MOD117-BRAIN-IMAGE-V49-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
@@ -110,6 +110,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          TAG="shadow-mod116-${GITHUB_RUN_ID}"
-          TITLE="SHADOW MOD-116 ChatGPT UI + Brain v44 APK ${GITHUB_SHA::7}"
-          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TITLE" --notes "Verified APK build for SHADOW MOD-116 ChatGPT-style UI + Brain v44. Commit: $GITHUB_SHA" --latest
+          TAG="shadow-mod117-${GITHUB_RUN_ID}"
+          TITLE="SHADOW MOD-117 Brain + Image Evolution v49 APK ${GITHUB_SHA::7}"
+          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TITLE" --notes "Verified APK build for SHADOW MOD-117 Brain + Image Evolution v49. Backend: Hatchable v49. Commit: $GITHUB_SHA" --latest
