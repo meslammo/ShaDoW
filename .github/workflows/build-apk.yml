@@ -1,5 +1,5 @@
-name: Build SHADOW APK — MOD-121 Runtime 1-18 + Optional Voice v59
-# MOD-121: APK follows the verified Hatchable v59 online-only runtime with Brain 1-18 execution.
+name: Build SHADOW APK — MOD-122 Semantic Vision + Runtime 1-18
+# MOD-122: APK follows the online-only runtime with real semantic vision wired through Brain Layer 16.
 on:
   workflow_dispatch:
   push:
@@ -39,12 +39,14 @@ jobs:
           node --check server.mjs
           node --check ai-router.mjs
           node --check shadow-pipeline.mjs
+          node --check semantic-vision.mjs
           node --check external-providers.mjs
           node --check tool-registry.mjs
           node --check task-router.mjs
           node --check development-agent.mjs
           node --test test-external-providers.mjs
           node --test test-task-router.mjs
+          node --test test-semantic-vision.mjs
           node --test test-tool-governance.mjs
           node --test test-device-action.mjs
           node test-shadow-pipeline.mjs
@@ -100,7 +102,7 @@ jobs:
           sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-MOD121-RUNTIME-1-18-V59-apk
+          name: SHADOW-MOD122-SEMANTIC-VISION-RUNTIME-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
@@ -110,6 +112,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          TAG="shadow-mod121-${GITHUB_RUN_ID}"
-          TITLE="SHADOW MOD-121 Runtime 1-18 + Optional Voice v59 ${GITHUB_SHA::7}"
-          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TITLE" --notes "Verified APK build for SHADOW MOD-121. Backend: Hatchable v59. Commit: $GITHUB_SHA" --latest
+          TAG="shadow-mod122-${GITHUB_RUN_ID}"
+          TITLE="SHADOW MOD-122 Semantic Vision + Runtime 1-18 ${GITHUB_SHA::7}"
+          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TITLE" --notes "Verified APK build for SHADOW MOD-122 with real Semantic Vision Adapter and Brain Layer 16 routing. Commit: $GITHUB_SHA" --latest
