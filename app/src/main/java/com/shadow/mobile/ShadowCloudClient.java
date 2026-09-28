@@ -156,10 +156,23 @@ public final class ShadowCloudClient {
     }
     public void applyDevelopment(String githubToken,String branch,String commitMessage,JSONArray files)throws Exception{JSONObject body=new JSONObject();body.put("approved",true);body.put("github_token",githubToken);body.put("branch",branch);body.put("commit_message",commitMessage);body.put("files",files);JSONObject r=postJson("/v1/development/apply",body,60000);if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","github_write_failed"));}
     private JSONObject postJson(String path,JSONObject body,int timeout)throws Exception{if(!isConfigured())throw new IllegalStateException("Cloud backend is not configured");HttpURLConnection c=null;try{c=(HttpURLConnection)new URL(baseUrl+path).openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(timeout);c.setRequestProperty("Content-Type","application/json; charset=utf-8");c.setRequestProperty("Accept","application/json");byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();String json=read(code>=200&&code<300?c.getInputStream():c.getErrorStream());return new JSONObject(json==null?"{}":json);}finally{if(c!=null)c.disconnect();}}
+    /** MOD-121: route image generation through the Brain 1-18 runtime instead of bypassing it. */
     public String generateImage(String prompt)throws Exception{
-        JSONObject result=postJson("/v1/images",new JSONObject().put("prompt",prompt).put("size","1024x1024"),120000);
+        JSONObject body=new JSONObject();
+        body.put("message",prompt==null?"":prompt);
+        body.put("mode","image");
+        body.put("image_operation","generate");
+        body.put("image_provider","auto");
+        body.put("size","1024x1024");
+        JSONObject result=postJson("/v1/chat",body,125000);
         if(!result.optBoolean("ok",false))throw new IllegalStateException(result.optString("error","image_generation_failed"));
-        String data=result.optString("image_base64","").trim();
+        JSONObject image=result.optJSONObject("image_result");
+        String data=image==null?"":image.optString("image_base64","").trim();
+        if(data.isEmpty()){
+            JSONObject nested=result.optJSONObject("image_engine");
+            JSONObject nestedImage=nested==null?null:nested.optJSONObject("image_result");
+            data=nestedImage==null?"":nestedImage.optString("image_base64","").trim();
+        }
         if(data.isEmpty())throw new IllegalStateException("empty_image");
         return data;
     }
@@ -176,14 +189,36 @@ public final class ShadowCloudClient {
     }
 
     /** MOD-78: server-authoritative image understanding path. */
+    /** MOD-121: route image understanding through Brain Engine 16 multimodal normalization. */
     public String analyzeImage(byte[] image,String mimeType,String prompt)throws Exception{
         if(image==null||image.length==0)throw new IllegalArgumentException("image_required");
+        if(image.length>8*1024*1024)throw new IllegalArgumentException("image_too_large_for_mobile_pipeline");
         JSONObject body=new JSONObject();
+        body.put("message",prompt==null||prompt.trim().isEmpty()?"حلل الصورة بدقة واذكر ما يمكن التحقق منه فقط.":prompt);
         body.put("image_base64",android.util.Base64.encodeToString(image,android.util.Base64.NO_WRAP));
-        body.put("content_type",mimeType==null?"image/jpeg":mimeType);
-        body.put("prompt",prompt==null||prompt.trim().isEmpty()?"حلل الصورة بدقة واذكر ما يمكن التحقق منه فقط.":prompt);
-        JSONObject r=postJson("/v1/vision",body,90000);
+        body.put("image_mime_type",mimeType==null?"image/jpeg":mimeType);
+        body.put("session_id","mobile");
+        JSONObject r=postJson("/v1/chat",body,90000);
         if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","vision_failed"));
+        return r.optString("answer","").trim();
+    }
+
+    /** MOD-121: feed an actual file payload into Brain 16 + File Intelligence 18. */
+    public String analyzeFile(byte[] file,String name,String mimeType,String prompt)throws Exception{
+        if(file==null||file.length==0)throw new IllegalArgumentException("file_required");
+        if(file.length>4*1024*1024)throw new IllegalArgumentException("file_too_large_for_mobile_pipeline");
+        JSONArray files=new JSONArray();
+        JSONObject item=new JSONObject();
+        item.put("name",name==null?"file":name);
+        item.put("mime_type",mimeType==null?"application/octet-stream":mimeType);
+        item.put("data_base64",android.util.Base64.encodeToString(file,android.util.Base64.NO_WRAP));
+        files.put(item);
+        JSONObject body=new JSONObject();
+        body.put("message",prompt==null||prompt.trim().isEmpty()?"حلل الملف المرفق وحدد نوعه ومحتواه القابل للفهم.":prompt);
+        body.put("files",files);
+        body.put("session_id","mobile");
+        JSONObject r=postJson("/v1/chat",body,90000);
+        if(!r.optBoolean("ok",false))throw new IllegalStateException(r.optString("error","file_analysis_failed"));
         return r.optString("answer","").trim();
     }
 
