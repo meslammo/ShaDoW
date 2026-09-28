@@ -102,19 +102,19 @@ export async function runUnifiedPipeline({
       },
     });
 
-    const modelPhase = imageBase64 || images.length ? 4 : 2;
+    const modelPhase = 5;
     trace.phases[modelPhase] = stage('model_route', 'executed', {
       provider: result.provider || null,
       model: result.model || null,
       attempts: result.attempts || [],
     });
-    const toolsPhase = imageBase64 || images.length ? 5 : 3;
+    const toolsPhase = 6;
     trace.phases[toolsPhase] = stage('tools', toolEvents.length ? 'executed' : 'not_required', {
       count: toolEvents.length,
     });
-    const verifyPhase = imageBase64 || images.length ? 6 : 4;
+    const verifyPhase = 7;
     trace.phases[verifyPhase] = stage('verify', result.pendingAction ? 'action_pending' : (result.answer ? 'response_verified' : 'degraded'));
-    const deliverPhase = imageBase64 || images.length ? 7 : 5;
+    const deliverPhase = 8;
     trace.phases[deliverPhase] = stage('deliver', result.answer || result.pendingAction ? 'completed' : 'degraded');
 
     const elapsedMs = Date.now() - started;
@@ -133,11 +133,10 @@ export async function runUnifiedPipeline({
     });
     return output;
   } catch (error) {
-    const offset = imageBase64 || images.length ? 2 : 0;
-    trace.phases[2 + offset] = stage('model_route', 'failed');
-    trace.phases[3 + offset] = stage('tools', toolEvents.length ? 'partially_executed' : 'not_started', { count: toolEvents.length });
-    trace.phases[4 + offset] = stage('verify', 'failed');
-    trace.phases[5 + offset] = stage('deliver', 'failed');
+    trace.phases[5] = stage('model_route', 'failed');
+    trace.phases[6] = stage('tools', toolEvents.length ? 'partially_executed' : 'not_started', { count: toolEvents.length });
+    trace.phases[7] = stage('verify', 'failed');
+    trace.phases[8] = stage('deliver', 'failed');
     await audit({
       event: 'pipeline.failed',
       trace_id: id,
