@@ -11,8 +11,8 @@ android {
         applicationId 'com.shadow.mobile.test'
         minSdk 26
         targetSdk 35
-        versionCode 116
-        versionName '1.15.1-shadow-image-fix-v58'
+        versionCode 117
+        versionName '1.15.2-shadow-runtime-1-18-v59'
         buildConfigField 'String', 'SHADOW_BACKEND_URL', '"https://shadow-cloud-150.hatchable.site/api"'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
