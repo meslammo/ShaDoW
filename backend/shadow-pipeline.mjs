@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { runAgent, streamAgent, memoryStatus, providerStatus } from './ai-router.mjs';
+import { analyzeSemanticVision, semanticVisionStatus } from './semantic-vision.mjs';
 
 const AUDIT_DIR = path.resolve(process.env.SHADOW_AUDIT_DIR || process.env.SHADOW_MEMORY_DIR || '/data/shadow-memory');
 const AUDIT_FILE = path.join(AUDIT_DIR, 'shadow-audit.jsonl');
@@ -48,6 +49,9 @@ export async function runUnifiedPipeline({
   reasoningEffort = 'none',
   confirmed = false,
   confirmedActions = [],
+  imageBase64 = '',
+  imageMimeType = 'image/jpeg',
+  images = [],
 } = {}) {
   const request = String(message || '').trim();
   if (!request) throw new Error('message_required');
@@ -62,6 +66,8 @@ export async function runUnifiedPipeline({
       stage('understand', 'executed'),
       stage('memory', 'loaded'),
       stage('governance', confirmed ? 'confirmed' : 'policy_checked'),
+      stage('multimodal_normalization', imageBase64 || images.length ? 'pending' : 'not_required'),
+      stage('semantic_vision', imageBase64 || images.length ? 'pending' : 'not_required'),
       stage('model_route', 'pending'),
       stage('tools', 'pending'),
       stage('verify', 'pending'),
@@ -73,8 +79,17 @@ export async function runUnifiedPipeline({
   await audit({ event: 'pipeline.started', trace_id: id, request_length: request.length });
 
   try {
+    let routedMessage = request;
+    let vision = null;
+    if (imageBase64 || images.length) {
+      vision = await analyzeSemanticVision({ message: request, imageBase64, imageMimeType, images });
+      const evidence = JSON.stringify(vision.result);
+      routedMessage = request + '\\n\\n[SHADOW_VISUAL_EVIDENCE]\n' + evidence.slice(0, 30000) + '\\n[/SHADOW_VISUAL_EVIDENCE]';
+      trace.phases[2] = stage('multimodal_normalization', 'executed', { image_count: vision.normalized.imageCount });
+      trace.phases[3] = stage('semantic_vision', 'executed', { provider: vision.provider, model: vision.model, attempts: vision.attempts || [] });
+    }
     const result = await runAgent({
-      message: request,
+      message: routedMessage,
       previousResponseId,
       preferredProvider,
       reasoningEffort,
@@ -87,21 +102,25 @@ export async function runUnifiedPipeline({
       },
     });
 
-    trace.phases[3] = stage('model_route', 'executed', {
+    const modelPhase = imageBase64 || images.length ? 4 : 2;
+    trace.phases[modelPhase] = stage('model_route', 'executed', {
       provider: result.provider || null,
       model: result.model || null,
       attempts: result.attempts || [],
     });
-    trace.phases[4] = stage('tools', toolEvents.length ? 'executed' : 'not_required', {
+    const toolsPhase = imageBase64 || images.length ? 5 : 3;
+    trace.phases[toolsPhase] = stage('tools', toolEvents.length ? 'executed' : 'not_required', {
       count: toolEvents.length,
     });
-    trace.phases[5] = stage('verify', result.pendingAction ? 'action_pending' : (result.answer ? 'response_verified' : 'degraded'));
-    trace.phases[6] = stage('deliver', result.answer || result.pendingAction ? 'completed' : 'degraded');
+    const verifyPhase = imageBase64 || images.length ? 6 : 4;
+    trace.phases[verifyPhase] = stage('verify', result.pendingAction ? 'action_pending' : (result.answer ? 'response_verified' : 'degraded'));
+    const deliverPhase = imageBase64 || images.length ? 7 : 5;
+    trace.phases[deliverPhase] = stage('deliver', result.answer || result.pendingAction ? 'completed' : 'degraded');
 
     const elapsedMs = Date.now() - started;
     const output = {
       ...result,
-      trace: { ...trace, duration_ms: elapsedMs },
+      trace: { ...trace, duration_ms: elapsedMs, semantic_vision: vision ? { provider: vision.provider, model: vision.model, image_count: vision.normalized.imageCount, result: vision.result } : null },
     };
     await audit({
       event: 'pipeline.completed',
@@ -114,10 +133,11 @@ export async function runUnifiedPipeline({
     });
     return output;
   } catch (error) {
-    trace.phases[3] = stage('model_route', 'failed');
-    trace.phases[4] = stage('tools', toolEvents.length ? 'partially_executed' : 'not_started', { count: toolEvents.length });
-    trace.phases[5] = stage('verify', 'failed');
-    trace.phases[6] = stage('deliver', 'failed');
+    const offset = imageBase64 || images.length ? 2 : 0;
+    trace.phases[2 + offset] = stage('model_route', 'failed');
+    trace.phases[3 + offset] = stage('tools', toolEvents.length ? 'partially_executed' : 'not_started', { count: toolEvents.length });
+    trace.phases[4 + offset] = stage('verify', 'failed');
+    trace.phases[5 + offset] = stage('deliver', 'failed');
     await audit({
       event: 'pipeline.failed',
       trace_id: id,
@@ -195,6 +215,7 @@ export async function platformContract() {
     external_device_control: false,
     android_role: 'client',
     architecture: 'Unified Cloud Pipeline -> Online Brain -> Memory -> Governance -> Tools -> Verify -> Deliver',
+    semantic_vision: semanticVisionStatus(),
     memory,
     providers: Object.fromEntries(Object.entries(providers).filter(([name]) => name !== 'local')),
     gates: {
