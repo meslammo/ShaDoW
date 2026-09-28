@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test-task-router.mjs"
+    "test": "node --test test-task-router.mjs test-semantic-vision.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",
