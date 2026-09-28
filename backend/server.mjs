@@ -7,6 +7,7 @@ import { startDeviceAuthorization, pollDeviceAuthorization, status as githubOAut
 import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
 import { providerStatus, memoryStatus, continueAgent } from './ai-router.mjs';
 import { runUnifiedPipeline, streamUnifiedPipeline, platformContract } from './shadow-pipeline.mjs';
+import { semanticVisionStatus, analyzeSemanticVision, compareSemanticVision } from './semantic-vision.mjs';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -76,12 +77,13 @@ app.get('/health', async (_req, res) => {
       agent_loop: true,
       voiceprint_required: false,
       speech_to_text: Boolean(apiKey),
-      vision: Boolean(apiKey),
+      vision: semanticVisionStatus().configured,
       full_12_step_master: true,
       unified_150_core: true,
       phase_roadmap: 35,
       online_only_brain: true,
       unified_cloud_pipeline: true,
+      semantic_vision: semanticVisionStatus(),
     },
     image_generation: {
       enabled: Boolean(apiKey || geminiKey || pollinationsKey),
@@ -165,10 +167,14 @@ app.post('/v1/chat', rateLimit, async (req, res) => {
   const providerInput = String(req.body?.provider || '').toLowerCase();
   const reasoningInput = String(req.body?.reasoning_effort || 'none').toLowerCase();
   const reasoningEffort = ['none','minimal','low','medium','high','xhigh'].includes(reasoningInput) ? reasoningInput : 'none';
+  const imageBase64 = typeof req.body?.image_base64 === 'string' ? req.body.image_base64.trim() : '';
+  const imageMimeType = typeof req.body?.image_mime_type === 'string' ? req.body.image_mime_type.slice(0, 80) : 'image/jpeg';
+  const images = Array.isArray(req.body?.images) ? req.body.images.slice(0, 4) : [];
+  if (imageBase64 && imageBase64.length > 16 * 1024 * 1024) return res.status(413).json({ ok: false, error: 'image_too_large' });
   const allowedProviders = ['openai', 'xai', 'grok', 'deepseek', 'mistral', 'anthropic', 'gemini'];
   const preferred = allowedProviders.includes(providerInput) ? providerInput.replace('grok', 'xai') : 'auto';
   try {
-    const result = await runUnifiedPipeline({ message, previousResponseId: previous, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true });
+    const result = await runUnifiedPipeline({ message, previousResponseId: previous, preferredProvider: preferred, reasoningEffort, confirmed: req.body?.confirmed === true, imageBase64, imageMimeType, images });
     return res.json({ ok: true, answer: result.answer, response_id: result.responseId || null, provider: result.provider, model: result.model, reasoning_effort: result.reasoningEffort || reasoningEffort, used_web_search: Boolean(result.usedWeb), pending_action: result.pendingAction || null, attempts: result.attempts || [], trace: result.trace || null });
   } catch (error) {
     console.error('Unified agent failed', String(error?.message || error));
@@ -352,6 +358,34 @@ app.post('/v1/transcribe', rateLimit, async (req, res) => {
       : res.status(502).json({ ok: false, error: 'empty_transcription' });
   } catch (e) {
     return res.status(502).json({ ok: false, error: String(e?.message || 'transcription_unreachable').slice(0, 180) });
+  }
+});
+
+app.post('/v1/vision/semantic', rateLimit, async (req, res) => {
+  try {
+    const result = await analyzeSemanticVision({
+      message: typeof req.body?.prompt === 'string' ? req.body.prompt : '',
+      imageBase64: typeof req.body?.image_base64 === 'string' ? req.body.image_base64 : '',
+      imageMimeType: typeof req.body?.content_type === 'string' ? req.body.content_type : 'image/jpeg',
+      images: Array.isArray(req.body?.images) ? req.body.images : [],
+    });
+    return res.json({ ok: true, ...result });
+  } catch (e) {
+    const attempts = Array.isArray(e?.attempts) ? e.attempts : [];
+    return res.status(502).json({ ok: false, error: String(e?.message || 'semantic_vision_failed').slice(0, 180), attempts });
+  }
+});
+
+app.post('/v1/vision/compare', rateLimit, async (req, res) => {
+  try {
+    const result = await compareSemanticVision({
+      message: typeof req.body?.prompt === 'string' ? req.body.prompt : 'قارن الصورتين وحدد أوجه التشابه والاختلاف.',
+      images: Array.isArray(req.body?.images) ? req.body.images : [],
+    });
+    return res.json({ ok: true, ...result });
+  } catch (e) {
+    const attempts = Array.isArray(e?.attempts) ? e.attempts : [];
+    return res.status(502).json({ ok: false, error: String(e?.message || 'semantic_compare_failed').slice(0, 180), attempts });
   }
 });
 
