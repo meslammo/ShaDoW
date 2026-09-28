@@ -644,7 +644,10 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
     }
 
     private boolean isImageRequest(String s) {
-        String x = s.toLowerCase(Locale.ROOT);
+        String x = s.toLowerCase(Locale.ROOT)
+                .replace('أ', 'ا')
+                .replace('إ', 'ا')
+                .replace('آ', 'ا');
         return x.matches(".*(صورة|صوره|صور|image|picture|drawing|artwork|poster|wallpaper).*")
                 && x.matches(".*(اعمل|ارسم|صمم|ولد|انشئ|generate|create|draw|design|make|render).*");
     }
