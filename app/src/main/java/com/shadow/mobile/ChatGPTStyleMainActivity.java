@@ -43,6 +43,8 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
     private static final int AUDIO_PICK = 1203;
     private static final int VOICE_PICK = 1204;
     private static final int PHOTO_PICK = 1205;
+    private static final String VOICE_PREFS = "shadow_voice_preferences";
+    private static final String VOICE_REPLIES_ENABLED = "voice_replies_enabled";
 
     private final int BG = Color.rgb(247, 247, 248);
     private final int SURFACE = Color.WHITE;
@@ -65,6 +67,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
     private ShadowCloudClient cloud;
     private TextToSpeech tts;
     private boolean busy;
+    private boolean voiceRepliesEnabled;
 
     @Override
     public void onCreate(Bundle saved) {
@@ -75,6 +78,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
             getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         }
         cloud = new ShadowCloudClient(this);
+        voiceRepliesEnabled = getSharedPreferences(VOICE_PREFS, MODE_PRIVATE).getBoolean(VOICE_REPLIES_ENABLED, false);
         tts = new TextToSpeech(this, this);
         buildUi();
         assistant("أهلاً يا محمد 👋\nأنا SHADOW.\nاكتب أو اتكلم عادي. كل أمر له مسار مناسب: 🧠 تفكير • 🌐 بحث • 💻 كود • 🎨 صور • 🧮 حساب • ✅ تحقق.");
@@ -353,6 +357,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
                 "🎙 SHADOW Deep Male — Original",
                 "♀ SHADOW Warm Female — Original",
                 "○ SHADOW Neutral — Original",
+                "🔊 Voice replies — " + (voiceRepliesEnabled ? "ON" : "OFF"),
                 "🧠 Think mode",
                 "⚙ Diagnostics"
         };
@@ -370,6 +375,10 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
                 } else if (item.contains("Neutral")) {
                     setVoiceProfile("neutral");
                     Toast.makeText(this, "Voice profile: SHADOW Neutral — Original", Toast.LENGTH_SHORT).show();
+                } else if (item.contains("Voice replies")) {
+                    voiceRepliesEnabled = !voiceRepliesEnabled;
+                    getSharedPreferences(VOICE_PREFS, MODE_PRIVATE).edit().putBoolean(VOICE_REPLIES_ENABLED, voiceRepliesEnabled).apply();
+                    Toast.makeText(this, voiceRepliesEnabled ? "الرد الصوتي: تشغيل" : "الرد الصوتي: إيقاف — زر 🔊 للقراءة اليدوية", Toast.LENGTH_SHORT).show();
                 } else if (item.contains("Think")) {
                     input.setText("فكّر بعمق وراجع الافتراضات قبل الإجابة.");
                     input.requestFocus();
@@ -543,9 +552,16 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
                 }
             });
         } else if (requestCode == FILE_PICK) {
-            input.setText("حلّل الملف المرفق: " + (getContentResolver().getType(uri) == null ? "ملف غير معروف" : getContentResolver().getType(uri)));
-            input.setSelection(input.length());
-            Toast.makeText(this, "تم تجهيز الملف داخل المحادثة.", Toast.LENGTH_SHORT).show();
+            io.submit(() -> {
+                try {
+                    byte[] bytes = readUriBytes(uri);
+                    String name = uri.getLastPathSegment();
+                    final String answer = cloud.analyzeFile(bytes, name, getContentResolver().getType(uri), "حلّل الملف المرفق فعليًا وحدد نوعه والبيانات التي يمكن للنظام فهمها، ثم لخّص النتيجة.");
+                    main.post(() -> assistantWithActions(answer));
+                } catch (Throwable e) {
+                    main.post(() -> assistantWithActions("تعذر تحليل الملف أونلاين: " + String.valueOf(e.getMessage())));
+                }
+            });
         }
     }
 
@@ -591,7 +607,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
                         op.step("💬", "Conversation Engine", true);
                         op.finish(true, (reply.provider == null ? "online" : reply.provider) + " • " + (reply.model == null ? "model" : reply.model));
                         assistantWithActions(reply.answer == null ? "وصل الطلب من غير نص رد." : reply.answer);
-                        speak(reply.answer);
+                        if (voiceRepliesEnabled) speak(reply.answer);
                         finishBusy();
                     });
                 }
