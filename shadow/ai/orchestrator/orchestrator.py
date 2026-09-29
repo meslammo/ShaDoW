@@ -1,6 +1,6 @@
-"""Provider-neutral AI orchestration with real OpenAI tool execution.
+"""Provider-neutral online AI orchestration with real OpenAI tool execution.
 
-MOD-24.7: online when configured, deterministic offline failover when the network/provider is unavailable.
+MOD-78: online-only conversation path; no local AI fallback.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -20,23 +20,23 @@ class AIOrchestrator:
         self.profiles = profiles or {"default": TaskProfile()}
         self.max_tool_rounds = max(1, min(int(max_tool_rounds), 16))
 
-    def run(self, request: str, *, context: Optional[Dict[str, Any]] = None,
-            tools: Optional[List[Dict[str, Any]]] = None, preferred_provider: Optional[str] = None,
-            task: str = "default", tool_executor: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
-            confirmed_actions: Optional[List[str]] = None) -> Dict[str, Any]:
+    def run(
+        self, request: str, *, context: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None, preferred_provider: Optional[str] = None,
+        task: str = "default", tool_executor: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
+        confirmed_actions: Optional[List[str]] = None) -> Dict[str, Any]:
         profile = self.profiles.get(task, self.profiles["default"])
         provider = preferred_provider or os.getenv("SHADOW_MODEL_PROVIDER", profile.provider)
         model = os.getenv("SHADOW_MODEL", profile.model).strip() or profile.model
-        if provider == "openai":
-            key = os.getenv("OPENAI_API_KEY", "").strip()
-            if key:
-                try:
-                    return self._openai(request, key, profile, context or {}, tools or [], tool_executor, confirmed_actions or [], model=model)
-                except Exception as exc:
-                    return {"answer": self._offline(request, f"Online AI unavailable ({type(exc).__name__}); switched to local-safe mode."),
-                            "provider": "offline-failover", "model": "local-safe", "verified": True,
-                            "actions": [], "online_error": type(exc).__name__}
-        return {"answer": self._offline(request), "provider": "offline", "model": "local-safe", "verified": True, "actions": []}
+        if provider != "openai":
+            return {"answer":"SHADOW online AI provider is not configured for this embedded route.", "provider":provider or "none", "model":model, "verified":False, "actions":[], "online_error":"unsupported_provider"}
+        key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not key:
+            return {"answer":"SHADOW online AI is not configured. Connect an online provider to continue.", "provider":"openai", "model":model, "verified":False, "actions":[], "online_error":"provider_not_configured"}
+        try:
+            return self._openai(request, key, profile, context or {}, tools or [], tool_executor, confirmed_actions or [], model=model)
+        except Exception as exc:
+            return {"answer":f"SHADOW online AI request failed: {type(exc).__name__}.", "provider":"openai", "model":model, "verified":False, "actions":[], "online_error":type(exc).__name__}
 
     def _openai(self, request: str, key: str, profile: TaskProfile, context: Dict[str, Any],
                 tools: List[Dict[str, Any]], tool_executor: Optional[Callable[[str, Dict[str, Any]], Any]],
@@ -94,12 +94,3 @@ class AIOrchestrator:
                 if part.get("type") == "output_text" and part.get("text"): return str(part["text"])
         return ""
 
-    @staticmethod
-    def _offline(request: str, reason: str = "") -> str:
-        r=request.strip(); low=r.lower()
-        if low in {"hi","hello","hey","سلام","اهلا","أهلا","مرحبا"}: return "أهلاً محمد 👋 أنا SHADOW. أنا شغال محلياً دلوقتي، وتقدر تكلمني كتابة أو بالصوت."
-        if "status" in low or "حالة" in low: return "أنا شغال. الواجهة والصوت والذاكرة المحلية متاحين. " + (reason or "محرك الذكاء السحابي غير متاح حالياً.")
-        if "مين انت" in low or "ما انت" in low or "who are you" in low: return "أنا SHADOW، مساعد Android بواجهة محادثة، صوت، ذاكرة محلية، وأدوات للهاتف، ومعايا Python runtime مدمج."
-        if "شكرا" in low or "thanks" in low: return "العفو يا محمد."
-        suffix = ("\n\n" + reason) if reason else ""
-        return f"فهمت رسالتك: {r}\nأنا حالياً في الوضع المحلي الآمن. أقدر أنفذ الوظائف المحلية المتاحة، وللإجابات الذكية الكاملة لازم مزود AI يكون متصل.{suffix}"

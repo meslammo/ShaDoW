@@ -1,0 +1,1 @@
+Build plan: install corrected Jarvis launcher bridge, compile, verify APK, SHA256, artifact.

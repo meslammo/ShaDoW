@@ -1,0 +1,1 @@
+The first MOD-39..44 build reached javac and exposed three concrete issues; no APK is claimed until fixed and rebuilt.

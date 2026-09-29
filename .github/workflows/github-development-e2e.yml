@@ -1,0 +1,28 @@
+name: SHADOW Authenticated GitHub Development E2E
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration/150-online-brain-loop-2026-09-25
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+jobs:
+  development-e2e:
+    runs-on: ubuntu-latest
+    env:
+      SHADOW_GITHUB_TOKEN: ${{ github.token }}
+      SHADOW_GITHUB_PR_TOKEN: ${{ secrets.SHADOW_GITHUB_PR_TOKEN || '' }}
+      SHADOW_GITHUB_REPO: meslammo/ShaDoW
+      GITHUB_RUN_ID: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Authenticated Development Agent E2E
+        working-directory: backend
+        run: |
+          npm install --ignore-scripts
+          node test-development-agent-e2e.mjs

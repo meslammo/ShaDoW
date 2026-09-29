@@ -21,7 +21,7 @@ public final class ShadowPhoneUseAgent {
     public ShadowPhoneUseAgent(Context context){context.getApplicationContext();}
     public boolean looksLikePhoneTask(String input){
         if(input==null)return false; String s=input.toLowerCase(Locale.ROOT);
-        return s.contains("اضغط")||s.contains("دوس")||s.contains("انقر")||s.contains("اكتب")||s.contains("اسحب")||s.contains("مرر")||s.contains("scroll")||s.contains("tap")||s.contains("swipe")||s.contains("phone control")||s.contains("تحكم فى الموبايل")||s.contains("تحكم في الموبايل")||s.contains("افتح التطبيق")||s.contains("open app");
+        return s.contains("اضغط")||s.contains("دوس")||s.contains("انقر")||s.contains("اضغط مطول")||s.contains("اكتب")||s.contains("اسحب")||s.contains("مرر")||s.contains("scroll")||s.contains("tap")||s.contains("swipe")||s.contains("ارجع")||s.contains("إرجع")||s.contains("الرئيسية")||s.contains("هوم")||s.contains("recent")||s.contains("التطبيقات الأخيرة")||s.contains("phone control")||s.contains("تحكم فى الموبايل")||s.contains("تحكم في الموبايل")||s.contains("افتح التطبيق")||s.contains("open app");
     }
     public Plan plan(String request){
         String s=request==null?"":request.trim(),lower=s.toLowerCase(Locale.ROOT); Step[] steps; boolean approval=isSensitive(lower);
@@ -33,14 +33,28 @@ public final class ShadowPhoneUseAgent {
     }
     public String executePending(){if(pending==null)return "لا توجد خطة معلقة.";if(pending.approvalRequired)return "APPROVAL_REQUIRED";String r=execute(pending.summary.replaceFirst("^🧠 SHADOW Phone Agent\\n",""));pending=null;return r;}
     public String execute(String request){
-        if(request==null||isSensitive(request.toLowerCase(Locale.ROOT)))return isSensitive(request==null?"":request.toLowerCase(Locale.ROOT))?"APPROVAL_REQUIRED":null;
-        Matcher tap=TAP.matcher(request.trim());
+        if(request==null)return null;
+        String s=request.trim(),lower=s.toLowerCase(Locale.ROOT);
+        if(lower.equals("ارجع")||lower.equals("إرجع")||lower.equals("back")||lower.equals("رجوع"))return ShadowAccessibilityService.back()?"رجعت للشاشة السابقة.":"Accessibility مش مفعّل.";
+        if(lower.equals("الرئيسية")||lower.equals("هوم")||lower.equals("home"))return ShadowAccessibilityService.home()?"رجعت للرئيسية.":"Accessibility مش مفعّل.";
+        if(lower.contains("التطبيقات الأخيرة")||lower.contains("التطبيقات الاخيرة")||lower.equals("recent apps")||lower.equals("recents"))return ShadowAccessibilityService.recents()?"فتحت التطبيقات الأخيرة.":"Accessibility مش مفعّل.";
+        if(lower.contains("الإشعارات")||lower.contains("الاشعارات")||lower.equals("notifications"))return ShadowAccessibilityService.notifications()?"فتحت لوحة الإشعارات.":"Accessibility مش مفعّل.";
+        if(lower.contains("الإعدادات السريعة")||lower.contains("الاعدادات السريعة")||lower.equals("quick settings"))return ShadowAccessibilityService.quickSettings()?"فتحت الإعدادات السريعة.":"Accessibility مش مفعّل.";
+        if(lower.contains("اسحب")||lower.contains("مرر")||lower.contains("swipe")||lower.contains("scroll")){
+            String dir=lower.contains("شمال")||lower.contains("يسار")||lower.contains("left")?"left":lower.contains("يمين")||lower.contains("right")?"right":lower.contains("تحت")||lower.contains("اسفل")||lower.contains("down")?"down":"up";
+            return ShadowAccessibilityService.swipe(dir)?"تم تنفيذ حركة السحب.":"مش قادر أنفذ السحب؛ فعّل Accessibility.";
+        }
+        if(lower.startsWith("اضغط مطول")||lower.startsWith("long press")){
+            String target=s.replaceFirst("(?i)^(اضغط\\s*مطولًا?|long\\s+press)\\s+(?:على\\s+)?","").trim();
+            return ShadowAccessibilityService.longClickText(target)?"تم الضغط المطول على: "+target:"ملقتش عنصر قابل للضغط المطول: "+target;
+        }
+                if(isSensitive(lower))return "APPROVAL_REQUIRED";
+        Matcher tap=TAP.matcher(s);
         if(tap.find()){String target=tap.group(1).trim();return ShadowAccessibilityService.clickText(target)?"تم الضغط على: "+target:"ملقتش عنصر باسم: "+target+". حالة الشاشة: "+ShadowAccessibilityService.screenSummary();}
-        Matcher type=TYPE.matcher(request.trim());
+        Matcher type=TYPE.matcher(s);
         if(type.find())return ShadowAccessibilityService.typeText(type.group(1).trim())?"تم إدخال النص.":"مش لاقي حقل إدخال نشط.";
-        if(request.toLowerCase(Locale.ROOT).contains("scroll")||request.contains("مرر")||request.contains("اسحب"))return ShadowAccessibilityService.scrollForward()?"تم التمرير للأمام.":"مش قادر أنفذ التمرير على الشاشة الحالية.";
         return null;
-    }
+    }    
     public Plan pendingPlan(){return pending;} public void clear(){pending=null;}
     private boolean isSensitive(String s){return s.contains("اتصل")||s.contains("كلم")||s.contains("ابعت")||s.contains("send")||s.contains("شراء")||s.contains("اشتر")||s.contains("purchase")||s.contains("delete")||s.contains("احذف")||s.contains("تحويل")||s.contains("transfer")||s.contains("password");}
 }

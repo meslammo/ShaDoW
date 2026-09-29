@@ -1,5 +1,17 @@
 # SHADOW Build Roadmap
 
+## v0.47.0 — 12-Core governance control plane
+- [x] MOD-47.1 Identity, command arbitration, state machine, checkpoints and bounded recovery
+- [x] MOD-47.2 Production runtime integration
+- [x] MOD-47.3 Verification suite for the 17 control gaps
+- [x] Intent model: goal + constraints + expected result
+- [x] Risk / blast-radius policy and typed error taxonomy
+- [x] Evidence/source trust + freshness resolution
+- [x] Adapter compatibility / health / rollback metadata
+- [x] Companion lifecycle and trust boundary
+- [x] Learning authorization boundary and sensitive-data guard
+- [x] Emergency safe shutdown with checkpoint journal
+
 ## v0.42.0 — integrated runtime release candidate
 - [x] MOD-01 Audit and mapping
 - [x] MOD-02 Repository reorganization

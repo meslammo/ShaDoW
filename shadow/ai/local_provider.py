@@ -1,8 +1,7 @@
-"""MOD-35: provider-neutral local AI contract.
+"""MOD-78: optional provider adapter kept as a non-conversational integration boundary.
 
-This module deliberately has no paid dependency. It provides a deterministic
-local fallback and a clean adapter boundary for an on-device runtime such as
-llama.cpp/ExecuTorch/MLC when a compatible model is installed.
+The active SHADOW product contract is online-only for AI conversation. This class no longer
+supplies deterministic local conversation when an on-device model is absent.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -27,22 +26,7 @@ class LocalAI:
         return self.model is not None
 
     def run(self, prompt: str, *, context: Optional[Dict[str, Any]] = None) -> LocalAIResult:
-        if self.model is not None:
-            try:
-                return LocalAIResult(self.model.generate(prompt, context=context), "local-model", "installed", True)
-            except Exception:
-                pass
-        text = self._safe(prompt)
-        return LocalAIResult(text)
-
-    @staticmethod
-    def _safe(prompt: str) -> str:
-        p = (prompt or "").strip()
-        low = p.lower()
-        if low in {"hi", "hello", "hey", "سلام", "اهلا", "أهلا", "مرحبا"}:
-            return "أهلاً. SHADOW شغال محلياً."
-        if "status" in low or "حالة" in low:
-            return "SHADOW LOCAL: core=ready, memory=ready, tools=ready, cloud=optional."
-        if "مين انت" in low or "who are you" in low:
-            return "أنا SHADOW، والنواة المحلية تقدر تشتغل بدون اشتراك أو Credits."
-        return "أنا في الوضع المحلي الآمن حالياً. أقدر أنفذ الأدوات المحلية المتاحة بدون اختلاق إجابة."
+        if self.model is None:
+            raise RuntimeError("online_ai_required")
+        text = self.model.generate(prompt, context=context)
+        return LocalAIResult(text, "configured-model", "external-adapter", True)
