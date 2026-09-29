@@ -6,3 +6,4 @@ Runtime path:
 Image Input -> Layer 16 -> Semantic Vision Adapter -> Visual Evidence -> Brain 8-23 -> Verification -> Response.
 
 Build trigger: 2026-09-29
+APK rebuild trigger: MOD-123
