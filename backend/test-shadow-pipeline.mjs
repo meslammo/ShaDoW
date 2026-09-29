@@ -50,14 +50,26 @@ test('unified pipeline runs online brain -> memory -> governed tool -> verify ->
   assert.equal(result.answer, 'SHADOW_PIPELINE_OK: 42');
   assert.equal(result.provider, 'openai');
   assert.equal(result.trace.trace_id.length, 24);
-  assert.equal(result.trace.phases[0].status, 'executed');
-  assert.equal(result.trace.phases[1].status, 'loaded');
-  assert.equal(result.trace.phases[2].status, 'policy_checked');
-  assert.equal(result.trace.phases[3].status, 'executed');
-  assert.equal(result.trace.phases[4].status, 'executed');
-  assert.equal(result.trace.phases[4].count, 1);
-  assert.equal(result.trace.phases[5].status, 'response_verified');
-  assert.equal(result.trace.phases[6].status, 'completed');
-  assert.deepEqual(result.trace.tool_events[0], { name: 'calculator', kind: 'result', ok: true });
+
+  const phases = Object.fromEntries(
+    result.trace.phases.map((phase) => [phase.stage, phase]),
+  );
+
+  assert.equal(phases.understand.status, 'executed');
+  assert.equal(phases.memory.status, 'loaded');
+  assert.equal(phases.governance.status, 'policy_checked');
+  assert.equal(phases.multimodal_normalization.status, 'not_required');
+  assert.equal(phases.semantic_vision.status, 'not_required');
+  assert.equal(phases.model_route.status, 'executed');
+  assert.equal(phases.tools.status, 'executed');
+  assert.equal(phases.tools.count, 1);
+  assert.equal(phases.verify.status, 'response_verified');
+  assert.equal(phases.deliver.status, 'completed');
+
+  assert.deepEqual(result.trace.tool_events[0], {
+    name: 'calculator',
+    kind: 'result',
+    ok: true,
+  });
   assert.equal(providerCalls, 2);
 });
