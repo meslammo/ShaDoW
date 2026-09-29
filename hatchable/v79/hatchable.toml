@@ -1,0 +1,18 @@
+# SHADOW uses server-side online AI gateways.
+
+[ai]
+required = true
+providers = ["google", "openai", "anthropic"]
+description = "Online multimodal AI for Shadow Brain and Semantic Vision."
+
+[[secret]]
+name = "SHADOW_GITHUB_CLIENT_ID"
+required = false
+expose = false
+description = "GitHub OAuth App Client ID used by the SHADOW Device Authorization flow."
+
+[[secret]]
+name = "LLM7_API_KEY"
+required = false
+expose = false
+description = "Optional LLM7 fallback key for multi-model and vision routing."
