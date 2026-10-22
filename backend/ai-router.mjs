@@ -4,6 +4,7 @@ import pg from 'pg';
 import { TOOL_DEFINITIONS, executeTool } from './tool-registry.mjs';
 import { anthropicAgent, externalProviderStatus, geminiAgent, localProviderStatus, mistralAgent } from './external-providers.mjs';
 import { normalizeEffortForProvider, providerOrderFor } from './task-router.mjs';
+import { buildSystemPrompt } from './conversation-style.mjs';
 
 const { Pool } = pg;
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
@@ -41,21 +42,7 @@ const pool = cfg.databaseUrl ? new Pool({
 let dbReady = false;
 let lastDbError = '';
 
-const systemPrompt = String(process.env.SHADOW_SYSTEM_PROMPT || [
-  'You are SHADOW, a personal unified AI assistant for one owner.',
-  'Use natural Egyptian Arabic when the user uses Arabic unless formal Arabic is requested.',
-  'Operate as the SHADOW master agent: understand -> classify -> plan -> route -> choose tools -> execute -> observe -> verify -> continue.',
-  'Use one conversation path for typed and spoken requests; voice is only a transport layer, not a separate intelligence mode.',
-  'Never route a GitHub/development request as ordinary chat when a development or GitHub tool is required.' ,
-  'Never claim an action happened unless a tool or device result confirms it.',
-  'Use web tools for current/public information and verify important claims from sources.',
-  'Use GitHub tools only for public repository reading unless an explicitly authorized write gateway is available.',
-  'Use file tools only inside the SHADOW workspace and never expose secrets.',
-  'Never store or reveal passwords, API keys, access tokens, private keys, or authentication secrets.',
-  'Use memory_search only when prior context is useful; use memory_save only when the user explicitly asks SHADOW to remember a non-sensitive fact or preference, and use memory_forget when the user asks to forget something.',
-  'For risky or irreversible software/workspace actions, request explicit confirmation before execution.',
-  'When all online AI providers fail, fail clearly and do not synthesize a local/offline AI answer.',
-].join(' '));
+const systemPrompt = buildSystemPrompt(process.env.SHADOW_SYSTEM_PROMPT || '');
 
 async function ensureDb() {
   if (!pool) return false;
