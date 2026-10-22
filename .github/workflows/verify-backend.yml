@@ -1,0 +1,28 @@
+name: Verify SHADOW Backend
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'backend/**'
+      - '.github/workflows/verify-backend.yml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'backend/**'
+      - '.github/workflows/verify-backend.yml'
+permissions:
+  contents: read
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+      - name: Run backend unit tests
+        working-directory: backend
+        run: npm test
