@@ -1,5 +1,5 @@
-name: Build SHADOW APK — MOD-122 Semantic Vision + Runtime 1-18
-# MOD-122: APK follows the online-only runtime with real semantic vision wired through Brain Layer 16.
+name: Build SHADOW APK — MOD-126 Online-First Brain v88
+# MOD-126: Build the current ChatGPT-style Android client against SHADOW Cloud Brain v88.
 on:
   workflow_dispatch:
   push:
@@ -7,6 +7,7 @@ on:
       - main
       - feature/shadow-local-model
       - integration/150-online-brain-loop-2026-09-25
+      - mod126-full-audit-chat-updates-voice-image-20261023
   pull_request:
     branches:
       - main
@@ -102,7 +103,7 @@ jobs:
           sha256sum "$APK" | tee app/build/outputs/apk/release/apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: SHADOW-MOD122-SEMANTIC-VISION-RUNTIME-apk
+          name: SHADOW-MOD126-ONLINE-FIRST-BRAIN-V88-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/apk.sha256
@@ -112,6 +113,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          TAG="shadow-mod122-${GITHUB_RUN_ID}"
-          TITLE="SHADOW MOD-122 Semantic Vision + Runtime 1-18 ${GITHUB_SHA::7}"
-          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TITLE" --notes "Verified APK build for SHADOW MOD-122 with real Semantic Vision Adapter and Brain Layer 16 routing. Commit: $GITHUB_SHA" --latest
+          TAG="shadow-mod126-${GITHUB_RUN_ID}"
+          TITLE="SHADOW MOD-126 Online-First Brain v88 ${GITHUB_SHA::7}"
+          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TITLE" --notes "Verified MOD-126 Android APK. Chat/vision requests use the SHADOW Cloud runtime at Hatchable deployment v88; OpenAI and self-hosted local model access require server-side configuration. No provider secrets are embedded in the APK. Commit: $GITHUB_SHA" --latest
