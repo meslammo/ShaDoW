@@ -25,7 +25,7 @@ function normalizeModel(value = "flare") {
 function normalizeSize(value = "1024x1024") {
   const size = String(value || "1024x1024").trim().toLowerCase();
   if (size === "auto") return size;
-  const match = size.match(/^(\\d{2,4})x(\\d{2,4})$/);
+  const match = size.match(/^([0-9]{2,4})x([0-9]{2,4})$/);
   if (!match) fail("invalid_image_size");
   const width = Number(match[1]);
   const height = Number(match[2]);
