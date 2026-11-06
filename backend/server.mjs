@@ -47,7 +47,7 @@ function rateLimit(req, res, next) {
 
 function requireImageApiAccess(req, res) {
   if (!imageApiToken) return true;
-  const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '').trim();
+  const supplied = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   const expectedDigest = createHash('sha256').update(imageApiToken).digest();
   const suppliedDigest = createHash('sha256').update(supplied).digest();
   if (!supplied || !timingSafeEqual(expectedDigest, suppliedDigest)) {
