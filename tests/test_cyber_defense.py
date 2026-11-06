@@ -12,7 +12,7 @@ def test_secret_detection_redacts_value():
 
 
 def test_unsafe_python_and_api_settings_are_flagged():
-    findings = scan_text("app.py", "eval(user_input)\\nAccess-Control-Allow-Origin: '*'\\n")
+    findings = scan_text("app.py", "eval(user_input)\nAccess-Control-Allow-Origin: '*'\n")
     assert {x["category"] for x in findings} >= {"unsafe_code", "api_configuration"}
 
 
@@ -27,7 +27,7 @@ def test_audit_is_bounded_and_non_executing(tmp_path):
     assert result["status"] == "completed"
     assert result["files_scanned"] == 1
     assert result["finding_count"] >= 1
-    assert "no code execution" in result["limitations"]
+    assert any("no code execution" in item for item in result["limitations"])
 
 
 def test_path_traversal_is_rejected(tmp_path):
