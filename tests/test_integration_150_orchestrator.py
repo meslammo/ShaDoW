@@ -60,3 +60,76 @@ def test_unified_orchestrator_fails_closed_when_online_brain_is_unavailable(tmp_
         event.stage == "online_brain" and event.status == "failed"
         for event in result.events
     )
+
+
+def _model_plan(**overrides):
+    plan = {
+        "schema": "shadow.task-plan.v1",
+        "goal": "Inspect the requested repository",
+        "assumptions": [],
+        "steps": [
+            {"id": "inspect", "title": "Inspect repository", "status": "pending", "core_id": "CORE-081", "tool": "github_read", "requires_approval": False}
+        ],
+        "clarification_question": "",
+        "risk": "low",
+        "approval_required": False,
+        "recommended_core": "CORE-081",
+    }
+    plan.update(overrides)
+    return plan
+
+
+def test_model_task_plan_controls_core_route_only_after_validation(tmp_path):
+    orchestrator = Unified150Orchestrator(str(tmp_path))
+
+    def fake_online_brain(request, context):
+        return {"provider": "plan-fixture", "answer": "خطة جاهزة", "task_plan": _model_plan()}
+
+    result = orchestrator.run("راجع مستودع GitHub", online_brain=fake_online_brain, confirmed=True)
+    assert result.ok
+    assert result.selected_core == "CORE-081"
+    assert result.metadata["plan_status"] == "validated"
+    assert result.metadata["task_plan"]["steps"][0]["status"] == "pending"
+
+
+def test_model_task_plan_clarification_stops_before_execution(tmp_path):
+    orchestrator = Unified150Orchestrator(str(tmp_path))
+
+    def fake_online_brain(request, context):
+        return {"provider": "plan-fixture", "answer": "محتاج توضيح", "task_plan": _model_plan(clarification_question="أي مستودع تقصد؟")}
+
+    result = orchestrator.run("راجع المشروع", online_brain=fake_online_brain)
+    assert not result.ok
+    assert result.status == "clarification_required"
+    assert result.answer == "أي مستودع تقصد؟"
+    assert not any(event.stage == "execute" for event in result.events)
+
+
+def test_model_task_plan_approval_stops_before_sensitive_execution(tmp_path):
+    orchestrator = Unified150Orchestrator(str(tmp_path))
+
+    def fake_online_brain(request, context):
+        return {"provider": "plan-fixture", "answer": "خطة حذف", "task_plan": _model_plan(
+            risk="high", approval_required=True,
+            steps=[{"id": "delete", "title": "Delete files", "status": "pending", "core_id": "CORE-081", "tool": "file_write", "requires_approval": True}],
+        )}
+
+    result = orchestrator.run("احذف الملفات القديمة", online_brain=fake_online_brain)
+    assert not result.ok
+    assert result.status == "approval_required"
+    assert result.metadata["approval_required"] is True
+    assert not any(event.stage == "execute" for event in result.events)
+
+
+def test_invalid_model_task_plan_fails_closed(tmp_path):
+    orchestrator = Unified150Orchestrator(str(tmp_path))
+
+    def fake_online_brain(request, context):
+        return {"provider": "plan-fixture", "answer": "خطة غير صالحة", "task_plan": _model_plan(
+            recommended_core="CORE-999",
+        )}
+
+    result = orchestrator.run("راجع المشروع", online_brain=fake_online_brain)
+    assert not result.ok
+    assert result.status == "invalid_task_plan"
+    assert result.metadata["plan_status"] == "rejected"
