@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -13,6 +13,7 @@ import { generateOpenAIImage, editOpenAIImage } from '../shared/openai-image-2-6
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+const imageApiToken = String(process.env.SHADOW_IMAGE_API_TOKEN || '').trim();
 const pollinationsKey = String(process.env.POLLINATIONS_API_KEY || '').trim();
 const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.6-flare').trim();
 const pollinationsImageModel = String(process.env.POLLINATIONS_IMAGE_MODEL || 'gptimage').trim();
@@ -42,6 +43,18 @@ function rateLimit(req, res, next) {
   state.count++;
   if (state.count > 40) return res.status(429).json({ ok: false, error: 'rate_limited' });
   next();
+}
+
+function requireImageApiAccess(req, res) {
+  if (!imageApiToken) return true;
+  const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '').trim();
+  const expectedDigest = createHash('sha256').update(imageApiToken).digest();
+  const suppliedDigest = createHash('sha256').update(supplied).digest();
+  if (!supplied || !timingSafeEqual(expectedDigest, suppliedDigest)) {
+    res.status(401).json({ ok: false, error: 'image_api_unauthorized' });
+    return false;
+  }
+  return true;
 }
 
 app.get('/health', async (_req, res) => {
