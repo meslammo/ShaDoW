@@ -62,3 +62,17 @@ def test_extracts_only_explicit_plan_envelope():
 def test_plan_envelope_is_removed_from_user_facing_text():
     raw = 'الإجابة <shadow_task_plan>{"schema":"shadow.task-plan.v1"}</shadow_task_plan> تمت'
     assert strip_task_plan_envelope(raw) == "الإجابة  تمت"
+
+
+def test_high_or_critical_risk_always_requires_approval():
+    result = validate_task_plan(valid_plan(risk="critical"), "راجع الكود")
+    assert result.ok
+    assert result.plan["approval_required"] is True
+
+
+def test_sensitive_tool_cannot_be_marked_no_approval():
+    plan = valid_plan(steps=[{"id": "write", "title": "Write file", "status": "pending", "core_id": "CORE-081", "tool": "file_write", "requires_approval": False}])
+    result = validate_task_plan(plan, "جهز الملف")
+    assert result.ok
+    assert result.plan["approval_required"] is True
+    assert result.plan["steps"][0]["requires_approval"] is True
