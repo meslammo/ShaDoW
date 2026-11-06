@@ -41,3 +41,9 @@ def test_unified_orchestrator_routes_image_creation_and_editing_separately():
     assert Unified150Orchestrator.select_core("اعمل صورة جديدة لشعار SHADOW") == "CORE-100"
     assert Unified150Orchestrator.select_core("عدّل الصورة وغيّر الخلفية") == "CORE-101"
     assert Unified150Orchestrator.select_core("حلل الصورة دي") == "CORE-099"
+
+
+
+def test_intelligent_ui_is_catalogued_as_schema_implemented_not_client_complete():
+    item = next(x for x in OPENAI_CAPABILITIES if x["id"] == "intelligent_ui")
+    assert item["status"] == "schema_implemented_client_render_pending"
