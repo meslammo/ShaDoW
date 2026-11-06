@@ -143,7 +143,7 @@ def extract_task_plan(answer: str) -> dict[str, Any] | None:
         if in_string:
             if escaped:
                 escaped = False
-            elif char == "\\\\":
+            elif ord(char) == 92:
                 escaped = True
             elif char == '"':
                 in_string = False
