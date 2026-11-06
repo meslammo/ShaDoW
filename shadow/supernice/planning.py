@@ -1,7 +1,7 @@
 """Validated model-produced task plans and safe capability routing for SHADOW."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 import re
 from typing import Any, Mapping
 
@@ -113,6 +113,10 @@ def validate_task_plan(payload: Any, request: str = "") -> PlanValidation:
     })
 
 
+def strip_task_plan_envelope(answer: str) -> str:
+    return re.sub(r"<shadow_task_plan>\\s*\\{.*?\\}\\s*</shadow_task_plan>", "", str(answer or ""), flags=re.S | re.I).strip()
+
+
 def extract_task_plan(answer: str) -> dict[str, Any] | None:
     """Read an explicitly delimited JSON plan without interpreting ordinary prose."""
     import json
@@ -132,6 +136,8 @@ def planning_contract() -> dict[str, Any]:
         "schema": PLAN_SCHEMA,
         "required_fields": ["schema", "goal", "assumptions", "steps", "clarification_question", "risk", "approval_required"],
         "step_fields": ["id", "title", "status", "core_id", "tool", "requires_approval"],
+        "allowed_core_ids": sorted(CORE_BY_ID),
+        "allowed_tools": sorted(TOOL_NAMES),
         "rules": [
             "Return the plan inside <shadow_task_plan> JSON delimiters.",
             "Use only registered core_id values and tool names supplied by SHADOW.",
