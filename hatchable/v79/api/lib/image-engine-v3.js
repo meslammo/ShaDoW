@@ -161,6 +161,7 @@ async function localEdit({operation,prompt,referenceBase64,referenceMimeType,siz
       });
       return {...online,configured:true,renderer_role:"edit_renderer"};
     }
+    if(outputFormat!=="png") throw new Error("requested_image_format_requires_openai_images_2_6");
     const online=await editImage({prompt,referenceBase64,referenceMimeType,size});
     return {...online,configured:true};
   }
@@ -177,6 +178,11 @@ async function localEdit({operation,prompt,referenceBase64,referenceMimeType,siz
       mask_base64:String(maskBase64||"").replace(/^data:[^,]+,/i,"")||null,
       mime_type:clean(referenceMimeType,80)||"image/jpeg",
       size:clean(size,30),
+      mask_base64:String(maskBase64||"").replace(/^data:[^,]+,/i,"")||null,
+      markup_base64:String(markupBase64||"").replace(/^data:[^,]+,/i,"")||null,
+      markup_mime_type:clean(markupMimeType,80)||"image/png",
+      quality,complexity,output_format:outputFormat,background,
+      frame_count:frameCount,frame_duration_ms:frameDurationMs,
       controls:controlContract?.controls||{},
       identity:identity?{id:identity.id,kind:identity.kind,label:identity.label,attributes:identity.attributes}:null
     }),
@@ -209,6 +215,8 @@ async function tryRender({renderPrompt,provider,size,controlContract=null,identi
         prompt:renderPrompt,
         size,
         provider:"self-hosted",
+        quality,complexity,output_format:outputFormat,background,
+        frame_count:frameCount,frame_duration_ms:frameDurationMs,
         controls:controlContract?.controls||{},
         identity:identity?{id:identity.id,kind:identity.kind,label:identity.label,attributes:identity.attributes}:null,
         mask_base64:maskBase64||null
