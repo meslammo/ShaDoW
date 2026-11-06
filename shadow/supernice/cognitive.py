@@ -41,7 +41,7 @@ class CognitiveEngine:
     _ACTION = re.compile(r"\b(?:run|execute|deploy|publish|send|delete|merge|commit|push|نفّذ|نفذ|شغّل|شغل|انشر|ابعت|احذف|ادمج)\b", re.I)
     _CONSTRAINTS = (
         ("no_merge", re.compile(r"\b(?:do not merge|don't merge|no merge|لا تدمج|ممنوع الدمج)\b", re.I)),
-        ("no_publish", re.compile(r"\b(?:do not publish|don't publish|no release|لا تنشر|بدون نشر)\b", re.I)),
+        ("no_publish", re.compile(r"\b(?:do not publish|don't publish|no release|لا تنشر|ولا تنشر|بدون نشر)\b", re.I)),
         ("free_only", re.compile(r"\b(?:free|no cost|بدون تكلفة|مجاني|مجانا)\b", re.I)),
         ("preserve_existing", re.compile(r"\b(?:preserve|keep existing|don't rebuild|حافظ على|بدون إعادة بناء|من غير إعادة بناء)\b", re.I)),
     )
