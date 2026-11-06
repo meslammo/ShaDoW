@@ -20,7 +20,7 @@ export function sizeForAspectRatio(value) {
 export async function generateImage(prompt, options = {}) {
   const provider = String(options.provider || "auto").toLowerCase();
   const apiKey = await secret("OPENAI_API_KEY");
-  const configuredModel = await secret("SHADOW_OPENAI_IMAGE_MODEL");
+  const configuredModel = await secret("OPENAI_IMAGE_MODEL") || await secret("SHADOW_OPENAI_IMAGE_MODEL" );
   if (provider === "openai" && !apiKey) throw new Error("openai_image_not_configured");
   if (apiKey && ["auto", "openai"].includes(provider)) {
     const result = await generateOpenAIImage({
