@@ -32,3 +32,12 @@ jobs:
       - name: Backend API adapter tests
         working-directory: backend
         run: npm test
+      - name: Check image API module syntax
+        run: |
+          node --check shared/openai-image-2-6.js
+          node --check hatchable/v79/api/lib/image-engine.js
+          node --check hatchable/v79/api/lib/image-engine-v3.js
+          node --check hatchable/v79/api/lib/visual-evolution.js
+          node --check hatchable/v79/api/v1/images.js
+          node --check hatchable/v79/api/v1/images/edit.js
+          node --check backend/server.mjs
