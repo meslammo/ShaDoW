@@ -30,7 +30,10 @@ def _safe_block(block: Any) -> dict[str, Any] | None:
             return None
         return {"type": kind, "title": title, "body": body}
     if kind == "table":
-        columns = [_clean(x, 80) for x in block.get("columns", [])[:8] if _clean(x, 80)]
+        raw_columns = block.get("columns", [])
+        if not isinstance(raw_columns, list):
+            return None
+        columns = [_clean(x, 80) for x in raw_columns[:8] if _clean(x, 80)]
         rows = block.get("rows", [])
         if not columns or not isinstance(rows, list):
             return None
@@ -53,7 +56,10 @@ def _safe_block(block: Any) -> dict[str, Any] | None:
                 safe_data.append({"label": label, "value": float(value)})
         return {"type": kind, "chart_type": chart_type, "data": safe_data} if safe_data else None
     if kind == "checklist":
-        items = [_clean(x, 300) for x in block.get("items", [])[:20] if _clean(x, 300)]
+        raw_items = block.get("items", [])
+        if not isinstance(raw_items, list):
+            return None
+        items = [_clean(x, 300) for x in raw_items[:20] if _clean(x, 300)]
         return {"type": kind, "items": items} if items else None
     if kind == "action":
         action_id = _clean(block.get("action_id"), 80)
@@ -85,7 +91,9 @@ def build_intelligent_response(
     progress: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     blocks = []
-    for block in (components or [])[:12]:
+    component_list = components if isinstance(components, list) else []
+    progress_data = progress if isinstance(progress, dict) else {}
+    for block in component_list[:12]:
         safe = _safe_block(block)
         if safe:
             blocks.append(safe)
@@ -98,8 +106,8 @@ def build_intelligent_response(
         "answer": _clean(answer, 12000),
         "components": blocks,
         "progress": {
-            "state": _clean((progress or {}).get("state"), 24) or "complete",
-            "label": _clean((progress or {}).get("label"), 120),
+            "state": _clean(progress_data.get("state"), 24) or "complete",
+            "label": _clean(progress_data.get("label"), 120),
         },
         "execution_policy": {
             "components_are_data_only": True,
