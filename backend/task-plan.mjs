@@ -2,6 +2,7 @@ const REGISTERED_TOOLS = new Set([
   'calculator', 'web_search', 'web_fetch', 'web_research', 'device_action',
   'github_read', 'memory_search', 'memory_save', 'memory_forget', 'file_read', 'file_write',
 ]);
+const APPROVAL_TOOLS = new Set(['file_write', 'memory_save', 'memory_forget', 'device_action']);
 const RISKY_REQUEST = /(delete|wipe|format|purchase|buy|pay|transfer|send|publish|deploy|commit|push|merge|حذف|امسح|فورمات|شراء|دفع|تحويل|انشر|ادمج)/i;
 
 export function parseValidatedTaskPlan(answer, request) {
@@ -50,7 +51,7 @@ export function parseValidatedTaskPlan(answer, request) {
     const tool = step.tool == null || step.tool === '' ? null : String(step.tool);
     if (tool !== null && !REGISTERED_TOOLS.has(tool)) errors.push('step_' + index + '_unknown_tool');
     if (step.requires_approval !== undefined && typeof step.requires_approval !== 'boolean') errors.push('step_' + index + '_invalid_approval');
-    steps.push({ id, title, status: 'pending', core_id: core, tool, requires_approval: step.requires_approval === true });
+    steps.push({ id, title, status: 'pending', core_id: core, tool, requires_approval: step.requires_approval === true || APPROVAL_TOOLS.has(tool) });
   }
   if (!['low', 'medium', 'high', 'critical'].includes(raw.risk)) errors.push('invalid_risk');
   if (typeof raw.approval_required !== 'boolean') errors.push('invalid_approval_required');
@@ -58,7 +59,7 @@ export function parseValidatedTaskPlan(answer, request) {
   const question = String(raw.clarification_question || '');
   if (question.length > 500) errors.push('clarification_too_long');
   if (errors.length) return { answer: removeEnvelope(), plan: null, status: 'rejected', errors };
-  const forceApproval = RISKY_REQUEST.test(String(request || '')) || steps.some(x => x.requires_approval);
+  const forceApproval = ['high', 'critical'].includes(raw.risk) || RISKY_REQUEST.test(String(request || '')) || steps.some(x => x.requires_approval);
   const risk = forceApproval && ['low', 'medium'].includes(raw.risk) ? 'high' : raw.risk;
   const plan = {
     schema: 'shadow.task-plan.v1',
