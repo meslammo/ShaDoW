@@ -4,7 +4,7 @@ const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
 const cfg = {
   openaiKey: String(process.env.OPENAI_API_KEY || '').trim(),
-  openaiModel: String(process.env.SHADOW_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6').trim(),
+  openaiModel: String(process.env.SHADOW_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-6.1-terra').trim(),
   geminiKey: String(process.env.GEMINI_API_KEY || '').trim(),
   geminiModel: String(process.env.SHADOW_GEMINI_VISION_MODEL || process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
   maxBytes: Number(process.env.SHADOW_MAX_VISION_BYTES || 12 * 1024 * 1024),
