@@ -156,7 +156,15 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
     if spec.id=="CORE-022": return ok(spec,{"hypotheses":[t+" — A",t+" — B",t+" — mixed causes"]})
     if spec.id=="CORE-023":
         ev=ctx.get("evidence",[]); score=min(.99,.35+.12*len(ev)); return ok(spec,{"confidence":round(score,3),"evidence":len(ev)})
-    if spec.id=="CORE-024": return ok(spec,{"answer":clean(ctx.get("answer",t),5000),"verified":bool(t)})
+    if spec.id=="CORE-024":
+        from .intelligent_ui import build_intelligent_response
+        answer=clean(ctx.get("answer",t),5000)
+        return ok(spec,build_intelligent_response(
+            answer,
+            ctx.get("ui_components") if isinstance(ctx.get("ui_components"),list) else [],
+            mode=str(ctx.get("ui_mode","auto")),
+            progress=ctx.get("progress") if isinstance(ctx.get("progress"),dict) else {},
+        ),ui_schema="shadow.intelligent-ui.v1",client_rendering_required=True)
 
     # 025-040 memory
     m=memory(root)
