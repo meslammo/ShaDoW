@@ -51,7 +51,7 @@ export function parseValidatedTaskPlan(answer, request) {
       const ch = source[i];
       if (inString) {
         if (escaped) escaped = false;
-        else if (ch === '\\\\') escaped = true;
+        else if (ch.charCodeAt(0) === 92) escaped = true;
         else if (ch === '"') inString = false;
       } else if (ch === '"') inString = true;
       else if (ch === '{') depth += 1;
