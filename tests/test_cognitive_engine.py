@@ -29,3 +29,12 @@ def test_model_context_is_explicit_about_heuristic_limits():
     payload = CognitiveEngine().build_model_context("Build a website")
     assert payload["schema"] == "shadow.cognitive-request.v1"
     assert "Do not treat this heuristic intent label as ground truth." in payload["planning_instructions"]
+
+
+def test_model_context_defines_user_visible_task_plan_contract():
+    payload = CognitiveEngine().build_model_context("Build a store app")
+    contract = payload["plan_contract"]
+    assert contract["schema"] == "shadow.task-plan.v1"
+    assert "steps" in contract["fields"]
+    assert "approval_required" in contract["fields"]
+    assert any("prepare a concise task plan" in item for item in payload["planning_instructions"])
