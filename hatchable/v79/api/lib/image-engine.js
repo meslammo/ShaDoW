@@ -22,6 +22,10 @@ export async function generateImage(prompt, options = {}) {
   const apiKey = await secret("OPENAI_API_KEY");
   const configuredModel = await secret("OPENAI_IMAGE_MODEL") || await secret("SHADOW_OPENAI_IMAGE_MODEL" );
   if (provider === "openai" && !apiKey) throw new Error("openai_image_not_configured");
+  const requestedFormat = String(options.outputFormat || "png").toLowerCase();
+  if (!apiKey && requestedFormat !== "png") {
+    throw new Error("requested_image_format_requires_openai_images_2_6");
+  }
   if (apiKey && ["auto", "openai"].includes(provider)) {
     const result = await generateOpenAIImage({
       apiKey,
