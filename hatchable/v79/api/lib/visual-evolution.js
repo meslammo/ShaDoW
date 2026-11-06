@@ -202,7 +202,7 @@ export async function qaGeneratedImage({image,prompt,renderPrompt,requestedSize=
   try{bytes=Buffer.from(raw,"base64");}catch{return {verified:false,artifact_verified:false,semantic_verified:false,errors:["invalid_base64"]};}
   const info=imageInfo(bytes);
   const errors=[];
-  if(bytes.length<1000) errors.push("image_too_small");
+  if(info.format==="svg" ? bytes.length<100 : bytes.length<1000) errors.push("image_too_small");
   if(info.format==="unknown") errors.push("unknown_image_format");
   const expected=expectedDimensions(requestedSize);
   const dimension_match=Boolean(!expected||!info.width||!info.height||(expected.width===info.width&&expected.height===info.height));
