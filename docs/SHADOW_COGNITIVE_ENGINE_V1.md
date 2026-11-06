@@ -9,7 +9,9 @@ Let a user communicate in natural language without having to author prompts. SHA
 - Normalizes whitespace and records a language hint (Arabic, English, mixed, unknown).
 - Applies conservative intent labels (question, action, creation, modification, research, conversation).
 - Extracts a small set of explicit constraints (no merge, no publish, free only, preserve existing).
-- Injects the contract and planning/safety instructions into the existing `Unified150Orchestrator` context. The current `AIOrchestrator` serializes that context into its system message, so the configured online model receives it.
+- Injects the contract, typed `shadow.task-plan.v1` schema, and planning/safety instructions into the existing `Unified150Orchestrator` context. The configured online model receives this context.
+- Android chat now renders the server pipeline trace as visible execution stages, including completed/pending/failed states.
+- Android displays an explicit approval card for a returned pending action. Approval continues the existing agent call; rejection does not send an approval signal.
 - Added focused pytest coverage in `tests/test_cognitive_engine.py`.
 
 ## Important limitations
@@ -21,9 +23,9 @@ Let a user communicate in natural language without having to author prompts. SHA
 - No live provider call, Android build, APK, or production deployment is claimed by this change.
 
 ## Next implementation gates
-1. Add a typed plan/step contract and validate model-produced plans.
+1. Return and validate model-produced per-task plan objects through the API.
 2. Add model-assisted intent and tool routing with a safe fallback when structured output is invalid.
-3. Add clarification/approval states to the API and Android conversation surface.
+3. Add clarification states and progress refresh to the Android conversation surface.
 4. Expand the tool registry with capability metadata and risk tiers.
 5. Add bounded observe/retry/verify cycles with evidence and stop conditions.
 6. Add project-aware memory retrieval with provenance and explicit memory controls.
