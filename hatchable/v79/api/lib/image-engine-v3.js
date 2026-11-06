@@ -5,7 +5,7 @@ import { buildVisualPlan, referenceReceipt, qaGeneratedImage, editImage } from "
 import { analyzeSemanticVision } from "./semantic-vision-v1.js";
 import { continuousImprove } from "./capability-evolution.js";
 
-const IMAGE_ENGINE_VERSION="shadow-image-engine-v3.0";
+const IMAGE_ENGINE_VERSION="shadow-image-engine-v3.1";
 const MAX_PROMPT=12000;
 const MAX_REPAIR=2;
 
@@ -165,7 +165,7 @@ async function localEdit({operation,prompt,referenceBase64,referenceMimeType,siz
     return {...online,configured:true};
   }
   const key=await secret("SHADOW_LOCAL_IMAGE_EDIT_API_KEY");
-  const headers={"Content-Type":"application/json","User-Agent":"SHADOW-Image-Engine/3.0"};
+  const headers={"Content-Type":"application/json","User-Agent":"SHADOW-Image-Engine/3.1"};
   if(key) headers.Authorization="Bearer "+key;
   const r=await fetch(endpoint,{
     method:"POST",
