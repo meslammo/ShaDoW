@@ -77,3 +77,4 @@ def test_existing_core_handlers_use_cyber_service(tmp_path):
 def test_orchestrator_routes_security_requests():
     from shadow.supernice.orchestrator import Unified150Orchestrator
     assert Unified150Orchestrator.select_core("افحص الثغرات الأمنية في المشروع") == "CORE-086"
+    assert Unified150Orchestrator.select_core("شغّل الملف داخل حاوية معزولة") == "CORE-138"
