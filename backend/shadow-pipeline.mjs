@@ -42,11 +42,30 @@ const RISKY_REQUEST = /(delete|wipe|format|purchase|buy|pay|transfer|send|publis
 
 export function parseValidatedTaskPlan(answer, request) {
   const source = String(answer || '');
-  const match = source.match(/<shadow_task_plan>\s*(\{[\s\S]*?\})\s*<\/shadow_task_plan>/i);
-  if (!match) return { answer: source.replace(/<shadow_task_plan>[\s\S]*?<\/shadow_task_plan>/gi, '').trim(), plan: null, status: 'not_provided' };
+  const open = /<shadow_task_plan>/i.exec(source);
+  if (!open) return { answer: source, plan: null, status: 'not_provided' };
+  const jsonStart = source.indexOf('{', open.index + open[0].length);
+  let depth = 0, inString = false, escaped = false, jsonEnd = -1;
+  if (jsonStart >= 0) {
+    for (let i = jsonStart; i < source.length; i += 1) {
+      const ch = source[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\\\') escaped = true;
+        else if (ch === '"') inString = false;
+      } else if (ch === '"') inString = true;
+      else if (ch === '{') depth += 1;
+      else if (ch === '}') { depth -= 1; if (depth === 0) { jsonEnd = i + 1; break; } }
+    }
+  }
+  const closeTag = jsonEnd >= 0 ? source.indexOf('</shadow_task_plan>', jsonEnd) : -1;
+  const removeEnvelope = () => closeTag >= 0
+    ? (source.slice(0, open.index) + source.slice(closeTag + '</shadow_task_plan>'.length)).trim()
+    : source.slice(0, open.index).trim();
+  if (jsonEnd < 0 || closeTag < 0) return { answer: removeEnvelope(), plan: null, status: 'rejected', errors: ['invalid_json_envelope'] };
   let raw;
-  try { raw = JSON.parse(match[1]); }
-  catch { return { answer: source.replace(match[0], '').trim(), plan: null, status: 'rejected', errors: ['invalid_json'] }; }
+  try { raw = JSON.parse(source.slice(jsonStart, jsonEnd)); }
+  catch { return { answer: removeEnvelope(), plan: null, status: 'rejected', errors: ['invalid_json'] }; }
   const errors = [];
   if (!raw || raw.schema !== 'shadow.task-plan.v1') errors.push('unsupported_schema');
   if (typeof raw.goal !== 'string' || !raw.goal.trim() || raw.goal.length > 1000) errors.push('invalid_goal');
@@ -74,7 +93,7 @@ export function parseValidatedTaskPlan(answer, request) {
   if (raw.recommended_core != null && !/^CORE-(?:00[1-9]|0[1-9][0-9]|1[0-4][0-9]|150)$/.test(String(raw.recommended_core))) errors.push('unknown_recommended_core');
   const question = String(raw.clarification_question || '');
   if (question.length > 500) errors.push('clarification_too_long');
-  if (errors.length) return { answer: source.replace(match[0], '').trim(), plan: null, status: 'rejected', errors };
+  if (errors.length) return { answer: removeEnvelope(), plan: null, status: 'rejected', errors };
   const forceApproval = RISKY_REQUEST.test(String(request || '')) || steps.some(x => x.requires_approval);
   const risk = forceApproval && ['low', 'medium'].includes(raw.risk) ? 'high' : raw.risk;
   const plan = {
@@ -88,7 +107,7 @@ export function parseValidatedTaskPlan(answer, request) {
     recommended_core: raw.recommended_core || steps.find(x => x.core_id)?.core_id || null,
     source: 'model_validated',
   };
-  return { answer: source.replace(match[0], '').trim(), plan, status: 'validated' };
+  return { answer: removeEnvelope(), plan, status: 'validated' };
 }
 
 function safeToolEvent(tool) {
