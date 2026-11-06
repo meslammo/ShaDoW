@@ -114,18 +114,52 @@ def validate_task_plan(payload: Any, request: str = "") -> PlanValidation:
 
 
 def strip_task_plan_envelope(answer: str) -> str:
-    return re.sub(r"<shadow_task_plan>\s*\{.*?\}\s*</shadow_task_plan>", "", str(answer or ""), flags=re.S | re.I).strip()
+    text = str(answer or "")
+    opening = re.search(r"<shadow_task_plan>", text, re.I)
+    if not opening:
+        return text.strip()
+    closing = text.lower().find("</shadow_task_plan>", opening.end())
+    if closing < 0:
+        return text[:opening.start()].strip()
+    return (text[:opening.start()] + text[closing + len("</shadow_task_plan>"):]).strip()
 
 
 def extract_task_plan(answer: str) -> dict[str, Any] | None:
-    """Read an explicitly delimited JSON plan without interpreting ordinary prose."""
+    """Parse one explicitly delimited JSON object, including nested step objects."""
     import json
     text = str(answer or "")
-    match = re.search(r"<shadow_task_plan>\s*(\{.*?\})\s*</shadow_task_plan>", text, re.S | re.I)
-    if not match:
+    opening = re.search(r"<shadow_task_plan>", text, re.I)
+    if not opening:
+        return None
+    start = text.find("{", opening.end())
+    if start < 0:
+        return None
+    depth = 0
+    in_string = False
+    escaped = False
+    end = -1
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end = index + 1
+                break
+    if end < 0 or text.find("</shadow_task_plan>", end) < 0:
         return None
     try:
-        value = json.loads(match.group(1))
+        value = json.loads(text[start:end])
     except (TypeError, ValueError):
         return None
     return dict(value) if isinstance(value, Mapping) else None
