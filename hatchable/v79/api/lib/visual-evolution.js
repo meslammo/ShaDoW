@@ -39,6 +39,15 @@ function imageInfo(bytes){
   const png=[137,80,78,71,13,10,26,10];
   const isPng=b.length>=24 && png.every((v,i)=>b[i]===v);
   if(isPng) return {format:"png",mime_type:"image/png",width:b.readUInt32BE(16),height:b.readUInt32BE(20)};
+  if(b.length>=10 && (fourcc(b,0)==="GIF8")) {
+    return {format:"gif",mime_type:"image/gif",width:b.readUInt16LE(6),height:b.readUInt16LE(8)};
+  }
+  if(b.length>=8 && (fourcc(b,0)==="<svg" || b.subarray(0,256).toString("utf8").includes("<svg"))) {
+    const svg=b.subarray(0,4096).toString("utf8");
+    const width=Number(svg.match(/\\bwidth=["']([0-9.]+)/i)?.[1])||null;
+    const height=Number(svg.match(/\\bheight=["']([0-9.]+)/i)?.[1])||null;
+    return {format:"svg",mime_type:"image/svg+xml",width,height};
+  }
   if(b.length>=12 && fourcc(b,0)==="RIFF" && fourcc(b,8)==="WEBP"){
     let width=null,height=null;
     if(fourcc(b,12)==="VP8X" && b.length>=30){
