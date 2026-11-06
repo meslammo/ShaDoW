@@ -14,6 +14,7 @@ from typing import Any, Callable
 from .contracts import CoreRequest, CoreResult, CoreSpec
 from .optional import OPTIONAL_DEVICE_CORE_IDS, device_integrations_enabled
 from .providers import ProviderRouter
+from shadow.security.cyber_defense import (audit_workspace, create_review_sandbox, patch_plan, regression_plan, scan_text)
 
 URL_RE=re.compile(r"https?://[^\s<>()\[\]{}]+",re.I)
 DATE_RE=re.compile(r"\b(?:19|20)\d{2}[-/]\d{1,2}[-/]\d{1,2}\b")
@@ -214,12 +215,29 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
     if spec.id=="CORE-077": return ok(spec,{"changed":False,"suggestions":["split long functions","normalize inputs","add tests"]})
     if spec.id=="CORE-078": return ok(spec,{"framework":"pytest","test":"def test_generated_behavior():\n    assert True\n"})
     if spec.id=="CORE-079": return ok(spec,{"stages":["inspect","compile","test","package","verify"],"executed":False})
-    if spec.id=="CORE-080": return ok(spec,{"stages":["read failure","locate first error","reproduce","patch","rerun"]})
-    if spec.id in {"CORE-081","CORE-082","CORE-083","CORE-084"}: return ok(spec,{"request":t,"hash":digest(t)[:16],"mutation_requires_confirmation":True})
-    if spec.id=="CORE-085": return ok(spec,{"dependency_lines":re.findall(r"^[A-Za-z0-9_.-]+(?:==|>=|<=|~=)[^\s]+",ctx.get("manifest",_artifact_text(req)),re.M)[:200]})
+    if spec.id=="CORE-080":
+        findings=ctx.get("findings",[])
+        if not isinstance(findings,list): findings=[]
+        return ok(spec,regression_plan(findings,ctx.get("test_paths")),plan_only=True)
+    if spec.id in {"CORE-081","CORE-082"}: return ok(spec,{"request":t,"hash":digest(t)[:16],"mutation_requires_confirmation":True})
+    if spec.id=="CORE-083":
+        findings=ctx.get("findings",[])
+        if not isinstance(findings,list): findings=[]
+        return ok(spec,patch_plan(findings),review_required=True)
+    if spec.id=="CORE-084":
+        findings=ctx.get("findings",[])
+        if not isinstance(findings,list): findings=[]
+        return ok(spec,{"reviewed_findings":len(findings),"diff_supplied":bool(ctx.get("diff")),"recommendations":patch_plan(findings)["actions"][:50],"approval_required":True})
+    if spec.id=="CORE-085":
+        report=audit_workspace(root,paths=ctx.get("paths"),online_lookup=bool(ctx.get("online_lookup",False)))
+        return ok(spec,{"dependencies":report["dependencies"],"osv_lookup":report["osv_lookup"],"files_scanned":report["files_scanned"],"collection_errors":report["collection_errors"]})
     if spec.id=="CORE-086":
-        finds=[x for x in ("eval(","exec(","os.system(","pickle.loads(","subprocess.") if x in low]; return ok(spec,{"findings":finds,"safe":not finds})
-    if spec.id=="CORE-087": return ok(spec,{"secret_like":bool(SECRET_RE.search(t)),"redacted":clean(t)})
+        report=audit_workspace(root,paths=ctx.get("paths"),online_lookup=bool(ctx.get("online_lookup",False)))
+        return ok(spec,report,security_scan=True)
+    if spec.id=="CORE-087":
+        findings=scan_text(str(ctx.get("path","provided-input")),str(ctx.get("content",t)))
+        secrets=[x for x in findings if x["category"]=="secret_exposure"]
+        return ok(spec,{"secret_like":bool(secrets),"findings":secrets,"redacted":clean(ctx.get("content",t))})
     if spec.id=="CORE-088": return ok(spec,{"licenses":re.findall(r"(?i)license(?:d|:)?\s+([A-Za-z0-9 ._-]{2,40})",t)[:20]})
     if spec.id=="CORE-089": return ok(spec,{"manager":"npm" if "package.json" in low else "pip","mutating":False})
     if spec.id in {"CORE-090","CORE-091","CORE-092","CORE-093","CORE-094"}: return ok(spec,{"template":spec.name,"files":["README.md","src","tests","config"],"written":False})
@@ -279,12 +297,18 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
         return ok(spec,asdict(PermissionManager().decide(str(ctx.get("capability","general")),confirmed=req.confirmed)))
     if spec.id=="CORE-137": return ok(spec,{"blocked":any(x in low for x in ("rm -rf","format","factory reset","password=","api_key="))})
     if spec.id=="CORE-138":
-        d=Path(tempfile.mkdtemp(prefix="shadow-sandbox-")); (d/"request.txt").write_text(clean(t,10000),encoding="utf-8"); return ok(spec,{"sandbox":str(d)})
+        files=ctx.get("files",{})
+        if not isinstance(files,dict): files={}
+        return ok(spec,create_review_sandbox(root,files),sandbox_review=True)
     if spec.id=="CORE-139": return ok(spec,{"persisted":False,"handles":[]})
     if spec.id=="CORE-140":
         e={"time":time.time(),"event":clean(ctx.get("event",t)),"sha256":digest(t)}; p=Path(root)/".shadow"/"supernice_audit.jsonl"; p.parent.mkdir(parents=True,exist_ok=True); p.open("a",encoding="utf-8").write(json.dumps(e,ensure_ascii=False)+"\n"); return ok(spec,e)
     if spec.id=="CORE-141":
-        f=[x for x in ("curl | sh","wget ","powershell -enc","chmod 777","eval(","exec(","rm -rf") if x in low]; return ok(spec,{"findings":f,"threat_level":"high" if f else "low"})
+        paths=ctx.get("paths")
+        report=audit_workspace(root,paths=paths if isinstance(paths,list) else None)
+        findings=[x for x in report["findings"] if x["category"]=="threat_indicator"]
+        level="high" if any(x["severity"]=="high" for x in findings) else "low"
+        return ok(spec,{"findings":findings,"threat_level":level,"files_scanned":report["files_scanned"],"execution_performed":False})
     if spec.id=="CORE-142":
         now=time.time(); b=state.setdefault("rate",{"start":now,"count":0})
         if now-b["start"]>=60:b.update(start=now,count=0)
