@@ -541,6 +541,7 @@ app.post('/v1/development/apply', rateLimit, async (req, res) => {
 });
 
 app.post('/v1/images', rateLimit, async (req, res) => {
+  if (!requireImageApiAccess(req, res)) return;
   const provider = String(req.body?.provider || 'auto').toLowerCase();
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
   if (!prompt) return res.status(400).json({ ok: false, error: 'prompt_required' });
@@ -609,6 +610,7 @@ app.post('/v1/images', rateLimit, async (req, res) => {
 });
 
 app.post('/v1/images/edits', rateLimit, async (req, res) => {
+  if (!requireImageApiAccess(req, res)) return;
   if (!apiKey) return res.status(503).json({ ok: false, error: 'openai_image_provider_not_configured' });
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
   const imageBase64 = typeof req.body?.reference_base64 === 'string' ? req.body.reference_base64.trim() : '';
