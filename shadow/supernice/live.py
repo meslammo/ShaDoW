@@ -15,6 +15,7 @@ from .contracts import CoreRequest, CoreResult, CoreSpec
 from .optional import OPTIONAL_DEVICE_CORE_IDS, device_integrations_enabled
 from .providers import ProviderRouter
 from shadow.security.cyber_defense import (audit_workspace, create_review_sandbox, patch_plan, regression_plan, scan_text)
+from shadow.security.docker_sandbox import run_python_sandbox
 
 URL_RE=re.compile(r"https?://[^\s<>()\[\]{}]+",re.I)
 DATE_RE=re.compile(r"\b(?:19|20)\d{2}[-/]\d{1,2}[-/]\d{1,2}\b")
@@ -297,6 +298,25 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
         return ok(spec,asdict(PermissionManager().decide(str(ctx.get("capability","general")),confirmed=req.confirmed)))
     if spec.id=="CORE-137": return ok(spec,{"blocked":any(x in low for x in ("rm -rf","format","factory reset","password=","api_key="))})
     if spec.id=="CORE-138":
+        operation=str(ctx.get("operation","review_copy"))
+        if operation=="execute_python":
+            args=ctx.get("args",[])
+            if not isinstance(args,(list,tuple)): args=[]
+            report=run_python_sandbox(
+                root,
+                str(ctx.get("script_path","")),
+                args=args,
+                timeout_seconds=ctx.get("timeout_seconds",20),
+                confirmed=req.confirmed,
+            )
+            return CoreResult(
+                spec.id,
+                bool(report.get("ok")),
+                str(report.get("status","sandbox_failed")),
+                report,
+                [{"handler":"docker_sandbox","execution_performed":bool(report.get("executed")),"external_io":False}],
+                {"startup_blocking":False,"sandbox_execution":True,"execution_isolated":bool(report.get("executed"))},
+            )
         files=ctx.get("files",{})
         if not isinstance(files,dict): files={}
         return ok(spec,create_review_sandbox(root,files),sandbox_review=True)
