@@ -114,7 +114,7 @@ def validate_task_plan(payload: Any, request: str = "") -> PlanValidation:
 
 
 def strip_task_plan_envelope(answer: str) -> str:
-    return re.sub(r"<shadow_task_plan>\\s*\\{.*?\\}\\s*</shadow_task_plan>", "", str(answer or ""), flags=re.S | re.I).strip()
+    return re.sub(r"<shadow_task_plan>\s*\{.*?\}\s*</shadow_task_plan>", "", str(answer or ""), flags=re.S | re.I).strip()
 
 
 def extract_task_plan(answer: str) -> dict[str, Any] | None:
