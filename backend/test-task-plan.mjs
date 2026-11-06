@@ -54,3 +54,19 @@ test('does not fabricate a plan when model omits the explicit envelope', () => {
   assert.equal(result.status, 'not_provided');
   assert.equal(result.plan, null);
 });
+
+
+test('high and critical risk always require approval', () => {
+  const result = parseValidatedTaskPlan(envelope({ risk: 'critical' }), 'راجع الكود');
+  assert.equal(result.status, 'validated');
+  assert.equal(result.plan.approval_required, true);
+});
+
+test('sensitive tools cannot be marked as no-approval', () => {
+  const result = parseValidatedTaskPlan(envelope({
+    steps: [{ id: 'write', title: 'Write file', status: 'pending', core_id: 'CORE-081', tool: 'file_write', requires_approval: false }],
+  }), 'جهز الملف');
+  assert.equal(result.status, 'validated');
+  assert.equal(result.plan.approval_required, true);
+  assert.equal(result.plan.steps[0].requires_approval, true);
+});
