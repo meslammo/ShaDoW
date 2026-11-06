@@ -20,12 +20,24 @@ export default async function(req,res){
     const controlContract=buildImageControlContract({
       controls,
       identity,
-      maskBase64:String(body.mask_base64||"")
+      maskBase64,
+      markupBase64,
+      markupMimeType:typeof body.markup_mime_type==="string"?body.markup_mime_type:"image/png",
+      quality:typeof body.quality==="string"?body.quality:"auto",
+      complexity:typeof body.complexity==="string"?body.complexity:"high",
+      outputFormat:typeof body.output_format==="string"?body.output_format:"png",
+      background:typeof body.background==="string"?body.background:"auto",
+      frameCount:body.frame_count??9,
+      frameDurationMs:body.frame_duration_ms??200
     });
     const directive=controlContract.prompt_directives.length
       ? "\n\nCONTROL LAYERS:\n"+controlContract.prompt_directives.join("\n")
       : "";
     const referenceBase64=typeof body.reference_base64==="string"?body.reference_base64.trim():"";
+    const maskBase64=typeof body.mask_base64==="string"?body.mask_base64.trim():"";
+    const markupBase64=typeof body.markup_base64==="string"?body.markup_base64.trim():"";
+    if(referenceBase64.length>68*1024*1024||maskBase64.length>16*1024*1024||markupBase64.length>16*1024*1024)
+      return res.status(413).json({ok:false,error:"image_input_too_large"});
     const referenceMimeType=typeof body.mime_type==="string"?body.mime_type.trim():"image/jpeg";
     const r=await runAdvancedImageEngine({
       message:prompt+directive,
