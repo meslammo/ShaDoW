@@ -157,7 +157,7 @@ async function localEdit({operation,prompt,referenceBase64,referenceMimeType,siz
         maskBase64,
         markupBase64,
         markupMimeType,
-        options:{model:await secret("SHADOW_OPENAI_IMAGE_MODEL")||"flare",size,quality,complexity,outputFormat,background,frameCount,frameDurationMs}
+        options:{model:await secret("OPENAI_IMAGE_MODEL")||await secret("SHADOW_OPENAI_IMAGE_MODEL")||"flare",size,quality,complexity,outputFormat,background,frameCount,frameDurationMs}
       });
       return {...online,configured:true,renderer_role:"edit_renderer"};
     }
