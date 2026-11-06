@@ -38,6 +38,19 @@ ShadowPythonRuntimeBridge exposes the matching status/execution entry points. Th
 
 Real execution is still performed only by the governed adapters: provider adapters for online AI, web/GitHub gateways for external resources, media providers for image/video/audio, and explicit device adapters for hardware. Those integrations are optional inputs to the 150-Core layer rather than startup dependencies.
 
+
+## OpenAI Images 2.6 integration
+
+CORE-100 and CORE-101 now have a real optional execution adapter to the SHADOW backend:
+- Set `SHADOW_IMAGE_API_BASE_URL` to the HTTPS base URL of the SHADOW backend.
+- Set `SHADOW_IMAGE_API_TOKEN` only when the gateway requires bearer authentication.
+- CORE-100 calls `POST /v1/images`; CORE-101 calls `POST /v1/images/edits`.
+- If the URL is absent, the Core returns `adapter_unavailable`; it does not pretend an image was created.
+- The backend uses `gpt-image-2.6-flare` by default and `gpt-image-2.6-sunburst` for precision/editing. It supports quality/complexity controls, SVG generation, GIF generation/editing and markup-guided edits.
+- CORE-099 remains the image-understanding path.
+
+The model catalog and release mapping live in `shadow/supernice/openai_capabilities.py`. GPT-6 Cyber and GPT-6 Rosalind are explicitly marked restricted/trusted-access and are not enabled by catalog registration.
+
 ## Verification
 
 The dedicated test suite checks the 150-Core count, one handler per core, optional hardware non-blocking behavior, and preservation of the TwelveCoreRuntime root.
