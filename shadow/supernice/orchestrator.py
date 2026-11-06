@@ -14,6 +14,7 @@ from uuid import uuid4
 from .catalog import CORE_BY_ID
 from .contracts import CoreRequest, CoreResult
 from .cognitive import CognitiveEngine
+from .planning import extract_task_plan, validate_task_plan
 from .integration import SuperNiceRuntime
 from .evolution import UnifiedControlPlane
 from .online_brain import GovernedOnlineBrainAdapter, RealOnlineBrainAdapter
@@ -222,8 +223,6 @@ class Unified150Orchestrator:
             self.engine.mark_degraded("unknown_selected_core")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "route", "core": selected})
             return UnifiedRunResult(False, "unknown_selected_core", selected_core=selected, events=events, metadata={"request_id": request_id})
-        events.append(OrchestratorEvent("tool_route", selected, "selected"))
-
         brain = online_brain or self.online_brain
         try:
             brain_payload = dict(brain(
@@ -259,6 +258,42 @@ class Unified150Orchestrator:
             self.engine.mark_degraded("empty_online_brain_response")
             self.control.audit("request.failed", request_id=request_id, outcome="failed", metadata={"stage": "online_brain", "error": "empty"})
             return UnifiedRunResult(False, "empty_online_brain_response", selected_core=selected, events=events, metadata={"request_id": request_id})
+
+        raw_task_plan = brain_payload.get("task_plan") or extract_task_plan(answer)
+        task_plan = None
+        task_plan_status = "not_provided"
+        if raw_task_plan is not None:
+            validation = validate_task_plan(raw_task_plan, text)
+            if not validation.ok:
+                events.append(OrchestratorEvent("plan_validation", None, "rejected", ",".join(validation.errors)))
+                self.control.audit("request.denied", request_id=request_id, outcome="invalid_plan", metadata={"errors": list(validation.errors)})
+                return UnifiedRunResult(
+                    False, "invalid_task_plan", answer=answer, selected_core=selected,
+                    events=events, metadata={"request_id": request_id, "plan_status": "rejected", "plan_errors": list(validation.errors)},
+                )
+            task_plan = validation.plan
+            task_plan_status = "validated"
+            selected = task_plan.get("recommended_core") or next(
+                (step.get("core_id") for step in task_plan["steps"] if step.get("core_id")),
+                selected,
+            )
+            events.append(OrchestratorEvent("plan_validation", selected, "validated"))
+        events.append(OrchestratorEvent("tool_route", selected, "selected", "model_plan" if task_plan else "legacy_fallback"))
+
+        if task_plan and task_plan.get("clarification_question"):
+            events.append(OrchestratorEvent("clarification", None, "required"))
+            return UnifiedRunResult(
+                False, "clarification_required", answer=task_plan["clarification_question"],
+                selected_core=selected, events=events,
+                metadata={"request_id": request_id, "task_plan": task_plan, "plan_status": task_plan_status},
+            )
+        if task_plan and task_plan.get("approval_required") and not confirmed:
+            events.append(OrchestratorEvent("approval", selected, "pending"))
+            return UnifiedRunResult(
+                False, "approval_required", answer="الخطة جاهزة وتحتاج موافقتك قبل التنفيذ.",
+                selected_core=selected, events=events,
+                metadata={"request_id": request_id, "task_plan": task_plan, "plan_status": task_plan_status, "approval_required": True},
+            )
 
         governance_needed = self._needs_governance(text, selected)
         governance_status = "policy_allow"
@@ -370,6 +405,8 @@ class Unified150Orchestrator:
                 "audit": "CORE-140",
                 "memory": "PersistentMemory",
                 "tools": len(self.control.tool_schemas()),
+                "task_plan": task_plan,
+                "plan_status": task_plan_status,
             },
         )
 
