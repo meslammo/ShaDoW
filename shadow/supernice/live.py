@@ -34,6 +34,69 @@ def adapter(s:CoreSpec,name:str,reason:str="adapter not configured")->CoreResult
     return CoreResult(s.id,True,"adapter_unavailable",{"capability":name,"available":False,"reason":reason},
                       [{"handler":"adapter_boundary","external_io":False}],{"startup_blocking":False,"optional_adapter":True})
 
+def image_adapter(req:CoreRequest,spec:CoreSpec,operation:str)->CoreResult:
+    """Call the configured SHADOW image API; never claim a render without a response."""
+    ctx=req.context if isinstance(req.context,dict) else {}
+    base=str(os.getenv("SHADOW_IMAGE_API_BASE_URL","")).strip().rstrip("/")
+    if not base:
+        return adapter(spec,"image_generation" if operation=="generate" else "image_edit",
+                       "SHADOW_IMAGE_API_BASE_URL is not configured")
+    parsed=urllib.parse.urlparse(base)
+    if parsed.scheme!="https" and parsed.hostname not in {"localhost","127.0.0.1"}:
+        return CoreResult(spec.id,False,"image_api_url_must_use_https",metadata={"startup_blocking":False})
+    prompt=str(ctx.get("prompt") or req.request or "").strip()
+    if not prompt or len(prompt)>12000:
+        return CoreResult(spec.id,False,"prompt_required_or_too_large",metadata={"startup_blocking":False})
+    payload={
+        "prompt":prompt,
+        "provider":str(ctx.get("provider") or "openai"),
+        "model":str(ctx.get("model") or ("gpt-image-2.6-sunburst" if operation=="edit" else "gpt-image-2.6-flare")),
+        "size":str(ctx.get("size") or "1024x1024"),
+        "quality":str(ctx.get("quality") or "auto"),
+        "complexity":str(ctx.get("complexity") or "high"),
+        "output_format":str(ctx.get("output_format") or "png"),
+        "background":str(ctx.get("background") or "auto"),
+        "frame_count":ctx.get("frame_count",9),
+        "frame_duration_ms":ctx.get("frame_duration_ms",200),
+    }
+    endpoint=base+"/v1/images"
+    if operation=="edit":
+        reference=str(ctx.get("reference_base64") or ctx.get("image_base64") or "")
+        if not reference:
+            return CoreResult(spec.id,False,"reference_image_required",metadata={"startup_blocking":False})
+        endpoint=base+"/v1/images/edits"
+        payload.update({
+            "reference_base64":reference,
+            "mime_type":str(ctx.get("mime_type") or "image/png"),
+            "mask_base64":str(ctx.get("mask_base64") or ""),
+            "markup_base64":str(ctx.get("markup_base64") or ""),
+            "markup_mime_type":str(ctx.get("markup_mime_type") or "image/png"),
+        })
+    raw=json.dumps(payload).encode("utf-8")
+    if len(raw)>19*1024*1024:
+        return CoreResult(spec.id,False,"image_request_too_large",metadata={"startup_blocking":False})
+    headers={"Content-Type":"application/json","Accept":"application/json","User-Agent":"SHADOW-150-Core/1.0"}
+    token=str(os.getenv("SHADOW_IMAGE_API_TOKEN","")).strip()
+    if token: headers["Authorization"]="Bearer "+token
+    try:
+        request=urllib.request.Request(endpoint,data=raw,headers=headers,method="POST")
+        with urllib.request.urlopen(request,timeout=190) as response:
+            data=json.loads(response.read(24*1024*1024).decode("utf-8"))
+        success=bool(data.get("ok") and (data.get("image_base64") or data.get("image_result")))
+        return CoreResult(
+            spec.id,success,"image_generated" if success else "image_provider_unverified",
+            data,[{"handler":"shadow_image_api","external_io":True,"provider":data.get("provider"),"model":data.get("model")}],
+            {"startup_blocking":False,"external_io":True,"verified_by_provider_response":success,"operation":operation}
+        )
+    except urllib.error.HTTPError as exc:
+        return CoreResult(spec.id,False,"image_api_http_error",
+            {"http_status":int(exc.code)},[{"handler":"shadow_image_api","external_io":True}],
+            {"startup_blocking":False,"external_io":True})
+    except Exception as exc:
+        return CoreResult(spec.id,False,"image_api_unreachable",
+            {"error_type":type(exc).__name__},[{"handler":"shadow_image_api","external_io":True}],
+            {"startup_blocking":False,"external_io":True})
+
 def urls(t:str): return [u.rstrip(".,;:)]}") for u in URL_RE.findall(t)][:20]
 def lang(t:str)->str:
     for code,pat in (("ar",r"[\u0600-\u06ff]"),("ru",r"[\u0400-\u04ff]"),("zh",r"[\u4e00-\u9fff]"),("ja",r"[\u3040-\u30ff]"),("ko",r"[\uac00-\ud7af]"),("en",r"[A-Za-z]")):
@@ -68,7 +131,8 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
         return ok(spec,{"ordered":[p.name for p in ps],"selected":ps[0].name if ps else None})
     if spec.id=="CORE-014":
         cap=str(ctx.get("capability","chat"))
-        return ok(spec,{"capability":cap,"providers":[p.name for p in ProviderRouter().route(cap)]})
+        from .openai_capabilities import get_openai_capability_catalog
+        return ok(spec,{"capability":cap,"providers":[p.name for p in ProviderRouter().route(cap)],"openai_catalog":get_openai_capability_catalog()})
     if spec.id=="CORE-015":
         keys={"openai":"OPENAI_API_KEY","xai":"XAI_API_KEY","deepseek":"DEEPSEEK_API_KEY","mistral":"MISTRAL_API_KEY","anthropic":"ANTHROPIC_API_KEY","google":"GEMINI_API_KEY"}
         rows=[]
@@ -92,7 +156,15 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
     if spec.id=="CORE-022": return ok(spec,{"hypotheses":[t+" — A",t+" — B",t+" — mixed causes"]})
     if spec.id=="CORE-023":
         ev=ctx.get("evidence",[]); score=min(.99,.35+.12*len(ev)); return ok(spec,{"confidence":round(score,3),"evidence":len(ev)})
-    if spec.id=="CORE-024": return ok(spec,{"answer":clean(ctx.get("answer",t),5000),"verified":bool(t)})
+    if spec.id=="CORE-024":
+        from .intelligent_ui import build_intelligent_response
+        answer=clean(ctx.get("answer",t),5000)
+        return ok(spec,build_intelligent_response(
+            answer,
+            ctx.get("ui_components") if isinstance(ctx.get("ui_components"),list) else [],
+            mode=str(ctx.get("ui_mode","auto")),
+            progress=ctx.get("progress") if isinstance(ctx.get("progress"),dict) else {},
+        ),ui_schema="shadow.intelligent-ui.v1",client_rendering_required=True)
 
     # 025-040 memory
     m=memory(root)
@@ -253,8 +325,8 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
     if spec.id in {"CORE-099","CORE-102","CORE-104","CORE-112"}:
         return ok(spec,{"artifacts":len(req.artifacts),"text_chars":len(_artifact_text(req)),
                           "types":sorted({str(a.get("mime") or a.get("name","")).split("/")[0] for a in req.artifacts})})
-    if spec.id=="CORE-100": return adapter(spec,"image_generation")
-    if spec.id=="CORE-101": return adapter(spec,"image_edit")
+    if spec.id=="CORE-100": return image_adapter(req,spec,"generate")
+    if spec.id=="CORE-101": return image_adapter(req,spec,"edit")
     if spec.id=="CORE-103": return adapter(spec,"video_generation")
     if spec.id=="CORE-105": return adapter(spec,"speech_to_text")
     if spec.id=="CORE-106": return adapter(spec,"text_to_speech")

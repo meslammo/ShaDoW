@@ -27,7 +27,7 @@ function ratio(w,h){
   return "1:1";
 }
 function expectedDimensions(size){
-  const m=String(size||DEFAULT_SIZE).match(/^(\\d+)x(\\d+)$/);
+  const m=String(size||DEFAULT_SIZE).match(/^([0-9]+)x([0-9]+)$/);
   return m?{width:Number(m[1]),height:Number(m[2])}:null;
 }
 function fourcc(b,start){
@@ -39,6 +39,15 @@ function imageInfo(bytes){
   const png=[137,80,78,71,13,10,26,10];
   const isPng=b.length>=24 && png.every((v,i)=>b[i]===v);
   if(isPng) return {format:"png",mime_type:"image/png",width:b.readUInt32BE(16),height:b.readUInt32BE(20)};
+  if(b.length>=10 && (fourcc(b,0)==="GIF8")) {
+    return {format:"gif",mime_type:"image/gif",width:b.readUInt16LE(6),height:b.readUInt16LE(8)};
+  }
+  if(b.length>=8 && (fourcc(b,0)==="<svg" || b.subarray(0,256).toString("utf8").includes("<svg"))) {
+    const svg=b.subarray(0,4096).toString("utf8");
+    const width=Number(svg.match(/width=["']([0-9.]+)/i)?.[1])||null;
+    const height=Number(svg.match(/height=["']([0-9.]+)/i)?.[1])||null;
+    return {format:"svg",mime_type:"image/svg+xml",width,height};
+  }
   if(b.length>=12 && fourcc(b,0)==="RIFF" && fourcc(b,8)==="WEBP"){
     let width=null,height=null;
     if(fourcc(b,12)==="VP8X" && b.length>=30){
@@ -64,7 +73,7 @@ function imageInfo(bytes){
   return {format:"unknown",mime_type:"application/octet-stream",width:null,height:null};
 }
 function removeCommandPrefix(s){
-  return clean(s.replace(/^(يا\\s+)?(اعمل|اعملي|ارسم|ارسملي|صمم|صمّم|ولّد|ولد|أنشئ|انشئ|generate|create|draw|design|make|render)\\b[:：]?\\s*/iu,""),MAX_PROMPT);
+  return clean(s.replace(/^(يا +)?(اعمل|اعملي|ارسم|ارسملي|صمم|صمّم|ولّد|ولد|أنشئ|انشئ|generate|create|draw|design|make|render)([ :：]+)?/iu,""),MAX_PROMPT);
 }
 function detect(patterns,text,fallback){ const hit=patterns.find(x=>x.re.test(text)); return hit?hit.value:fallback; }
 function detectAspect(text,size){
@@ -193,12 +202,12 @@ export async function qaGeneratedImage({image,prompt,renderPrompt,requestedSize=
   try{bytes=Buffer.from(raw,"base64");}catch{return {verified:false,artifact_verified:false,semantic_verified:false,errors:["invalid_base64"]};}
   const info=imageInfo(bytes);
   const errors=[];
-  if(bytes.length<1000) errors.push("image_too_small");
+  if(info.format==="svg" ? bytes.length<100 : bytes.length<1000) errors.push("image_too_small");
   if(info.format==="unknown") errors.push("unknown_image_format");
   const expected=expectedDimensions(requestedSize);
   const dimension_match=Boolean(!expected||!info.width||!info.height||(expected.width===info.width&&expected.height===info.height));
   if(!dimension_match) errors.push("dimension_mismatch");
-  const sourceTokens=removeCommandPrefix(prompt).toLowerCase().split(/[^\\p{L}\\p{N}]+/u).filter(x=>x.length>=4).slice(0,8);
+  const sourceTokens=removeCommandPrefix(prompt).toLowerCase().split(/[^a-zA-Z0-9\u0600-\u06FF]+/u).filter(x=>x.length>=4).slice(0,8);
   const rp=String(renderPrompt||"").toLowerCase();
   const contract_match=sourceTokens.length===0||sourceTokens.some(t=>rp.includes(t));
   if(!contract_match) errors.push("prompt_render_contract_mismatch");

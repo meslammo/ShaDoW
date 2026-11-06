@@ -12,7 +12,7 @@ const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const POLLINATIONS_URL = 'https://gen.pollinations.ai/v1/chat/completions';
 const cfg = {
   openaiKey: (process.env.OPENAI_API_KEY || '').trim(),
-  openaiModel: (process.env.OPENAI_MODEL || 'gpt-5.6').trim(),
+  openaiModel: (process.env.OPENAI_MODEL || 'gpt-6.1-sol').trim(),
   xaiKey: (process.env.XAI_API_KEY || '').trim(),
   xaiModel: (process.env.XAI_MODEL || 'grok-4.6').trim(),
   deepseekKey: (process.env.DEEPSEEK_API_KEY || '').trim(),

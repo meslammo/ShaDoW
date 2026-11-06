@@ -44,3 +44,10 @@ The following are adapter-ready, not falsely marked as active local models becau
 - SHADOW_LOCAL_EMBEDDING_URL
 
 No secrets are stored in source.
+
+## Images 2.6 update — 2026-11-06
+
+The visual runtime has been advanced to Image Engine v3.1. It now prefers the official OpenAI Images 2.6 Flare/Sunburst API when `OPENAI_API_KEY` is configured, while retaining explicit Google/self-hosted alternatives. It supports raster output, GIF animation, SVG generation, quality and complexity controls, mask edits, and markup-guided edits. The compatibility module `hatchable/v79/api/lib/image-engine.js` now exists and satisfies the import used by the v3.1 engine.
+
+See `docs/OPENAI_CHATGPT_UPDATES_2026-09_TO_2026-11.md` for the full September–November capability catalog and the distinction between live integrations and future design targets.
+

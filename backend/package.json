@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test-task-router.mjs test-semantic-vision.mjs"
+    "test": "node --test test-task-router.mjs test-semantic-vision.mjs test-external-providers.mjs test-openai-image-2-6.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",

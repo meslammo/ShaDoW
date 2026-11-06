@@ -22,7 +22,22 @@ jobs:
           docker pull python@sha256:e064671ca452259bab50e8e2c7bd896e39e9a343bb06ca25234adf6fe18d0fc7
           image_id="$(docker image inspect --format '{{.Id}}' python@sha256:e064671ca452259bab50e8e2c7bd896e39e9a343bb06ca25234adf6fe18d0fc7)"
           echo "SHADOW_SANDBOX_IMAGE=$image_id" >> "$GITHUB_ENV"
-      - name: Compile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile Python runtime
         run: python -m compileall -q shadow
-      - name: Tests
+      - name: Python tests
         run: pytest -q -rs
+      - name: Backend API adapter tests
+        working-directory: backend
+        run: npm test
+      - name: Check image API module syntax
+        run: |
+          node --check shared/openai-image-2-6.js
+          node --check hatchable/v79/api/lib/image-engine.js
+          node --check hatchable/v79/api/lib/image-engine-v3.js
+          node --check hatchable/v79/api/lib/visual-evolution.js
+          node --check hatchable/v79/api/v1/images.js
+          node --check hatchable/v79/api/v1/images/edit.js
+          node --check backend/server.mjs

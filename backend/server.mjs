@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -8,12 +8,14 @@ import { voiceprintStatus, verifyVoiceprint } from './voiceprint.mjs';
 import { providerStatus, memoryStatus, continueAgent } from './ai-router.mjs';
 import { runUnifiedPipeline, streamUnifiedPipeline, platformContract } from './shadow-pipeline.mjs';
 import { semanticVisionStatus, analyzeSemanticVision, compareSemanticVision } from './semantic-vision.mjs';
+import { generateOpenAIImage, editOpenAIImage } from '../shared/openai-image-2-6.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+const imageApiToken = String(process.env.SHADOW_IMAGE_API_TOKEN || '').trim();
 const pollinationsKey = String(process.env.POLLINATIONS_API_KEY || '').trim();
-const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2').trim();
+const imageModel = String(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.6-flare').trim();
 const pollinationsImageModel = String(process.env.POLLINATIONS_IMAGE_MODEL || 'gptimage').trim();
 const ttsModel = String(process.env.SHADOW_TTS_MODEL || 'gpt-4o-mini-tts').trim();
 const ttsVoice = String(process.env.SHADOW_TTS_VOICE || 'onyx').trim();
@@ -25,7 +27,7 @@ const geminiVideoModel = String(process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-gener
 const transcriptionModel = String(process.env.SHADOW_STT_MODEL || 'gpt-transcribe').trim();
 const geminiTranscriptionModel = String(process.env.GEMINI_STT_MODEL || 'gemini-3.5-transcribe').trim();
 const geminiTtsModel = String(process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview').trim();
-const visionModel = String(process.env.SHADOW_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6').trim();
+const visionModel = String(process.env.SHADOW_VISION_MODEL || 'gpt-6.1-terra').trim();
 
 app.disable('x-powered-by');
 app.use(helmet());
@@ -41,6 +43,18 @@ function rateLimit(req, res, next) {
   state.count++;
   if (state.count > 40) return res.status(429).json({ ok: false, error: 'rate_limited' });
   next();
+}
+
+function requireImageApiAccess(req, res) {
+  if (!imageApiToken) return true;
+  const supplied = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const expectedDigest = createHash('sha256').update(imageApiToken).digest();
+  const suppliedDigest = createHash('sha256').update(supplied).digest();
+  if (!supplied || !timingSafeEqual(expectedDigest, suppliedDigest)) {
+    res.status(401).json({ ok: false, error: 'image_api_unauthorized' });
+    return false;
+  }
+  return true;
 }
 
 app.get('/health', async (_req, res) => {
@@ -84,11 +98,23 @@ app.get('/health', async (_req, res) => {
       online_only_brain: true,
       unified_cloud_pipeline: true,
       semantic_vision: semanticVisionStatus(),
+      image_generation_2_6: Boolean(apiKey),
+      image_editing_2_6: Boolean(apiKey),
+      animated_gif_generation: Boolean(apiKey),
+      svg_generation: Boolean(apiKey),
+      markup_guided_image_edits: Boolean(apiKey),
+      image_complexity_control: Boolean(apiKey),
+      openai_chat_default: process.env.OPENAI_MODEL || 'gpt-6.1-sol',
+      openai_vision_default: visionModel,
     },
     image_generation: {
       enabled: Boolean(apiKey || geminiKey || pollinationsKey),
       provider: imageProvider,
       model: imageProvider === 'openai' ? imageModel : imageProvider === 'gemini' ? geminiImageModel : pollinationsImageModel,
+      openai_models: ['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst'],
+      formats: apiKey ? ['png','jpeg','webp','svg','gif'] : ['png'],
+      editing: Boolean(apiKey),
+      markup_guided_edits: Boolean(apiKey),
     },
     tts: {
       model: ttsModel,
@@ -515,14 +541,29 @@ app.post('/v1/development/apply', rateLimit, async (req, res) => {
 });
 
 app.post('/v1/images', rateLimit, async (req, res) => {
+  if (!requireImageApiAccess(req, res)) return;
   const provider = String(req.body?.provider || 'auto').toLowerCase();
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
   if (!prompt) return res.status(400).json({ ok: false, error: 'prompt_required' });
-  if (prompt.length > 8000) return res.status(413).json({ ok: false, error: 'prompt_too_large' });
+  if (prompt.length > 12000) return res.status(413).json({ ok: false, error: 'prompt_too_large' });
+  const outputFormat = String(req.body?.output_format || 'png').toLowerCase();
+  const imageOptions = {
+    model: req.body?.model || imageModel,
+    size: req.body?.size || '1024x1024',
+    quality: req.body?.quality || 'auto',
+    complexity: req.body?.complexity || 'high',
+    outputFormat,
+    background: req.body?.background || 'auto',
+    frameCount: req.body?.frame_count ?? 9,
+    frameDurationMs: req.body?.frame_duration_ms ?? 200,
+    outputCompression: req.body?.output_compression,
+    n: req.body?.n ?? 1,
+  };
   try {
     const useGemini = provider === 'gemini' || (provider === 'auto' && !apiKey && geminiKey);
     const usePollinations = provider === 'pollinations' || (provider === 'auto' && !apiKey && !geminiKey && pollinationsKey);
     if (useGemini) {
+      if (outputFormat !== 'png') return res.status(400).json({ ok: false, error: 'requested_format_requires_openai_images_2_6' });
       if (!geminiKey) return res.status(503).json({ ok: false, error: 'gemini_image_provider_not_configured' });
       const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
         method: 'POST',
@@ -538,42 +579,77 @@ app.post('/v1/images', rateLimit, async (req, res) => {
       if (!response.ok) return res.status(502).json({ ok: false, error: 'gemini_image_upstream_error' });
       const data = body?.output_image?.data;
       if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_gemini_image' });
-      return res.json({ ok: true, image_base64: data, model: geminiImageModel, provider: 'gemini' });
+      return res.json({ ok: true, image_base64: data, mime_type: 'image/png', model: geminiImageModel, provider: 'gemini', output_format: 'png' });
     }
     if (usePollinations) {
+      if (outputFormat !== 'png') return res.status(400).json({ ok: false, error: 'requested_format_requires_openai_images_2_6' });
       if (!pollinationsKey) return res.status(503).json({ ok: false, error: 'pollinations_image_provider_not_configured' });
       const response = await fetch('https://gen.pollinations.ai/v1/images/generations', {
         method: 'POST',
-        headers: {
-          Authorization: 'Bearer ' + pollinationsKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: pollinationsImageModel,
-          prompt,
-          size: '1024x1024',
-        }),
+        headers: { Authorization: 'Bearer ' + pollinationsKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: pollinationsImageModel, prompt, size: imageOptions.size }),
         signal: AbortSignal.timeout(120000),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) return res.status(502).json({ ok: false, error: body?.error?.message || 'pollinations_image_upstream_error' });
+      if (!response.ok) return res.status(502).json({ ok: false, error: 'pollinations_image_upstream_error' });
       const data = body?.data?.[0]?.b64_json;
       if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_pollinations_image' });
-      return res.json({ ok: true, image_base64: data, model: pollinationsImageModel, provider: 'pollinations' });
+      return res.json({ ok: true, image_base64: data, mime_type: 'image/png', model: pollinationsImageModel, provider: 'pollinations', output_format: 'png' });
     }
     if (!apiKey) return res.status(503).json({ ok: false, error: 'image_provider_not_configured' });
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: imageModel, prompt, size: '1024x1024' }),
-      signal: AbortSignal.timeout(120000),
+    const result = await generateOpenAIImage({ apiKey, prompt, options: imageOptions });
+    return res.json(result);
+  } catch (error) {
+    const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 502;
+    return res.status(status).json({
+      ok: false,
+      error: String(error?.code || 'image_generation_failed').slice(0, 100),
+      request_id: error?.requestId || null,
     });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) return res.status(502).json({ ok: false, error: 'image_upstream_error' });
-    const data = body?.data?.[0]?.b64_json;
-    if (typeof data !== 'string') return res.status(502).json({ ok: false, error: 'empty_image' });
-    return res.json({ ok: true, image_base64: data, model: imageModel, provider: 'openai' });
-  } catch { return res.status(502).json({ ok: false, error: 'image_unreachable' }); }
+  }
+});
+
+app.post('/v1/images/edits', rateLimit, async (req, res) => {
+  if (!requireImageApiAccess(req, res)) return;
+  if (!apiKey) return res.status(503).json({ ok: false, error: 'openai_image_provider_not_configured' });
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+  const imageBase64 = typeof req.body?.reference_base64 === 'string' ? req.body.reference_base64.trim() : '';
+  if (!prompt) return res.status(400).json({ ok: false, error: 'prompt_required' });
+  if (!imageBase64) return res.status(400).json({ ok: false, error: 'reference_image_required' });
+  if (prompt.length > 12000 || imageBase64.length > 16 * 1024 * 1024) {
+    return res.status(413).json({ ok: false, error: 'image_edit_input_too_large' });
+  }
+  try {
+    const result = await editOpenAIImage({
+      apiKey,
+      prompt,
+      imageBase64,
+      imageMimeType: req.body?.mime_type || 'image/png',
+      maskBase64: req.body?.mask_base64 || '',
+      markupBase64: req.body?.markup_base64 || '',
+      markupMimeType: req.body?.markup_mime_type || 'image/png',
+      options: {
+        model: req.body?.model || imageModel,
+        size: req.body?.size || '1024x1024',
+        quality: req.body?.quality || 'auto',
+        complexity: req.body?.complexity || 'high',
+        outputFormat: req.body?.output_format || 'png',
+        background: req.body?.background || 'auto',
+        frameCount: req.body?.frame_count ?? 9,
+        frameDurationMs: req.body?.frame_duration_ms ?? 200,
+        outputCompression: req.body?.output_compression,
+        n: req.body?.n ?? 1,
+      },
+    });
+    return res.json(result);
+  } catch (error) {
+    const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 502;
+    return res.status(status).json({
+      ok: false,
+      error: String(error?.code || 'image_edit_failed').slice(0, 100),
+      request_id: error?.requestId || null,
+    });
+  }
 });
 
 app.post('/v1/videos', rateLimit, async (req, res) => {

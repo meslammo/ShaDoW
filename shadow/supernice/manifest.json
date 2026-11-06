@@ -1,6 +1,6 @@
 {
   "architecture": "SHADOW Super Nice 150-Core",
-  "version": "150.0.0-foundation",
+  "version": "150.0.1-openai-2026-11",
   "online_ai_required": true,
   "subscription_gate": false,
   "credit_meter": false,
@@ -113,7 +113,7 @@
       "id": "CORE-014",
       "name": "Model Capability Resolver",
       "domain": "intelligence",
-      "purpose": "Provide model capability resolver as a bounded Shadow capability behind the common core contract.",
+      "purpose": "Resolve current OpenAI and external model capabilities, access class, and configured provider routes without implying entitlement.",
       "risk": "low",
       "requires_confirmation": false
     },
@@ -193,7 +193,7 @@
       "id": "CORE-024",
       "name": "Answer Composer",
       "domain": "intelligence",
-      "purpose": "Provide answer composer as a bounded Shadow capability behind the common core contract.",
+      "purpose": "Compose safe adaptive responses as text, cards, tables, charts, diagrams, checklists and confirmation-gated action blocks using the data-only Intelligent UI schema.",
       "risk": "low",
       "requires_confirmation": false
     },
@@ -793,7 +793,7 @@
       "id": "CORE-099",
       "name": "Image Understanding",
       "domain": "software",
-      "purpose": "Provide image understanding as a bounded Shadow capability behind the common core contract.",
+      "purpose": "Understand images and reference visuals using configured online vision providers; report evidence and uncertainty.",
       "risk": "low",
       "requires_confirmation": false
     },
@@ -801,7 +801,7 @@
       "id": "CORE-100",
       "name": "Image Generation Adapter",
       "domain": "software",
-      "purpose": "Provide image generation adapter as a bounded Shadow capability behind the common core contract.",
+      "purpose": "Generate images through the governed SHADOW image API, including GPT Image 2.6 Flare/Sunburst, raster, SVG, and animated GIF outputs when configured.",
       "risk": "low",
       "requires_confirmation": false
     },
@@ -809,7 +809,7 @@
       "id": "CORE-101",
       "name": "Image Edit Adapter",
       "domain": "software",
-      "purpose": "Provide image edit adapter as a bounded Shadow capability behind the common core contract.",
+      "purpose": "Edit reference images through the governed SHADOW image API, including masks and markup-guided edits when configured.",
       "risk": "low",
       "requires_confirmation": false
     },

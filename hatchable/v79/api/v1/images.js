@@ -8,36 +8,47 @@ export default async function(req,res){
   const body=req.body||{};
   const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
   if(!prompt) return res.status(400).json({ok:false,error:"prompt_required"});
-  if(prompt.length>10000) return res.status(413).json({ok:false,error:"prompt_too_large"});
+  if(prompt.length>12000) return res.status(413).json({ok:false,error:"prompt_too_large"});
+
+  const referenceBase64=typeof body.reference_base64==="string"?body.reference_base64.trim():"";
+  const maskBase64=typeof body.mask_base64==="string"?body.mask_base64.trim():"";
+  const markupBase64=typeof body.markup_base64==="string"?body.markup_base64.trim():"";
+  if(referenceBase64.length>68*1024*1024||maskBase64.length>16*1024*1024||markupBase64.length>16*1024*1024){
+    return res.status(413).json({ok:false,error:"image_input_too_large"});
+  }
   try{
-    const controls=body.control_layers&&typeof body.control_layers==="object"?body.control_layers:(body.controls&&typeof body.controls==="object"?body.controls:{});
+    const controls=body.control_layers&&typeof body.control_layers==="object"
+      ?body.control_layers:(body.controls&&typeof body.controls==="object"?body.controls:{});
     const identity=body.identity_label?await resolveVisualIdentity({
       identityId:String(body.identity_id||""),
       kind:String(body.identity_kind||"object"),
       label:String(body.identity_label||""),
       attributes:body.identity_attributes&&typeof body.identity_attributes==="object"?body.identity_attributes:{}
     }):null;
-    const controlContract=buildImageControlContract({
-      controls,
-      identity,
-      maskBase64:String(body.mask_base64||"")
-    });
+    const controlContract=buildImageControlContract({controls,identity,maskBase64});
     const directive=controlContract.prompt_directives.length
-      ? "\n\nCONTROL LAYERS:\n"+controlContract.prompt_directives.join("\n")
-      : "";
-    const referenceBase64=typeof body.reference_base64==="string"?body.reference_base64.trim():"";
+      ?"\n\nCONTROL LAYERS:\n"+controlContract.prompt_directives.join("\n")
+      :"";
     const referenceMimeType=typeof body.mime_type==="string"?body.mime_type.trim():"image/jpeg";
     const r=await runAdvancedImageEngine({
       message:prompt+directive,
-      operation:typeof req.body?.operation==="string"?req.body.operation.trim():"auto",
-      provider:typeof req.body?.provider==="string"?req.body.provider.trim().toLowerCase():"auto",
-      size:typeof req.body?.size==="string"?req.body.size.trim():"1024x1024",
-      presetId:typeof req.body?.preset_id==="string"?req.body.preset_id.trim():"",
+      operation:typeof body.operation==="string"?body.operation.trim():"auto",
+      provider:typeof body.provider==="string"?body.provider.trim().toLowerCase():"auto",
+      size:typeof body.size==="string"?body.size.trim():"1024x1024",
+      presetId:typeof body.preset_id==="string"?body.preset_id.trim():"",
       referenceBase64,
       referenceMimeType,
       controlContract,
       identity,
-      maskBase64:String(body.mask_base64||"")
+      maskBase64,
+      markupBase64,
+      markupMimeType:typeof body.markup_mime_type==="string"?body.markup_mime_type:"image/png",
+      quality:typeof body.quality==="string"?body.quality:"auto",
+      complexity:typeof body.complexity==="string"?body.complexity:"high",
+      outputFormat:typeof body.output_format==="string"?body.output_format:"png",
+      background:typeof body.background==="string"?body.background:"auto",
+      frameCount:body.frame_count??9,
+      frameDurationMs:body.frame_duration_ms??200
     });
     return res.json({
       ok:Boolean(r.ok),
@@ -59,16 +70,21 @@ export default async function(req,res){
       image_control_contract:controlContract,
       visual_identity:identity,
       visual_compare:referenceBase64&&r.image_result?.image_base64
-        ? await compareVisuals({
-            requestId:r.request_id,
-            prompt,
-            referenceBase64,
-            referenceMimeType:referenceMimeType,
-            generatedImage:r.image_result
-          })
-        : null
+        ?await compareVisuals({
+          requestId:r.request_id,
+          prompt,
+          referenceBase64,
+          referenceMimeType,
+          generatedImage:r.image_result
+        })
+        :null
     });
-  }catch(e){
-    return res.status(502).json({ok:false,error:"image_generation_failed",detail:String(e?.message||e).slice(0,400),engine:"shadow-image-engine-v3.0"});
+  }catch(error){
+    return res.status(502).json({
+      ok:false,
+      error:"image_generation_failed",
+      detail:String(error?.message||error).slice(0,400),
+      engine:"shadow-image-engine-v3.1"
+    });
   }
 }

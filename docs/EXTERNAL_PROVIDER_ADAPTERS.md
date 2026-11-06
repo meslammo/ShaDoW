@@ -19,6 +19,20 @@ The local route has no commercial API key requirement; it becomes operational on
 
 Mistral, Anthropic and Gemini enter the same SHADOW tool-execution loop. Tool execution remains behind the existing governed tool registry and device approval path. Provider adapters never receive SHADOW secrets.
 
+
+## OpenAI models and Images 2.6 (2026-11-06)
+
+The current documented defaults are GPT-6.1 Sol for general chat and GPT-6.1 Terra for semantic vision. GPT-6 Astra remains available for the hardest reasoning workflows. The model/access catalog is maintained in `shadow/supernice/openai_capabilities.py`.
+
+Image generation/editing is implemented through `shared/openai-image-2-6.js`:
+- Fast generation: `gpt-image-2.6-flare`.
+- Precision generation/editing: `gpt-image-2.6-sunburst`.
+- Backend routes: `POST /v1/images` and `POST /v1/images/edits`.
+- Supports quality/complexity, raster formats, SVG generation, GIF animation and markup-guided edits.
+- `OPENAI_IMAGE_MODEL` chooses the default image model. Keep the key server-side.
+
+The model catalog records GPT-6 Cyber as approved-defenders-only and GPT-6 Rosalind as trusted-access-only. A catalog entry is not an entitlement and does not activate either restricted model.
+
 ## Reality boundary
 
 A provider is **live** only after its legitimate credential or endpoint exists and a real request succeeds. A code adapter alone is not a live integration.
