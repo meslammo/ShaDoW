@@ -1,5 +1,6 @@
 import { db, config } from "hatchable";
 import { generateImage, sizeForAspectRatio } from "./image-engine.js";
+import { editOpenAIImage } from "../../../../shared/openai-image-2-6.js";
 import { buildVisualPlan, referenceReceipt, qaGeneratedImage, editImage } from "./visual-evolution.js";
 import { analyzeSemanticVision } from "./semantic-vision-v1.js";
 import { continuousImprove } from "./capability-evolution.js";
@@ -97,6 +98,7 @@ async function semanticVerify({image,prompt,referenceBase64,referenceMimeType}){
   const generated=String(image?.image_base64||"").replace(/^data:[^,]+,/i,"").trim();
   if(!generated) return {configured:false,executed:false,semantic_verified:false,status:"empty_generated_image"};
   const compare=Boolean(referenceBase64);
+  if(String(image?.mime_type||"").toLowerCase()==="image/svg+xml") return {configured:false,executed:false,semantic_verified:false,status:"semantic_not_applicable_svg"};
   const requestPrompt=compare
     ? "Image 1 is the newly generated/edited image. Image 2 is the user reference image. Compare them against the user's request. Preserve the requested identity, geometry and key attributes. Return only evidence-grounded semantic analysis and prompt compliance."
     : "Judge whether the generated image semantically satisfies the user's request. Use visible evidence only and return prompt compliance, observations, mismatches and confidence.";
@@ -142,15 +144,24 @@ async function semanticVerify({image,prompt,referenceBase64,referenceMimeType}){
   }
 }
 
-async function localEdit({operation,prompt,referenceBase64,referenceMimeType,size,maskBase64="",controlContract=null,identity=null}){
+async function localEdit({operation,prompt,referenceBase64,referenceMimeType,size,maskBase64="",markupBase64="",markupMimeType="image/png",controlContract=null,identity=null,quality="auto",complexity="high",outputFormat="png",background="auto",frameCount=9,frameDurationMs=200}){
   const endpoint=await secret("SHADOW_LOCAL_IMAGE_EDIT_URL");
   if(!endpoint){
-    const online=await editImage({
-      prompt,
-      referenceBase64,
-      referenceMimeType,
-      size
-    });
+    const openaiKey=await secret("OPENAI_API_KEY");
+    if(openaiKey){
+      const online=await editOpenAIImage({
+        apiKey:openaiKey,
+        prompt,
+        imageBase64:referenceBase64,
+        imageMimeType:referenceMimeType,
+        maskBase64,
+        markupBase64,
+        markupMimeType,
+        options:{model:await secret("SHADOW_OPENAI_IMAGE_MODEL")||"flare",size,quality,complexity,outputFormat,background,frameCount,frameDurationMs}
+      });
+      return {...online,configured:true,renderer_role:"edit_renderer"};
+    }
+    const online=await editImage({prompt,referenceBase64,referenceMimeType,size});
     return {...online,configured:true};
   }
   const key=await secret("SHADOW_LOCAL_IMAGE_EDIT_API_KEY");
@@ -185,7 +196,7 @@ async function localEdit({operation,prompt,referenceBase64,referenceMimeType,siz
   };
 }
 
-async function tryRender({renderPrompt,provider,size,controlContract=null,identity=null,maskBase64=""}){ 
+async function tryRender({renderPrompt,provider,size,controlContract=null,identity=null,maskBase64="",quality="auto",complexity="high",outputFormat="png",background="auto",frameCount=9,frameDurationMs=200}){ 
   const localEndpoint=await secret("SHADOW_LOCAL_IMAGE_RENDER_URL");
   if(localEndpoint){
     const key=await secret("SHADOW_LOCAL_IMAGE_RENDER_API_KEY");
@@ -217,7 +228,7 @@ async function tryRender({renderPrompt,provider,size,controlContract=null,identi
       renderer_role:"primary_renderer"
     };
   }
-  return await generateImage(renderPrompt,{provider,size});
+  return await generateImage(renderPrompt,{provider,size,quality,complexity,outputFormat,background,frameCount,frameDurationMs,model:await secret("SHADOW_OPENAI_IMAGE_MODEL")||"flare"});
 }
 
 async function saveVisualMemory({kind,title,source,imageSha,metadata,plan}){
@@ -248,7 +259,15 @@ export async function runAdvancedImageEngine({
   referenceMimeType="image/jpeg",
   controlContract=null,
   identity=null,
-  maskBase64=""
+  maskBase64="",
+  markupBase64="",
+  markupMimeType="image/png",
+  quality="auto",
+  complexity="high",
+  outputFormat="png",
+  background="auto",
+  frameCount=9,
+  frameDurationMs=200
 }={}){
   const prompt=clean(message);
   if(!prompt) throw new Error("prompt_required");
@@ -260,7 +279,7 @@ export async function runAdvancedImageEngine({
   const reference=referenceBase64?await referenceReceipt({base64:referenceBase64,mimeType:referenceMimeType}):null;
   const scene=decomposeScene(prompt,plan,op,reference);
 
-  const runPayload={request_id:requestId,version:IMAGE_ENGINE_VERSION,operation:op,status:"running",renderer:"",model:"",attempt:0,request:{prompt,provider,size,presetId,has_reference:Boolean(reference?.available)}};
+  const runPayload={request_id:requestId,version:IMAGE_ENGINE_VERSION,operation:op,status:"running",renderer:"",model:"",attempt:0,request:{prompt,provider,size,presetId,has_reference:Boolean(reference?.available),quality,complexity,output_format:outputFormat}};
   try{
     await db.query(
       "INSERT INTO shadow_image_runs(id,request_id,version,operation,status,request) VALUES($1,$2,$3,$4,'running',$5::jsonb)",
@@ -293,7 +312,8 @@ export async function runAdvancedImageEngine({
             size:renderSize,
             controlContract,
             identity,
-            maskBase64
+            maskBase64,
+            quality,complexity,outputFormat,background,frameCount,frameDurationMs
           })
         : await localEdit({
             operation:op,
@@ -302,8 +322,10 @@ export async function runAdvancedImageEngine({
             referenceMimeType,
             size:renderSize,
             maskBase64,
+            markupBase64,markupMimeType,
             controlContract,
-            identity
+            identity,
+            quality,complexity,outputFormat,background,frameCount,frameDurationMs
           });
       const artifactQa=await qaGeneratedImage({
         image,
