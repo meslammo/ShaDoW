@@ -601,7 +601,7 @@ app.post('/v1/images/edits', rateLimit, async (req, res) => {
   const imageBase64 = typeof req.body?.reference_base64 === 'string' ? req.body.reference_base64.trim() : '';
   if (!prompt) return res.status(400).json({ ok: false, error: 'prompt_required' });
   if (!imageBase64) return res.status(400).json({ ok: false, error: 'reference_image_required' });
-  if (prompt.length > 12000 || imageBase64.length > 22 * 1024 * 1024) {
+  if (prompt.length > 12000 || imageBase64.length > 16 * 1024 * 1024) {
     return res.status(413).json({ ok: false, error: 'image_edit_input_too_large' });
   }
   try {
