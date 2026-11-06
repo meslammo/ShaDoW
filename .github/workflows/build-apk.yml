@@ -108,6 +108,7 @@ jobs:
             app/build/outputs/apk/release/apk.sha256
 
       - name: Publish verified APK as GitHub Release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
