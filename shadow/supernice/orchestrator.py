@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from .catalog import CORE_BY_ID
 from .contracts import CoreRequest, CoreResult
+from .cognitive import CognitiveEngine
 from .integration import SuperNiceRuntime
 from .evolution import UnifiedControlPlane
 from .online_brain import GovernedOnlineBrainAdapter, RealOnlineBrainAdapter
@@ -66,6 +67,7 @@ class Unified150Orchestrator:
         self.online_brain = online_brain or GovernedOnlineBrainAdapter(self.control)
         self.engine = ShadowEngine(workspace)
         self.live_updates = LiveUpdateManager(workspace)
+        self.cognitive = CognitiveEngine()
 
     @property
     def core_count(self) -> int:
@@ -166,8 +168,10 @@ class Unified150Orchestrator:
         self.control.audit("request.received", request_id=request_id, metadata={"core_count": self.core_count})
         self.control_recall = self.control.recall(text, 8)
         ctx["memory"] = self.control_recall
+        cognitive_context = self.cognitive.build_model_context(text, ctx)
+        ctx["cognitive_request"] = cognitive_context
 
-        events.append(OrchestratorEvent("understand", "CORE-003", "started"))
+        events.append(OrchestratorEvent("understand", "CORE-003", "started", "cognitive_contract_v1"))
 
         identity = self.execute_core(
             "CORE-001",
@@ -230,6 +234,7 @@ class Unified150Orchestrator:
                     "routing": routing.result,
                     "memory": self.control_recall,
                     "selected_core": selected,
+                    "cognitive_request": cognitive_context,
                     "request_id": request_id,
                     **ctx,
                 },
