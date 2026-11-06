@@ -27,7 +27,7 @@ function ratio(w,h){
   return "1:1";
 }
 function expectedDimensions(size){
-  const m=String(size||DEFAULT_SIZE).match(/^(\\d+)x(\\d+)$/);
+  const m=String(size||DEFAULT_SIZE).match(/^([0-9]+)x([0-9]+)$/);
   return m?{width:Number(m[1]),height:Number(m[2])}:null;
 }
 function fourcc(b,start){
@@ -73,7 +73,7 @@ function imageInfo(bytes){
   return {format:"unknown",mime_type:"application/octet-stream",width:null,height:null};
 }
 function removeCommandPrefix(s){
-  return clean(s.replace(/^(يا\\s+)?(اعمل|اعملي|ارسم|ارسملي|صمم|صمّم|ولّد|ولد|أنشئ|انشئ|generate|create|draw|design|make|render)\\b[:：]?\\s*/iu,""),MAX_PROMPT);
+  return clean(s.replace(/^(يا +)?(اعمل|اعملي|ارسم|ارسملي|صمم|صمّم|ولّد|ولد|أنشئ|انشئ|generate|create|draw|design|make|render)([ :：]+)?/iu,""),MAX_PROMPT);
 }
 function detect(patterns,text,fallback){ const hit=patterns.find(x=>x.re.test(text)); return hit?hit.value:fallback; }
 function detectAspect(text,size){
@@ -207,7 +207,7 @@ export async function qaGeneratedImage({image,prompt,renderPrompt,requestedSize=
   const expected=expectedDimensions(requestedSize);
   const dimension_match=Boolean(!expected||!info.width||!info.height||(expected.width===info.width&&expected.height===info.height));
   if(!dimension_match) errors.push("dimension_mismatch");
-  const sourceTokens=removeCommandPrefix(prompt).toLowerCase().split(/[^\\p{L}\\p{N}]+/u).filter(x=>x.length>=4).slice(0,8);
+  const sourceTokens=removeCommandPrefix(prompt).toLowerCase().split(/[^a-zA-Z0-9\u0600-\u06FF]+/u).filter(x=>x.length>=4).slice(0,8);
   const rp=String(renderPrompt||"").toLowerCase();
   const contract_match=sourceTokens.length===0||sourceTokens.some(t=>rp.includes(t));
   if(!contract_match) errors.push("prompt_render_contract_mismatch");
