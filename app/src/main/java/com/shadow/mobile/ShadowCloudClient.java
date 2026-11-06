@@ -58,8 +58,9 @@ public final class ShadowCloudClient {
         if(!result.optBoolean("ok",false))throw new IllegalStateException(result.optString("error","cloud_request_failed"));
         String answer=result.optString("answer","").trim(); String responseId=result.optString("response_id",""); String provider=result.optString("provider",""); String model=result.optString("model",""); boolean usedWeb=result.optBoolean("used_web_search",false);
         PendingAction pending=null; JSONObject pa=result.optJSONObject("pending_action"); if(pa!=null){pending=new PendingAction(pa.optString("action",""),pa.optString("argument",""),pa.optString("reason",""),pa.optBoolean("requires_confirmation",false),pa.optString("toolCallId",pa.optString("tool_call_id","")));}
+        JSONObject trace=result.optJSONObject("trace");
         if(answer.isEmpty()&&pending==null)throw new IllegalStateException("empty_online_response");
-        return new CloudReply(answer,responseId,provider,model,usedWeb,pending);
+        return new CloudReply(answer,responseId,provider,model,usedWeb,pending,trace);
     }
     public interface StreamListener {
         void onDelta(String text);
@@ -261,7 +262,7 @@ public final class ShadowCloudClient {
     private static String read(InputStream stream)throws Exception{if(stream==null)return"";StringBuilder b=new StringBuilder();try(BufferedReader r=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null)b.append(line);}return b.toString();}
     private static byte[] readBytes(InputStream stream)throws Exception{if(stream==null)return new byte[0];java.io.ByteArrayOutputStream b=new java.io.ByteArrayOutputStream();byte[] buf=new byte[8192];int n;while((n=stream.read(buf))!=-1)b.write(buf,0,n);return b.toByteArray();}
     public static final class PendingAction{public final String action,argument,reason,toolCallId;public final boolean requiresConfirmation;PendingAction(String a,String g,String r,boolean c,String i){action=a;argument=g;reason=r;requiresConfirmation=c;toolCallId=i;}}
-    public static final class CloudReply{public final String answer,responseId,provider,model;public final boolean usedWeb;public final PendingAction pendingAction;CloudReply(String a,String r,String p,String m,boolean w,PendingAction pa){answer=a;responseId=r;provider=p;model=m;usedWeb=w;pendingAction=pa;}}
+    public static final class CloudReply{public final String answer,responseId,provider,model;public final boolean usedWeb;public final PendingAction pendingAction;public final JSONObject trace;CloudReply(String a,String r,String p,String m,boolean w,PendingAction pa,JSONObject tr){answer=a;responseId=r;provider=p;model=m;usedWeb=w;pendingAction=pa;trace=tr==null?new JSONObject():tr;}}
     public static final class VoiceprintReply{public final boolean verified,enrolled;public final double score;public final String reason;VoiceprintReply(boolean v,boolean e,double s,String r){verified=v;enrolled=e;score=s;reason=r;}}
     public static final class GithubDevice{public final String deviceCode,userCode,verificationUri,verificationUriComplete;public final int expiresIn,interval;GithubDevice(String d,String u,String v,String vc,int e,int i){deviceCode=d;userCode=u;verificationUri=v;verificationUriComplete=vc;expiresIn=e;interval=i;}}
     public static final class GithubPoll{public final String status,accessToken;public final int interval;GithubPoll(String s,String t,int i){status=s;accessToken=t;interval=i;}}
