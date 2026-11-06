@@ -168,6 +168,14 @@ def extract_task_plan(answer: str) -> dict[str, Any] | None:
 def planning_contract() -> dict[str, Any]:
     return {
         "schema": PLAN_SCHEMA,
+        "fields": {
+            "goal": "concise user-visible outcome",
+            "assumptions": "explicit or clearly marked assumptions",
+            "steps": "ordered proposed steps with pending status",
+            "clarification_question": "one question or empty string",
+            "risk": "low|medium|high|critical",
+            "approval_required": "boolean",
+        },
         "required_fields": ["schema", "goal", "assumptions", "steps", "clarification_question", "risk", "approval_required"],
         "step_fields": ["id", "title", "status", "core_id", "tool", "requires_approval"],
         "allowed_core_ids": sorted(CORE_BY_ID),
