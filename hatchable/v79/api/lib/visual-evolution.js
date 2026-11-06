@@ -44,8 +44,8 @@ function imageInfo(bytes){
   }
   if(b.length>=8 && (fourcc(b,0)==="<svg" || b.subarray(0,256).toString("utf8").includes("<svg"))) {
     const svg=b.subarray(0,4096).toString("utf8");
-    const width=Number(svg.match(/\\bwidth=["']([0-9.]+)/i)?.[1])||null;
-    const height=Number(svg.match(/\\bheight=["']([0-9.]+)/i)?.[1])||null;
+    const width=Number(svg.match(/width=["']([0-9.]+)/i)?.[1])||null;
+    const height=Number(svg.match(/height=["']([0-9.]+)/i)?.[1])||null;
     return {format:"svg",mime_type:"image/svg+xml",width,height};
   }
   if(b.length>=12 && fourcc(b,0)==="RIFF" && fourcc(b,8)==="WEBP"){
