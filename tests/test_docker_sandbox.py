@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -88,3 +90,34 @@ def test_docker_sandbox_enforces_runtime_isolation(tmp_path):
     assert result["isolation"]["root_filesystem"] == "read_only"
     assert result["isolation"]["capabilities"] == "all_dropped"
     assert result["isolation"]["no_new_privileges"] is True
+
+
+
+def test_timeout_kills_container_even_after_child_closes_output_streams(monkeypatch):
+    from shadow.security import docker_sandbox
+
+    calls = []
+    monkeypatch.setattr(
+        docker_sandbox,
+        "_bounded_capture",
+        lambda argv, timeout=4.0: calls.append(list(argv)) or subprocess.CompletedProcess(argv, 0, "", ""),
+    )
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import os,time; os.close(1); os.close(2); time.sleep(5)",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+    )
+    code, stdout, stderr, timed_out, output_limited = docker_sandbox._read_process(
+        process, 1, "docker", "shadow-test-container"
+    )
+    assert timed_out is True
+    assert output_limited is False
+    assert code != 0
+    assert any(call[:2] == ["docker", "kill"] for call in calls)
+    assert any(call[:2] == ["docker", "rm"] for call in calls)
