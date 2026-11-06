@@ -22,11 +22,11 @@ The container uses `--network=none`, a read-only root filesystem, a read-only bi
 Example image preparation on a trusted host:
 
 ```sh
-docker pull python:3.12.16-alpine3.24
-export SHADOW_SANDBOX_IMAGE="$(docker image inspect --format '{{.Id}}' python:3.12.16-alpine3.24)"
+docker pull python@sha256:e064671ca452259bab50e8e2c7bd896e39e9a343bb06ca25234adf6fe18d0fc7
+export SHADOW_SANDBOX_IMAGE="$(docker image inspect --format '{{.Id}}' python@sha256:e064671ca452259bab50e8e2c7bd896e39e9a343bb06ca25234adf6fe18d0fc7)"
 ```
 
-The CI workflow prepares the same versioned image and exports its immutable local image ID before running the integration test. The test proves the container runs as the non-root UID, cannot write to the mounted workspace, and has no outbound network.
+The CI workflow pulls the same image by immutable registry digest and exports its local image ID before running the integration test. The test proves the container runs as the non-root UID, cannot write to the mounted workspace, and has no outbound network.
 
 ## Safety, trust assumptions, and limits
 - Docker containers share the host kernel. The Docker daemon, host kernel, and image supply chain remain trusted; this is not a VM and does not claim immunity to container/kernel escapes.
