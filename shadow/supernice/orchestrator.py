@@ -115,6 +115,10 @@ class Unified150Orchestrator:
         text = str(request or "").lower()
         if any(x in text for x in ("sandbox", "docker isolation", "container isolation", "عزل", "حاوية آمنة", "حاوية معزولة")):
             return "CORE-138"
+        if any(x in text for x in ("edit image", "image edit", "inpaint", "recolor", "markup edit", "عدّل الصورة", "عدل الصورة", "تعديل الصورة", "غير في الصورة", "غيّر في الصورة", "استبدل الخلفية", "امسح من الصورة")):
+            return "CORE-101"
+        if any(x in text for x in ("generate image", "create image", "draw image", "image generation", "make a picture", "gif", "svg", "ارسم", "اعمل صورة", "اعمللي صورة", "صمم صورة", "صمّم صورة", "ولد صورة", "أنشئ صورة", "انشئ صورة", "صورة جديدة", "صورة متحركة")):
+            return "CORE-100"
         if any(x in text for x in ("security", "cyber", "vulnerability", "cve", "malware", "threat", "ثغرة", "ثغرات", "أمن سيبراني", "اختراق", "فيروس", "برمجية خبيثة")):
             return "CORE-086"
         if any(x in text for x in ("github", "git ", "repo", "repository", "جيت هاب", "كود", "برمجة")):
