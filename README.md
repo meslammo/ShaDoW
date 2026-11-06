@@ -96,6 +96,13 @@ The update catalog is maintained in `shadow/supernice/openai_capabilities.py`. I
 
 API keys, organization entitlements, model availability, billing, and regional restrictions remain provider-controlled. SHADOW reports missing configuration honestly and never silently substitutes an unavailable model.
 
+## SHADOW Cognitive Engine v1
+
+- Added a structured natural-language request contract (Arabic/English/mixed language hints, conservative intent labels, and explicit constraint extraction).
+- The unified orchestrator injects this contract and internal planning/safety instructions into the existing online model context; users are not required to write prompts.
+- This is the first foundation only: model-assisted dynamic routing, typed multi-step plans, clarification UI, execution feedback, and semantic project memory remain subsequent implementation gates. Heuristic labels are not treated as ground truth.
+- See `docs/SHADOW_COGNITIVE_ENGINE_V1.md` for exact scope, limitations, and safety invariants.
+
 ## Scope decision — AI-only
 
 Shadow's active architecture is intentionally device-independent. The current build does not control or connect to the phone host, car, smart-home equipment, watches, companions, spatial hardware, or other external devices. Android remains only a client surface for text, voice, images, status, and the online Shadow runtime. This removes device work from the critical path so the AI platform can be completed first.
