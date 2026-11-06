@@ -193,7 +193,7 @@
       "id": "CORE-024",
       "name": "Answer Composer",
       "domain": "intelligence",
-      "purpose": "Provide answer composer as a bounded Shadow capability behind the common core contract.",
+      "purpose": "Compose safe adaptive responses as text, cards, tables, charts, diagrams, checklists and confirmation-gated action blocks using the data-only Intelligent UI schema.",
       "risk": "low",
       "requires_confirmation": false
     },
