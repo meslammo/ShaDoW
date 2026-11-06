@@ -86,7 +86,7 @@ def _read_process(process: subprocess.Popen[bytes], timeout: int, docker: str, n
     output_limited = False
     total = 0
     try:
-        while selector.get_map():
+        while selector.get_map() or process.poll() is None:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 timed_out = True
