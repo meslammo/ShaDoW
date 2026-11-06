@@ -50,3 +50,30 @@ def test_patch_and_regression_are_proposals_only():
     assert patch["changes_applied"] is False
     assert patch["actions"][0]["approval_required"] is True
     assert regression["executed"] is False
+
+
+def test_existing_core_handlers_use_cyber_service(tmp_path):
+    from shadow.supernice.contracts import CoreRequest
+    from shadow.supernice.runtime import CoreRuntime
+
+    (tmp_path / "sample.py").write_text("eval(user_input)", encoding="utf-8")
+    runtime = CoreRuntime(workspace=str(tmp_path))
+    scan = runtime.execute(CoreRequest("CORE-086", "scan", context={"paths": ["sample.py"]}))
+    assert scan.ok and scan.result["finding_count"] >= 1
+
+    patch = runtime.execute(CoreRequest("CORE-083", "plan patch", context={"findings": scan.result["findings"]}))
+    assert patch.ok and patch.result["changes_applied"] is False
+
+    regression = runtime.execute(CoreRequest("CORE-080", "regression plan", context={"findings": scan.result["findings"]}))
+    assert regression.ok and regression.result["executed"] is False
+
+    sandbox = runtime.execute(CoreRequest("CORE-138", "prepare review copy", context={"files": {"sample.py": "print('safe')"}}, confirmed=True))
+    assert sandbox.ok and sandbox.result["execution_performed"] is False
+
+    threat = runtime.execute(CoreRequest("CORE-141", "threat scan", context={"paths": ["sample.py"]}, confirmed=True))
+    assert threat.ok and threat.result["execution_performed"] is False
+
+
+def test_orchestrator_routes_security_requests():
+    from shadow.supernice.orchestrator import Unified150Orchestrator
+    assert Unified150Orchestrator.select_core("افحص الثغرات الأمنية في المشروع") == "CORE-086"
