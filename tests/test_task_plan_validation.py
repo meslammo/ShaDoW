@@ -1,4 +1,4 @@
-from shadow.supernice.planning import PLAN_SCHEMA, extract_task_plan, validate_task_plan
+from shadow.supernice.planning import PLAN_SCHEMA, extract_task_plan, strip_task_plan_envelope, validate_task_plan
 
 
 def valid_plan(**overrides):
@@ -57,3 +57,8 @@ def test_extracts_only_explicit_plan_envelope():
     raw = '<shadow_task_plan>{"schema":"shadow.task-plan.v1","goal":"x"}</shadow_task_plan>'
     assert extract_task_plan(raw)["goal"] == "x"
     assert extract_task_plan("ordinary text with no plan") is None
+
+
+def test_plan_envelope_is_removed_from_user_facing_text():
+    raw = 'الإجابة <shadow_task_plan>{"schema":"shadow.task-plan.v1"}</shadow_task_plan> تمت'
+    assert strip_task_plan_envelope(raw) == "الإجابة  تمت"
