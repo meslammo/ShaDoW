@@ -631,8 +631,9 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
     private void showExecutionPlan(ShadowCloudClient.CloudReply reply, String originalMessage) {
         JSONObject trace = reply == null ? null : reply.trace;
         JSONArray phases = trace == null ? null : trace.optJSONArray("phases");
+        JSONObject taskPlan = trace == null ? null : trace.optJSONObject("task_plan");
         ShadowCloudClient.PendingAction pending = reply == null ? null : reply.pendingAction;
-        if ((phases == null || phases.length() == 0) && (pending == null || !pending.requiresConfirmation)) return;
+        if ((phases == null || phases.length() == 0) && taskPlan == null && (pending == null || !pending.requiresConfirmation)) return;
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -645,6 +646,38 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
         TextView heading = tv("خطة التنفيذ والتقدم", 14);
         heading.setTypeface(null, android.graphics.Typeface.BOLD);
         card.addView(heading);
+        if (taskPlan != null) {
+            TextView goal = tv("الهدف: " + taskPlan.optString("goal", "غير محدد"), 13);
+            goal.setTextColor(TEXT);
+            goal.setPadding(0, dp(7), 0, dp(7));
+            card.addView(goal);
+            JSONArray steps = taskPlan.optJSONArray("steps");
+            if (steps != null) {
+                for (int i = 0; i < steps.length(); i++) {
+                    JSONObject step = steps.optJSONObject(i);
+                    if (step == null) continue;
+                    String title = step.optString("title", "خطوة");
+                    String state = step.optString("status", "pending");
+                    TextView row = tv("○  " + title + " — " + stateLabel(state), 12);
+                    row.setTextColor(MUTED);
+                    row.setPadding(dp(4), dp(4), 0, dp(4));
+                    card.addView(row);
+                }
+            }
+            String question = taskPlan.optString("clarification_question", "").trim();
+            if (!question.isEmpty()) {
+                TextView clarification = tv("محتاج توضيح منك: " + question, 13);
+                clarification.setTextColor(THINK_RED);
+                clarification.setPadding(0, dp(7), 0, dp(5));
+                card.addView(clarification);
+            }
+            if (taskPlan.optBoolean("approval_required", false)) {
+                TextView approval = tv("الخطة تحتاج موافقتك قبل أي تنفيذ حساس. الخطوات المعروضة مقترحة وليست منفذة.", 12);
+                approval.setTextColor(THINK_RED);
+                approval.setPadding(0, dp(5), 0, dp(7));
+                card.addView(approval);
+            }
+        }
         if (phases != null) {
             for (int i = 0; i < phases.length(); i++) {
                 JSONObject phase = phases.optJSONObject(i);
