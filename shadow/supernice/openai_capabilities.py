@@ -100,7 +100,7 @@ OPENAI_CAPABILITIES: tuple[dict[str, Any], ...] = (
      "note": "Requires OpenAI approved-defender access and authorized test environments."},
     {"id": "gpt_6_1_terra", "date": "2026-10-26", "area": "visual_reasoning", "status": "catalogued",
      "features": ["visual_reasoning", "computer_use", "writing"]},
-    {"id": "intelligent_ui", "date": "2026-10-07", "area": "conversation_ui", "status": "design_target",
+    {"id": "intelligent_ui", "date": "2026-10-07", "area": "conversation_ui", "status": "schema_implemented_client_render_pending",
      "features": ["adaptive_text_visual_interactive_responses", "progressive_response", "interactive_widgets"],
      "shadow_surface": ["Unified150Orchestrator", "Android conversation surface"]},
     {"id": "agents_computer_use", "date": "2026-09-29", "area": "agents", "status": "catalogued",
