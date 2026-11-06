@@ -82,7 +82,7 @@ SHADOW's default OpenAI chat model is GPT-6.1 Sol; semantic vision defaults to G
 ## What SHADOW should build next from these releases
 
 These are tracked as catalogued or design-target capabilities, not claimed as completed by the image upgrade:
-1. Intelligent UI response schema: text, charts, diagrams, cards and safe interactive widgets.
+1. Intelligent UI client rendering: the data-only CORE-024 schema now supports text, charts, diagrams, cards, tables, checklists and confirmation-gated actions; the Android client still needs to render these components.
 2. Durable multi-agent sessions, explicit subagent delegation and traceable work.
 3. Governed browser/computer-use adapter with per-domain approvals and visible user confirmation.
 4. GPT-Live-1 realtime audio bridge, custom voice setup, SIP only where the user configures a provider.
