@@ -90,7 +90,8 @@ The update catalog is maintained in `shadow/supernice/openai_capabilities.py`. I
 - **Agents and execution:** computer-use browser access, multi-agent delegation, scheduled automations, session tool updates, automatic review, background compaction, prewarmed sandboxes, and document/spreadsheet/presentation artifacts are recorded as API integration targets; they are not claimed live until wired and credential-tested.
 - **Voice and structured reasoning:** GPT-Live API, prompt-to-voice, SIP, Decisions integration, and the Decisions API are catalogued separately from the current Android voice transport.
 - **Performance:** Ultrafast service tiers, asynchronous tool calls, mid-turn steering, and 12-hour prompt caching are recorded as optional API capabilities.
-- **Product surfaces:** Intelligent UI, Slides/Pages, Dots, locked chats, reusable reference images, connected-app library, flashcards, and security history are tracked as SHADOW design targets rather than falsely reported as provider API endpoints.
+- **Intelligent UI:** CORE-024 now emits a safe data-only schema for text, cards, tables, charts, diagrams, checklists and confirmation-gated actions; Android client rendering remains pending.
+- **Other product surfaces:** Slides/Pages, Dots, locked chats, reusable reference images, connected-app library, flashcards, and security history are tracked as SHADOW design targets rather than falsely reported as provider API endpoints.
 - **Restricted research/security models:** GPT-6 Cyber requires approved-defender access; GPT-6 Rosalind requires trusted-access approval. Listing either model does not grant access.
 
 API keys, organization entitlements, model availability, billing, and regional restrictions remain provider-controlled. SHADOW reports missing configuration honestly and never silently substitutes an unavailable model.
