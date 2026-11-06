@@ -215,7 +215,6 @@ def live(req:CoreRequest,spec:CoreSpec,root:str,state:dict[str,Any])->CoreResult
     if spec.id=="CORE-077": return ok(spec,{"changed":False,"suggestions":["split long functions","normalize inputs","add tests"]})
     if spec.id=="CORE-078": return ok(spec,{"framework":"pytest","test":"def test_generated_behavior():\n    assert True\n"})
     if spec.id=="CORE-079": return ok(spec,{"stages":["inspect","compile","test","package","verify"],"executed":False})
-    if spec.id=="CORE-080": return ok(spec,{"stages":["read failure","locate first error","reproduce","patch","rerun"]})
     if spec.id=="CORE-080":
         findings=ctx.get("findings",[])
         if not isinstance(findings,list): findings=[]
