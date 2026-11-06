@@ -2,7 +2,7 @@ import { config, ai } from "hatchable";
 import { referenceReceipt } from "./visual-evolution.js";
 
 const MAX_BYTES=12000000;
-const PLATFORM_VISION_MODELS=["gemini-flash","gpt","sonnet"];
+const PLATFORM_VISION_MODELS=["gpt-6.1-terra","gpt-6-astra","gemini-flash","gpt","sonnet"];
 
 async function secret(name){try{return String(await config.get(name)||"").trim()}catch{return ""}}
 function clean(v,n=8000){return String(v??"").trim().slice(0,n)}
