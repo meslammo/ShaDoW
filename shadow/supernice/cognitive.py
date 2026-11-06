@@ -35,7 +35,7 @@ class CognitiveEngine:
     VERSION = "1.0.0"
 
     _QUESTION = re.compile(r"^(?:what|why|how|when|where|who|which|can you|could you|explain|اشرح|يعني|ليه|ازاي|إزاي|متى|فين|ما هو|ما هي)\b", re.I)
-    _CREATE = re.compile(r"\b(?:create|build|make|write|generate|design|develop|اعمل|اعملي|اعمللي|أنشئ|انشئ|صمم|صمّم|ابني|اكتب|طوّر|طور)\b", re.I)
+    _CREATE = re.compile(r"\b(?:create|build|make|write|generate|design|develop|أعمل|اعمل|اعملي|اعمللي|أنشئ|انشئ|صمم|صمّم|ابني|اكتب|طوّر|طور)\b", re.I)
     _CHANGE = re.compile(r"\b(?:edit|update|modify|fix|change|repair|عدّل|عدل|حدّث|حدث|غيّر|غير|اصلح|أصلح)\b", re.I)
     _RESEARCH = re.compile(r"\b(?:search|find|research|look up|compare|ابحث|دور|هات|قارن|اعرف)\b", re.I)
     _ACTION = re.compile(r"\b(?:run|execute|deploy|publish|send|delete|merge|commit|push|نفّذ|نفذ|شغّل|شغل|انشر|ابعت|احذف|ادمج)\b", re.I)
