@@ -9,6 +9,7 @@ from .catalog import CORE_BY_ID
 
 PLAN_SCHEMA = "shadow.task-plan.v1"
 RISK_LEVELS = {"low", "medium", "high", "critical"}
+APPROVAL_TOOLS = {"file_write", "memory_save", "memory_forget", "device_action"}
 TOOL_NAMES = {
     "calculator", "web_search", "web_fetch", "web_research", "github_read",
     "memory_search", "memory_save", "memory_forget", "file_read", "file_write",
@@ -75,6 +76,8 @@ def validate_task_plan(payload: Any, request: str = "") -> PlanValidation:
         if not isinstance(approval, bool):
             errors.append(f"step_{index}_invalid_approval")
             approval = True
+        core_requires_approval = bool(core_id and getattr(CORE_BY_ID[core_id], "requires_confirmation", False))
+        approval = approval or tool in APPROVAL_TOOLS or core_requires_approval
         steps.append({
             "id": step_id, "title": title, "status": "pending",
             "core_id": core_id, "tool": tool, "requires_approval": approval,
@@ -87,7 +90,7 @@ def validate_task_plan(payload: Any, request: str = "") -> PlanValidation:
     if not isinstance(approval_required, bool):
         errors.append("invalid_approval_required")
         approval_required = True
-    if _HIGH_RISK.search(str(request)) or any(x["requires_approval"] for x in steps):
+    if risk in {"high", "critical"} or _HIGH_RISK.search(str(request)) or any(x["requires_approval"] for x in steps):
         approval_required = True
         if risk in {"low", "medium"}:
             risk = "high"
