@@ -14,7 +14,7 @@ PROVIDERS=(
     Provider("ollama",frozenset({"chat","reasoning","vision","embeddings"}),False,False),
     Provider("vllm",frozenset({"chat","reasoning","vision","embeddings"}),False,False),
     Provider("llamacpp",frozenset({"chat","reasoning","embeddings"}),False,False),
-    Provider("openai",frozenset({"chat","reasoning","vision","image","audio"}),True,True),
+    Provider("openai",frozenset({"chat","reasoning","vision","image","audio","image_generation","image_edit","gif_generation","svg_generation","markup_edit","computer_use","agents","multi_agent","live_audio","decisions","structured_output","web_search","ultrafast"}),True,True),
     Provider("xai",frozenset({"chat","reasoning","image"}),True,True),
     Provider("deepseek",frozenset({"chat","reasoning"}),True,True),
     Provider("mistral",frozenset({"chat","reasoning","vision","embeddings"}),True,True),
