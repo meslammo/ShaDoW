@@ -16,6 +16,12 @@ jobs:
           python-version: '3.11'
       - name: Install
         run: python -m pip install -e . pytest
+      - name: Prepare isolated sandbox runtime
+        run: |
+          docker info --format '{{.ServerVersion}}'
+          docker pull python:3.12.16-alpine3.24
+          image_id="$(docker image inspect --format '{{.Id}}' python:3.12.16-alpine3.24)"
+          echo "SHADOW_SANDBOX_IMAGE=$image_id" >> "$GITHUB_ENV"
       - name: Compile
         run: python -m compileall -q shadow
       - name: Tests
