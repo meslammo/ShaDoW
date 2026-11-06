@@ -17,3 +17,10 @@ Key live endpoints:
 - POST /api/v1/images/edit
 
 Versioned release: Brain v2.0 / Central Intelligence v2.0 / Visual Evolution v2.0 / Hatchable v49.
+
+## Image Engine v3.1 — Images 2.6 integration (2026-11-06)
+
+The previous v2 note described an adapter-ready visual director. The current branch adds an actual credential-gated OpenAI Images 2.6 API client, a restored image-engine compatibility module, generation and editing routes, GIF/SVG/markup controls, and deterministic format-aware artifact QA. CORE-100 and CORE-101 can call the configured SHADOW backend API; without `SHADOW_IMAGE_API_BASE_URL`, the 150-Core runtime reports an unavailable adapter rather than claiming success.
+
+The API key stays server-side. GPT Image 2.6 is used only when an OpenAI key is configured; otherwise standard PNG generation may use the existing explicit fallback. Advanced formats do not silently downgrade to PNG.
+
