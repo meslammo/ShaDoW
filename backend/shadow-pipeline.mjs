@@ -42,8 +42,8 @@ const RISKY_REQUEST = /(delete|wipe|format|purchase|buy|pay|transfer|send|publis
 
 export function parseValidatedTaskPlan(answer, request) {
   const source = String(answer || '');
-  const match = source.match(/<shadow_task_plan>\\s*(\\{[\\s\\S]*?\\})\\s*<\\/shadow_task_plan>/i);
-  if (!match) return { answer: source.replace(/<shadow_task_plan>[\\s\\S]*?<\\/shadow_task_plan>/gi, '').trim(), plan: null, status: 'not_provided' };
+  const match = source.match(/<shadow_task_plan>\s*(\{[\s\S]*?\})\s*<\/shadow_task_plan>/i);
+  if (!match) return { answer: source.replace(/<shadow_task_plan>[\s\S]*?<\/shadow_task_plan>/gi, '').trim(), plan: null, status: 'not_provided' };
   let raw;
   try { raw = JSON.parse(match[1]); }
   catch { return { answer: source.replace(match[0], '').trim(), plan: null, status: 'rejected', errors: ['invalid_json'] }; }
