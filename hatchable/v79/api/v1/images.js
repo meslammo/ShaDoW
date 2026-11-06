@@ -81,6 +81,6 @@ export default async function(req,res){
         : null
     });
   }catch(e){
-    return res.status(502).json({ok:false,error:"image_generation_failed",detail:String(e?.message||e).slice(0,400),engine:"shadow-image-engine-v3.0"});
+    return res.status(502).json({ok:false,error:"image_generation_failed",detail:String(e?.message||e).slice(0,400),engine:"shadow-image-engine-v3.1"});
   }
 }
