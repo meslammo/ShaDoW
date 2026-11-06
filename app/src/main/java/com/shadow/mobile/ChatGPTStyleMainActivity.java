@@ -32,6 +32,8 @@ import android.widget.Toast;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * MOD-116: ChatGPT-style Shadow shell built on the existing Shadow Brain/Cloud stack.
@@ -607,6 +609,7 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
                         op.step("💬", "Conversation Engine", true);
                         op.finish(true, (reply.provider == null ? "online" : reply.provider) + " • " + (reply.model == null ? "model" : reply.model));
                         assistantWithActions(reply.answer == null ? "وصل الطلب من غير نص رد." : reply.answer);
+                        showExecutionPlan(reply, text);
                         if (voiceRepliesEnabled) speak(reply.answer);
                         finishBusy();
                     });
@@ -623,6 +626,150 @@ public final class ChatGPTStyleMainActivity extends Activity implements TextToSp
                 });
             }
         });
+    }
+
+    private void showExecutionPlan(ShadowCloudClient.CloudReply reply, String originalMessage) {
+        JSONObject trace = reply == null ? null : reply.trace;
+        JSONArray phases = trace == null ? null : trace.optJSONArray("phases");
+        JSONObject taskPlan = trace == null ? null : trace.optJSONObject("task_plan");
+        ShadowCloudClient.PendingAction pending = reply == null ? null : reply.pendingAction;
+        if ((phases == null || phases.length() == 0) && taskPlan == null && (pending == null || !pending.requiresConfirmation)) return;
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(13), dp(10), dp(13), dp(10));
+        card.setBackground(rounded(SURFACE, 14));
+        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+        cardLp.setMargins(0, dp(5), 0, dp(12));
+        messages.addView(card, cardLp);
+
+        TextView heading = tv("خطة التنفيذ والتقدم", 14);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        card.addView(heading);
+        if (taskPlan != null) {
+            TextView goal = tv("الهدف: " + taskPlan.optString("goal", "غير محدد"), 13);
+            goal.setTextColor(TEXT);
+            goal.setPadding(0, dp(7), 0, dp(7));
+            card.addView(goal);
+            JSONArray steps = taskPlan.optJSONArray("steps");
+            if (steps != null) {
+                for (int i = 0; i < steps.length(); i++) {
+                    JSONObject step = steps.optJSONObject(i);
+                    if (step == null) continue;
+                    String title = step.optString("title", "خطوة");
+                    String state = step.optString("status", "pending");
+                    TextView row = tv("○  " + title + " — " + stateLabel(state), 12);
+                    row.setTextColor(MUTED);
+                    row.setPadding(dp(4), dp(4), 0, dp(4));
+                    card.addView(row);
+                }
+            }
+            String question = taskPlan.optString("clarification_question", "").trim();
+            if (!question.isEmpty()) {
+                TextView clarification = tv("محتاج توضيح منك: " + question, 13);
+                clarification.setTextColor(THINK_RED);
+                clarification.setPadding(0, dp(7), 0, dp(5));
+                card.addView(clarification);
+            }
+            if (taskPlan.optBoolean("approval_required", false)) {
+                TextView approval = tv("الخطة تحتاج موافقتك قبل أي تنفيذ حساس. الخطوات المعروضة مقترحة وليست منفذة.", 12);
+                approval.setTextColor(THINK_RED);
+                approval.setPadding(0, dp(5), 0, dp(7));
+                card.addView(approval);
+            }
+        }
+        if (phases != null) {
+            for (int i = 0; i < phases.length(); i++) {
+                JSONObject phase = phases.optJSONObject(i);
+                if (phase == null) continue;
+                String name = phase.optString("stage", "step");
+                String state = phase.optString("status", "pending");
+                String label = phaseLabel(name);
+                boolean done = state.equals("executed") || state.equals("loaded") || state.equals("confirmed") || state.equals("response_verified") || state.equals("completed") || state.equals("not_required") || state.equals("policy_checked");
+                boolean failed = state.equals("failed") || state.equals("degraded");
+                TextView row = tv((done ? "✓  " : failed ? "!  " : "○  ") + label + " — " + stateLabel(state), 12);
+                row.setTextColor(done ? GREEN : failed ? THINK_RED : MUTED);
+                row.setPadding(0, dp(5), 0, dp(5));
+                card.addView(row);
+            }
+        }
+        if (pending != null && pending.requiresConfirmation) {
+            View divider = new View(this);
+            divider.setBackgroundColor(DIVIDER);
+            LinearLayout.LayoutParams dividerLp = new LinearLayout.LayoutParams(-1, dp(1));
+            dividerLp.setMargins(0, dp(7), 0, dp(8));
+            card.addView(divider, dividerLp);
+            TextView approvalTitle = tv("موافقتك مطلوبة قبل تنفيذ الإجراء", 13);
+            approvalTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+            approvalTitle.setTextColor(THINK_RED);
+            card.addView(approvalTitle);
+            TextView detail = tv(pending.action + (pending.argument.isEmpty() ? "" : "\n" + pending.argument) + (pending.reason.isEmpty() ? "" : "\nالسبب: " + pending.reason), 12);
+            detail.setTextColor(TEXT);
+            detail.setPadding(0, dp(5), 0, dp(8));
+            card.addView(detail);
+            LinearLayout controls = new LinearLayout(this);
+            controls.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            TextView approve = actionButton("موافقة وتنفيذ");
+            approve.setTextColor(GREEN);
+            TextView reject = actionButton("رفض");
+            reject.setTextColor(THINK_RED);
+            controls.addView(reject);
+            controls.addView(approve);
+            card.addView(controls);
+            approve.setOnClickListener(v -> {
+                approve.setEnabled(false);
+                io.submit(() -> {
+                    try {
+                        ShadowCloudClient.CloudReply next = cloud.continueAgent(reply.provider, reply.responseId, pending.toolCallId, originalMessage,
+                                "The user explicitly approved this pending action: " + pending.action + " " + pending.argument, "none");
+                        main.post(() -> {
+                            assistantWithActions(next.answer == null || next.answer.isEmpty() ? "تم استكمال طلب الموافقة. راجع نتيجة الأداة أعلاه." : next.answer);
+                            showExecutionPlan(next, originalMessage);
+                        });
+                    } catch (Throwable error) {
+                        main.post(() -> {
+                            approve.setEnabled(true);
+                            assistant("تعذر استكمال الإجراء بعد الموافقة: " + String.valueOf(error.getMessage()));
+                        });
+                    }
+                });
+            });
+            reject.setOnClickListener(v -> {
+                card.removeView(controls);
+                TextView rejected = tv("تم رفض الإجراء. لم يرسل SHADOW موافقة للتنفيذ.", 12);
+                rejected.setTextColor(MUTED);
+                card.addView(rejected);
+            });
+        }
+        bottom();
+    }
+
+    private String phaseLabel(String stage) {
+        switch (stage) {
+            case "understand": return "فهم الطلب";
+            case "memory": return "استرجاع السياق والذاكرة";
+            case "governance": return "فحص الأمان والموافقات";
+            case "multimodal_normalization": return "تجهيز المرفقات";
+            case "semantic_vision": return "فهم الصور";
+            case "model_route": return "اختيار نموذج الذكاء الاصطناعي";
+            case "tools": return "تشغيل الأدوات";
+            case "verify": return "التحقق من النتيجة";
+            case "deliver": return "تسليم النتيجة";
+            default: return stage;
+        }
+    }
+
+    private String stateLabel(String state) {
+        switch (state) {
+            case "executed": case "loaded": case "completed": case "response_verified": return "مكتمل";
+            case "confirmed": return "تمت الموافقة";
+            case "policy_checked": return "تم فحص السياسة";
+            case "not_required": return "غير مطلوب";
+            case "pending": return "قيد الانتظار";
+            case "action_pending": return "ينتظر موافقتك";
+            case "failed": case "degraded": return "تعثر";
+            default: return state;
+        }
     }
 
     private void finishBusy() {

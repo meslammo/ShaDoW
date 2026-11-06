@@ -3,6 +3,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { runAgent, streamAgent, memoryStatus, providerStatus } from './ai-router.mjs';
 import { analyzeSemanticVision, semanticVisionStatus } from './semantic-vision.mjs';
+import { parseValidatedTaskPlan } from './task-plan.mjs';
 
 const AUDIT_DIR = path.resolve(process.env.SHADOW_AUDIT_DIR || process.env.SHADOW_MEMORY_DIR || '/data/shadow-memory');
 const AUDIT_FILE = path.join(AUDIT_DIR, 'shadow-audit.jsonl');
@@ -102,6 +103,12 @@ export async function runUnifiedPipeline({
       },
     });
 
+    const planned = parseValidatedTaskPlan(result.answer, request);
+    result.answer = planned.answer;
+    trace.task_plan = planned.plan;
+    trace.plan_status = planned.status;
+    if (planned.errors) trace.plan_errors = planned.errors;
+
     const modelPhase = 5;
     trace.phases[modelPhase] = stage('model_route', 'executed', {
       provider: result.provider || null,
@@ -120,6 +127,7 @@ export async function runUnifiedPipeline({
     const elapsedMs = Date.now() - started;
     const output = {
       ...result,
+      task_plan: planned.plan,
       trace: { ...trace, duration_ms: elapsedMs, semantic_vision: vision ? { provider: vision.provider, model: vision.model, image_count: vision.normalized.imageCount, result: vision.result } : null },
     };
     await audit({
