@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass, field
 import re
 from typing import Any, Mapping
 
+from .planning import planning_contract
+
 
 @dataclass(frozen=True)
 class CognitiveIntent:
@@ -93,22 +95,7 @@ class CognitiveEngine:
             "schema": "shadow.cognitive-request.v1",
             "engine_version": self.VERSION,
             "intent": intent.to_dict(),
-            "plan_contract": {
-                "schema": "shadow.task-plan.v1",
-                "fields": {
-                    "goal": "concise user-visible outcome",
-                    "assumptions": "only explicit or clearly marked assumptions",
-                    "steps": [{"id": "stable step id", "title": "short action", "status": "pending|running|completed|blocked", "tool": "registered tool or core when known", "requires_approval": "boolean"}],
-                    "clarification_question": "one question or empty string",
-                    "risk": "low|medium|high|critical",
-                    "approval_required": "boolean"
-                },
-                "rules": [
-                    "Plan before executing multi-step work.",
-                    "Do not invent tool availability or claim a planned step is completed.",
-                    "Mark external, destructive, financial, publishing, and repository mutations as approval-required."
-                ]
-            },
+            "plan_contract": planning_contract(),
             "planning_instructions": [
                 "Infer the user's intended outcome from the complete conversation context.",
                 "For multi-step requests, prepare a concise task plan using plan_contract before invoking tools.",
