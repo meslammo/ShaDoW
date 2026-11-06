@@ -12,7 +12,7 @@ def test_secret_detection_redacts_value():
 
 
 def test_unsafe_python_and_api_settings_are_flagged():
-    findings = scan_text("app.py", "eval(user_input)\nCORS = '*'\n")
+    findings = scan_text("app.py", "eval(user_input)\\nAccess-Control-Allow-Origin: '*'\\n")
     assert {x["category"] for x in findings} >= {"unsafe_code", "api_configuration"}
 
 
