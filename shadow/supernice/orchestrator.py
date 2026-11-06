@@ -14,7 +14,7 @@ from uuid import uuid4
 from .catalog import CORE_BY_ID
 from .contracts import CoreRequest, CoreResult
 from .cognitive import CognitiveEngine
-from .planning import extract_task_plan, validate_task_plan
+from .planning import extract_task_plan, strip_task_plan_envelope, validate_task_plan
 from .integration import SuperNiceRuntime
 from .evolution import UnifiedControlPlane
 from .online_brain import GovernedOnlineBrainAdapter, RealOnlineBrainAdapter
@@ -260,6 +260,7 @@ class Unified150Orchestrator:
             return UnifiedRunResult(False, "empty_online_brain_response", selected_core=selected, events=events, metadata={"request_id": request_id})
 
         raw_task_plan = brain_payload.get("task_plan") or extract_task_plan(answer)
+        answer = strip_task_plan_envelope(answer)
         task_plan = None
         task_plan_status = "not_provided"
         if raw_task_plan is not None:
