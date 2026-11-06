@@ -40,7 +40,7 @@ const REGISTERED_TOOLS = new Set([
 ]);
 const RISKY_REQUEST = /(delete|wipe|format|purchase|buy|pay|transfer|send|publish|deploy|commit|push|merge|حذف|امسح|فورمات|شراء|دفع|تحويل|انشر|ادمج)/i;
 
-function parseValidatedTaskPlan(answer, request) {
+export function parseValidatedTaskPlan(answer, request) {
   const source = String(answer || '');
   const match = source.match(/<shadow_task_plan>\\s*(\\{[\\s\\S]*?\\})\\s*<\\/shadow_task_plan>/i);
   if (!match) return { answer: source.replace(/<shadow_task_plan>[\\s\\S]*?<\\/shadow_task_plan>/gi, '').trim(), plan: null, status: 'not_provided' };
