@@ -113,6 +113,8 @@ class Unified150Orchestrator:
     @staticmethod
     def select_core(request: str) -> str:
         text = str(request or "").lower()
+        if any(x in text for x in ("security", "cyber", "vulnerability", "cve", "malware", "threat", "ثغرة", "ثغرات", "أمن سيبراني", "اختراق", "فيروس", "برمجية خبيثة")):
+            return "CORE-086"
         if any(x in text for x in ("github", "git ", "repo", "repository", "جيت هاب", "كود", "برمجة")):
             return "CORE-081"
         if any(x in text for x in ("ابحث", "search", "latest", "news", "update", "آخر", "اخر", "النهارده")):
